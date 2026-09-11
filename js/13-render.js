@@ -21,7 +21,7 @@ function render() {
   for (let ccy = firstCy; ccy <= lastCy; ccy++) {
     for (let ccx = firstCx; ccx <= lastCx; ccx++) {
       const chk = getChunkCanvas(ccx, ccy);
-      ctx.drawImage(chk, ccx * CHUNK_PX - cx, ccy * CHUNK_PX - cy);
+      ctx.drawImage(chk, ccx * CHUNK_PX - cx, ccy * CHUNK_PX - cy, CHUNK_PX, CHUNK_PX);
     }
   }
 
@@ -337,6 +337,10 @@ function render() {
   if (g.player.invulnTimer > 0 && Math.floor(g.time / 80) % 2 === 0) {
     ctx.globalAlpha = 0.4;
   }
+
+  // Dynamic cape (drawn behind the body)
+  drawCape(cx, cy);
+
   // Body
   ctx.fillStyle = '#4cf';
   ctx.beginPath();
@@ -347,10 +351,10 @@ function render() {
   ctx.beginPath();
   ctx.arc(px - 3, py - 3, g.player.radius * 0.5, 0, PI2);
   ctx.fill();
-  // Direction indicator
+  // Direction indicator (uses smoothed render angle)
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.arc(px + Math.cos(g.player.facingAngle) * 10, py + Math.sin(g.player.facingAngle) * 10, 3, 0, PI2);
+  ctx.arc(px + Math.cos(g.player.renderAngle) * 10, py + Math.sin(g.player.renderAngle) * 10, 3, 0, PI2);
   ctx.fill();
   ctx.globalAlpha = 1;
 
@@ -442,6 +446,86 @@ function render() {
     ctx.arc(stickX, stickY, 24 * 1.5, 0, PI2);
     ctx.fill();
   }
+}
+
+// --- Dynamic cape: trapezoid cloth grid that billows like a flag ---
+// The neck edge (narrow, attached to the player) is behind; the cloth widens
+// towards the free tail edge that floats and waves in the wind.
+function drawCape(cx, cy) {
+  const p = game.player;
+  const cap = p.cape;
+  if (!cap || !cap.grid || cap.grid.length < 2) return;
+  const { grid, L, W } = cap;
+
+  // Fill the whole cloth as one smooth polygon along the outer boundary.
+  ctx.beginPath();
+  // left edge: neck -> tail
+  for (let i = 0; i < L; i++) {
+    const pt = grid[0][i];
+    const sx = pt.x - cx, sy = pt.y - cy;
+    if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+  }
+  // tail edge: left -> right
+  for (let j = 1; j < W; j++) {
+    const pt = grid[j][L - 1];
+    ctx.lineTo(pt.x - cx, pt.y - cy);
+  }
+  // right edge: tail -> neck
+  for (let i = L - 2; i >= 0; i--) {
+    const pt = grid[W - 1][i];
+    ctx.lineTo(pt.x - cx, pt.y - cy);
+  }
+  // neck edge: right -> left (thin, hugs the player's back)
+  for (let j = W - 2; j >= 0; j--) {
+    const pt = grid[j][0];
+    ctx.lineTo(pt.x - cx, pt.y - cy);
+  }
+  ctx.closePath();
+
+  // Gradient along the cloth: dark deep-blue at the neck, lighter/translucent tail
+  const nA = grid[0][0], tA = grid[0][L - 1];
+  const grad = ctx.createLinearGradient(nA.x - cx, nA.y - cy, tA.x - cx, tA.y - cy);
+  grad.addColorStop(0, 'rgba(12,40,90,0.95)');
+  grad.addColorStop(0.45, 'rgba(24,80,160,0.9)');
+  grad.addColorStop(1, 'rgba(40,140,230,0.35)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Subtle fold lines along the length (vertical in cloth-wind direction) so it
+  // reads as fabric rippling, not a flat silhouette.
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  for (let j = 1; j < W - 1; j++) {
+    ctx.strokeStyle = 'rgba(160,220,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < L; i++) {
+      const pt = grid[j][i];
+      const sx = pt.x - cx, sy = pt.y - cy;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Colored border around the whole cloth perimeter
+  ctx.save();
+  // Outer stroke (soft glow)
+  ctx.strokeStyle = 'rgba(255,215,80,0.35)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(grid[0][0].x - cx, grid[0][0].y - cy);
+  for (let i = 1; i < L; i++) ctx.lineTo(grid[0][i].x - cx, grid[0][i].y - cy);
+  for (let j = 1; j < W; j++) ctx.lineTo(grid[j][L - 1].x - cx, grid[j][L - 1].y - cy);
+  for (let i = L - 2; i >= 0; i--) ctx.lineTo(grid[W - 1][i].x - cx, grid[W - 1][i].y - cy);
+  for (let j = W - 2; j > 0; j--) ctx.lineTo(grid[j][0].x - cx, grid[j][0].y - cy);
+  ctx.closePath();
+  ctx.stroke();
+  // Inner crisp border
+  ctx.strokeStyle = 'rgba(255,230,140,0.95)';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawMinimap() {

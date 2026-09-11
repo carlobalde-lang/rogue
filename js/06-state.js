@@ -19,7 +19,9 @@ function createGameState() {
       weapons: [],
       passives: [],
       invulnTimer: 0,
-      facingAngle: 0
+      facingAngle: 0,
+      renderAngle: 0,
+      cape: null
     },
     enemies: [],
     projectiles: [],

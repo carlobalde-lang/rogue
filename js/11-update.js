@@ -30,9 +30,19 @@ function updatePlayer(dt, dtSec) {
       if (!circleBlocked(nx, p.y, p.radius)) p.x = nx;
       const ny = p.y + stepY;
       if (!circleBlocked(p.x, ny, p.radius)) p.y = ny;
+      // Instant logical heading (for gameplay), but the rendered body turns
+      // quickly and smoothly toward it instead of snapping around.
       p.facingAngle = Math.atan2(my, mx);
+      const diff = Math.atan2(
+        Math.sin(p.facingAngle - p.renderAngle),
+        Math.cos(p.facingAngle - p.renderAngle)
+      );
+      p.renderAngle += diff * Math.min(1, dtSec * 20);
     }
   }
+
+  // --- Dynamic cape (verlet chain trailing the player's back) ---
+  updateCape(dtSec);
 
   // --- Flow field recompute (only when player moves to a new tile) ---
   const pTileX = Math.floor(p.x / TILE);
@@ -46,6 +56,167 @@ function updatePlayer(dt, dtSec) {
   // Camera
   g.camera.x = lerp(g.camera.x, p.x - VIEW_W / 2, 0.08);
   g.camera.y = lerp(g.camera.y, p.y - VIEW_H / 2, 0.08);
+}
+
+// --- Dynamic cape: verlet cloth grid that billows like a flag ---
+// A trapezoid of points pinned along its narrow "neck" edge to the player's
+// back; the free (tail) edge widens and waves under wind + flutter.
+function initCape() {
+  const p = game.player;
+  const L = 3;                  // segments neck -> tail (compact cape)
+  const W = 5;                  // segments across the cloth
+  const SEG_L = 6.5;            // px per length segment
+  const NECK_W = 10;            // attachment width (narrow, on the back)
+  const TAIL_W = 46;            // free-edge width (widens outward)
+  const backAng = p.renderAngle + Math.PI;
+  const perp = backAng + Math.PI / 2;
+  const neckX = p.x + Math.cos(backAng) * p.radius;
+  const neckY = p.y + Math.sin(backAng) * p.radius;
+
+  const grid = [];
+  for (let j = 0; j < W; j++) {
+    const col = [];
+    for (let i = 0; i < L; i++) {
+      const frac = i / (L - 1);
+      const halfW = NECK_W * 0.5 + (TAIL_W * 0.5 - NECK_W * 0.5) * frac;
+      const wf = j / (W - 1) - 0.5;
+      const x = neckX + Math.cos(backAng) * (i * SEG_L) + Math.cos(perp) * (halfW * wf * 2);
+      const y = neckY + Math.sin(backAng) * (i * SEG_L) + Math.sin(perp) * (halfW * wf * 2);
+      col.push({ x, y, px: x, py: y, i, j });
+    }
+    grid.push(col);
+  }
+
+  // Pre-compute rest distances (along length, across width, diagonal) from the
+  // initial trapezoid layout so the cloth keeps its taper and shear stiffness.
+  for (let j = 0; j < W; j++) {
+    for (let i = 0; i < L; i++) {
+      const a = grid[j][i];
+      if (i + 1 < L) a.restL = dist(a, grid[j][i + 1]);
+      if (j + 1 < W) a.restW = dist(a, grid[j + 1][i]);
+      if (j + 1 < W && i + 1 < L) a.restD = dist(a, grid[j + 1][i + 1]);
+    }
+  }
+
+  p.cape = { grid, L, W, SEG_L, NECK_W, TAIL_W };
+}
+
+function solveCape(a, b, rest) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  const d = Math.hypot(dx, dy) || 0.001;
+  const diff = (d - rest) / d;
+  a.x -= dx * diff * 0.5;
+  a.y -= dy * diff * 0.5;
+  b.x += dx * diff * 0.5;
+  b.y += dy * diff * 0.5;
+}
+
+function updateCape(dtSec) {
+  const p = game.player;
+  if (!p.cape) initCape();
+  const cap = p.cape;
+  const { grid, W, L, NECK_W, TAIL_W, SEG_L } = cap;
+  const backAng = p.renderAngle + Math.PI;
+  const perp = backAng + Math.PI / 2;
+  const neckX = p.x + Math.cos(backAng) * p.radius;
+  const neckY = p.y + Math.sin(backAng) * p.radius;
+
+  // Pin the whole neck column to the player's back (rotates with the body)
+  for (let j = 0; j < W; j++) {
+    const wf = j / (W - 1) - 0.5;
+    const x = neckX + Math.cos(perp) * (NECK_W * wf);
+    const y = neckY + Math.sin(perp) * (NECK_W * wf);
+    const pt = grid[j][0];
+    pt.x = x; pt.y = y; pt.px = x; pt.py = y;
+  }
+
+  // How fast the player moves FORWARD (dot of velocity with facing direction).
+  // Wind always blows toward the back of the body, so reversing the player
+  // never flips the cape into them — it simply stops blowing and a spring
+  // restores the cloth to a clean flag shape behind the back.
+  const vx0 = p.x - (p._capePrevX != null ? p._capePrevX : p.x);
+  const vy0 = p.y - (p._capePrevY != null ? p._capePrevY : p.y);
+  p._capePrevX = p.x; p._capePrevY = p.y;
+  const dot = vx0 * Math.cos(p.renderAngle) + vy0 * Math.sin(p.renderAngle);
+  const windMag = 0.14 + clamp(dot / 4, -1, 1) * 0.30;
+  const windX = Math.cos(backAng) * windMag;
+  const windY = Math.sin(backAng) * windMag;
+  const tNow = game.time;
+
+  // Verlet integrate (skip pinned neck row)
+  const spf = dtSec * 1.6;                    // very light guide toward ideal shape
+  for (let j = 0; j < W; j++) {
+    for (let i = 1; i < L; i++) {
+      const pt = grid[j][i];
+      const frac = i / (L - 1);
+      // Ideal rest position: clean flag shape behind the player's back
+      const halfW = NECK_W * 0.5 + (TAIL_W * 0.5 - NECK_W * 0.5) * frac;
+      const wf = j / (W - 1) - 0.5;
+      const idealX = neckX + Math.cos(backAng) * (i * SEG_L) + Math.cos(perp) * (halfW * wf * 2);
+      const idealY = neckY + Math.sin(backAng) * (i * SEG_L) + Math.sin(perp) * (halfW * wf * 2);
+      // Strong momentum lets it dash back and sway; the guide just keeps it
+      // ballparked. Folds are prevented by clampBehind() below, not by pinning.
+      const ff = (pt.x - pt.px) * 0.88;
+      const fy = (pt.y - pt.py) * 0.88;
+      pt.px = pt.x; pt.py = pt.y;
+      pt.x = pt.x + (idealX - pt.x) * spf + ff;
+      pt.y = pt.y + (idealY - pt.y) * spf + fy;
+      // base wind (stronger toward the tail) + travelling sin flutter
+      const k = 2.0 * dtSec;
+      const flut = Math.sin(tNow * 0.045 + i * 0.9 + j * 0.35);
+      const amp = (0.8 + 2.2 * frac);
+      pt.x += (windX * (0.25 + 0.75 * frac)
+        + Math.cos(perp) * flut * amp) * k;
+      pt.y += (windY * (0.25 + 0.75 * frac)
+        + Math.sin(perp) * flut * amp) * k;
+    }
+  }
+
+  // Distance constraints (3 passes) keep it cloth-like, not a rubber sheet
+  for (let iter = 0; iter < 2; iter++) {
+    for (let j = 0; j < W; j++) {
+      for (let i = 1; i < L; i++) {
+        const a = grid[j][i];
+        const prev = grid[j][i - 1];
+        solveCape(a, prev, prev.restL);
+        if (j > 0) solveCape(a, grid[j - 1][i], grid[j - 1][i].restW);
+        if (j > 0 && i > 0) solveCape(a, grid[j - 1][i - 1], grid[j - 1][i - 1].restD);
+      }
+    }
+  }
+
+  // Softness with hard limits — every free point may sway inside a lane around
+  // its own rest spot (generous along the wind, narrow across it). It can never
+  // drift far enough to cross a neighbouring segment or wrap round the body.
+  const r = p.radius;
+  const ax = Math.cos(backAng), ay = Math.sin(backAng);
+  const ux = Math.cos(perp), uy = Math.sin(perp);
+  const maxLongS = SEG_L * 2.2;             // how far it may dash back / stretch
+  for (let j = 0; j < W; j++) {
+    for (let i = 1; i < L; i++) {
+      const pt = grid[j][i];
+      const frac = i / (L - 1);
+      const halfW = NECK_W * 0.5 + (TAIL_W * 0.5 - NECK_W * 0.5) * frac;
+      const wf = j / (W - 1) - 0.5;
+      const rx = neckX + ax * (i * SEG_L) + ux * (halfW * wf * 2);
+      const ry = neckY + ay * (i * SEG_L) + uy * (halfW * wf * 2);
+      const maxCross = Math.max(7, SEG_L * 1.0 * (0.5 + frac));
+      const lon = (pt.x - rx) * ax + (pt.y - ry) * ay;
+      const crs = (pt.x - rx) * ux + (pt.y - ry) * uy;
+      const clon = clamp(lon, -maxLongS, maxLongS);
+      const ccrs = clamp(crs, -maxCross, maxCross);
+      pt.x = rx + ax * clon + ux * ccrs;
+      pt.y = ry + ay * clon + uy * ccrs;
+      // keep it floating off the body hitbox
+      const dx = pt.x - p.x, dy = pt.y - p.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < r * r) {
+        const d = Math.sqrt(d2) || 1;
+        const push = (r - d) * 1.3;
+        pt.x += (dx / d) * push; pt.y += (dy / d) * push;
+      }
+    }
+  }
 }
 
 // --- Wave / elite / boss spawning timers ---
