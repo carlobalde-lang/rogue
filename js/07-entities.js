@@ -46,12 +46,19 @@ function spawnEnemy(type) {
     xp: typeof def.xp === 'function' ? def.xp(dm) : def.xp,
     color: def.color,
     type: def.category,
+    kind: type,
     name: def.name,
     // Visual palette for the shadow-blob renderer
     body: def.body, core: def.core, glint: def.glint,
     aura: def.aura, auraAlpha: def.auraAlpha, auraScale: def.auraScale,
     flashTimer: 0
   };
+
+  // Specialized per-type fields
+  if (def.shield !== undefined) { base.shield = typeof def.shield === 'function' ? def.shield(dm) : def.shield; base.maxShield = base.shield; }
+  if (def.fireRate !== undefined) base.fireRate = typeof def.fireRate === 'function' ? def.fireRate(dm) : def.fireRate;
+  base.faceA = angleTo(base, p);
+  base.fireT = rand(0, 1200);
 
   // Dev multipliers
   const dev = game.dev;
@@ -75,7 +82,36 @@ function spawnEnemy(type) {
   g.enemies.push(base);
   g.totalEnemiesSpawned++;
   if (def.category === 'boss') Sound.play('bossWarn');
-  else if (def.category === 'elite') Sound.play('eliteWarn');
+  else if (def.category === 'elite' || def.category === 'warden') Sound.play('eliteWarn');
+}
+
+// Splitter death: bursts into two Shadowlings with half HP each
+function spawnSplitlings(x, y, maxHp, xp) {
+  const g = game;
+  const def = ENEMY_DEFS.normal;
+  const dm = g.difficultyMult;
+  const hp = Math.max(1, Math.floor(maxHp / 2));
+  const radius = def.radius(dm) * 0.8;
+  for (let side = -1; side <= 1; side += 2) {
+    const sx = x + side * 13, sy = y + rand(-8, 8);
+    g.enemies.push({
+      x: sx, y: sy, radius, hp, maxHp: hp,
+      speed: def.speed(dm), damage: def.damage(dm),
+      xp: Math.max(1, Math.ceil(xp / 2)),
+      color: def.color, type: 'normal', name: 'Shadowling',
+      body: def.body, core: def.core, glint: def.glint,
+      aura: def.aura, auraAlpha: def.auraAlpha, auraScale: def.auraScale,
+      vx: 0, vy: 0, ph: rand(0, PI2), flashTimer: 0
+    });
+    g.totalEnemiesSpawned++;
+  }
+}
+
+// A swarm of tiny, chunky pressure enemies
+function spawnSwarmlings() {
+  const g = game;
+  const n = 5 + randInt(0, 3);
+  for (let i = 0; i < n; i++) spawnEnemy('swarmling');
 }
 
 // Pick which "little guy" types show up in a regular wave, based on
@@ -91,6 +127,11 @@ function pickWaveType() {
 function spawnWave() {
   const g = game;
   const dm = g.difficultyMult;
+  // Swarm waves: a burst of Swarmlings for AoE pressure
+  if (dm >= 3 && Math.random() < 0.15) {
+    spawnSwarmlings();
+    return;
+  }
   const count = Math.floor(5 + dm * 4 + dm * dm * 0.3);
   for (let i = 0; i < count; i++) spawnEnemy(pickWaveType());
 }
@@ -98,7 +139,7 @@ function spawnWave() {
 // ============================================================
 // PROJECTILE CREATION
 // ============================================================
-function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEffect, shape, trail) {
+function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEffect, shape, trail, opts) {
   game.projectiles.push({
     x, y, vx, vy, dmg, radius: radius || 4, color: color || '#ff0',
     prevX: x, prevY: y,
@@ -108,6 +149,29 @@ function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEf
     trail: trail || false,
     rot: Math.atan2(vy, vx),
     trailTimer: 0,
-    hitEnemies: new Set()
+    hitEnemies: new Set(),
+    boomerang: !!(opts && opts.boomerang),
+    maxOut: (opts && opts.maxOut) || 0,
+    outDist: 0, returning: false
   });
+
+  // Duplicator: chance the same projectile fires a second, slightly offset copy
+  const pl = game.player;
+  if (pl && pl.duplicate && Math.random() < pl.duplicate) {
+    const baseA = Math.atan2(vy, vx) + (Math.random() < 0.5 ? -1 : 1) * 0.09;
+    const spd = Math.hypot(vx, vy);
+    game.projectiles.push({
+      x, y, vx: Math.cos(baseA) * spd, vy: Math.sin(baseA) * spd,
+      dmg, radius: (radius || 4) * 0.9, color: color || '#ff0',
+      prevX: x, prevY: y,
+      life: life || 1500, maxLife: life || 1500,
+      pierce: pierce || 0, areaEffect: areaEffect || 0,
+      shape: shape || 'circle', trail: trail || false,
+      rot: baseA, trailTimer: 0,
+      hitEnemies: new Set(),
+      boomerang: !!(opts && opts.boomerang),
+      maxOut: (opts && opts.maxOut) || 0,
+      outDist: 0, returning: false
+    });
+  }
 }

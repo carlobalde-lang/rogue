@@ -33,10 +33,13 @@ function showLevelUp() {
   container.innerHTML = '';
   for (let i = 0; i < choices.length; i++) {
     const c = choices[i];
+    const isPassive = !!c.passive;
     const card = document.createElement('div');
-    card.className = 'choice-card' + (i === 0 ? ' selected' : '');
+    card.className = 'choice-card' + (i === 0 ? ' selected' : '') +
+      (isPassive ? ' choice-passive' : ' choice-weapon');
     card.dataset.index = i;
     card.innerHTML = `
+      <div class="choice-badge">${isPassive ? 'PASSIVE' : 'WEAPON'}</div>
       <div class="choice-icon">${c.icon}</div>
       <div class="choice-name">${c.name}</div>
       <div class="choice-desc">${c.desc}</div>
@@ -111,23 +114,26 @@ function generateChoices() {
     }
   }
 
-  // Passives
+  // Passives (rarity-weighted: rare passives like Revive appear less often)
   const passiveKeys = Object.keys(PASSIVE_DEFS);
   for (const key of passiveKeys) {
     const def = PASSIVE_DEFS[key];
+    if (def.max !== undefined) {
+      const ownedCount = p.passives.filter(n => n === def.name).length;
+      if (ownedCount >= def.max) continue;
+    }
     pool.push({
       key, passive: true, icon: def.icon, name: def.name,
       desc: def.desc,
       levelText: 'Passive',
+      weight: def.weight || 1,
       apply: () => { def.apply(p); p.passives.push(def.name); }
     });
   }
 
-  // Shuffle and pick 3
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = randInt(0, i);
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
+  // Weighted shuffle and pick 3 (higher weight => more likely to surface)
+  for (const item of pool) item._rk = -Math.log(1 - Math.random()) / (item.weight || 1);
+  pool.sort((a, b) => a._rk - b._rk);
   return pool.slice(0, 3);
 }
 

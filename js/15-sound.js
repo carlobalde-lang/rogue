@@ -127,6 +127,15 @@ const Sound = (() => {
       tone({ f0: 880, f1: 700, dur: 0.05, vol: 0.12, type: 'triangle' });
       chime(1320, 1200, 0.04, 0.08, 0);
     }},
+    sawHit:     { minGap: 100, fn: () => {
+      tone({ f0: 620, f1: 240, dur: 0.07, vol: 0.16, type: 'square' });
+      noise({ f0: 4600, f1: 900, dur: 0.09, vol: 0.12, filterType: 'bandpass' });
+      tone({ f0: 1800, f1: 700, dur: 0.04, vol: 0.06, type: 'triangle' });
+    }},
+    shieldBreak:{ minGap: 250, fn: () => {
+      noise({ f0: 2500, f1: 500, dur: 0.25, vol: 0.35, filterType: 'bandpass' });
+      tone({ f0: 900, f1: 220, dur: 0.20, vol: 0.24, type: 'square' });
+    }},
     hit:        { minGap: 55,  fn: () =>
       tone({ f0: 260, f1: 150, dur: 0.06, vol: 0.11, type: 'triangle' })
     },
@@ -161,6 +170,11 @@ const Sound = (() => {
     select:     { minGap: 40,  fn: () =>
       tone({ f0: 700, f1: 500, dur: 0.05, vol: 0.16, type: 'square' })
     },
+    magnet:     { minGap: 800, fn: () => {
+      tone({ f0: 320, f1: 920, dur: 0.30, vol: 0.28 });
+      tone({ f0: 160, f1: 520, dur: 0.34, vol: 0.20, delay: 0.06, type: 'sawtooth' });
+      noise({ f0: 4200, f1: 250, dur: 0.32, vol: 0.12, filterType: 'highpass' });
+    }},
     bossWarn:   { minGap: 8000, fn: () => {
       tone({ f0: 90,  f1: 60,  dur: 0.55, vol: 0.45 });
       tone({ f0: 70,  f1: 45,  dur: 0.55, vol: 0.45, delay: 0.35 });
@@ -193,12 +207,12 @@ const Sound = (() => {
   // ============================================================
   // DYNAMIC PROCEDURAL MUSIC
   // Adapts tempo and layers to nearby enemy count.
-  // Calm: 72 BPM, soft pads + gentle arp.
-  // Intense (30+ enemies within 350px): ~120 BPM, louder pads,
-  // added kick/hi-hat percussion, thicker bass and arp.
+  // Calm: 72 BPM, soft pads + steady arp.
+  // Intense (30+ enemies within 350px): up to ~220 BPM, louder pads,
+  // added kick/hi-hat percussion and thicker bass; arp stays fixed.
   // ============================================================
   const CALM_BEAT = 60 / 72;                // 0.833s — 72 BPM
-  const HOT_BEAT  = 60 / 120;               // 0.500s — 120 BPM
+  const HOT_BEAT  = 60 / 220;               // 0.273s — 220 BPM
 
   const CHORDS = [
     { bass: 110.00, pad: [220.00, 261.63, 329.63, 392.00],
@@ -305,12 +319,10 @@ const Sound = (() => {
       // Sub-bass at high intensity
       if (i > 0.3) mTone(chord.bass * 0.5, t0, barDur * 0.8, bassVol * (i - 0.3) * 0.5, 'sine');
 
-      // --- Arpeggio ---
-      const arpBase = 8;
-      const arpExtra = Math.floor(i * 8);        // 0–8 extra notes
-      const arpCount = arpBase + arpExtra;
+      // --- Arpeggio (stays fixed at base count/volume in any intensity) ---
+      const arpCount = 8;
       const arpStep = (barDur * 2) / arpCount;
-      const arpVol = 0.030 + i * 0.035;
+      const arpVol = 0.030;
       for (let e = 0; e < arpCount; e++) {
         const n = chord.arp[e % chord.arp.length];
         mTone(n, t0 + e * arpStep, arpStep * 1.5, arpVol, 'triangle');

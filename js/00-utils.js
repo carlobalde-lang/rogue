@@ -30,6 +30,7 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const angleTo = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
 const lerp = (a, b, t) => a + (b - a) * t;
 const choose = arr => arr[randInt(0, arr.length - 1)];
+const wrapAngle = a => { while (a > Math.PI) a -= PI2; while (a < -Math.PI) a += PI2; return a; };
 
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);

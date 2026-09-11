@@ -215,6 +215,23 @@ document.getElementById('restart-btn').addEventListener('click', startGame);
 // Volume sliders (start & pause screens)
 initVolumeControls();
 
+// Refresh the best-runs leaderboard shown on the start screen
+if (typeof renderBestRuns === 'function') renderBestRuns();
+
+// Random slogan on the start screen
+const SLOGANS = [
+  'Feels like home',
+  'All the roguelike clichés all in one game',
+  'How long can you survive?',
+  'One more run… just one more',
+  'Every death is a new build',
+  'Get hit, get strong',
+  'The shadows are watching',
+  '500 shades of magic'
+];
+const sub = document.getElementById('start-subtitle');
+if (sub) sub.textContent = choose(SLOGANS);
+
 // Prevent context menu
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 

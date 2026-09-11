@@ -41,6 +41,31 @@ function updatePlayer(dt, dtSec) {
     }
   }
 
+  // --- Animation state ---
+  p.animTime += dt;
+  const pvx = p.x - (p._prevPX != null ? p._prevPX : p.x);
+  const pvy = p.y - (p._prevPY != null ? p._prevPY : p.y);
+  p._prevPX = p.x; p._prevPY = p.y;
+  const lerpV = Math.min(1, dtSec * 14);
+  p.velX = lerp(p.velX, pvx / Math.max(0.001, dtSec), lerpV);
+  p.velY = lerp(p.velY, pvy / Math.max(0.001, dtSec), lerpV);
+  p.attackPulse = Math.max(0, p.attackPulse - dtSec * 5);
+
+  // --- Footstep dust puffs while moving fast ---
+  const spd = Math.hypot(p.velX, p.velY);
+  if (spd > 60) {
+    p._stepT += dtSec * (0.4 + spd / 140);
+    if (p._stepT > 1) {
+      p._stepT = 0;
+      game.particles.push({
+        x: p.x + rand(-3, 3), y: p.y + rand(-3, 3),
+        vx: rand(-10, 10), vy: rand(-10, 10),
+        radius: rand(1.2, 2.6), color: 'rgba(130,140,155,0.30)',
+        life: 280, maxLife: 280, type: 'dot'
+      });
+    }
+  }
+
   // --- Dynamic cape (verlet chain trailing the player's back) ---
   updateCape(dtSec);
 
@@ -236,6 +261,15 @@ function updateSpawning(dt) {
     g.eliteTimer = Math.max(5000, 20000 - g.difficultyMult * 800) * (g.dev.eliteIntervalMult || 1);
   }
 
+  // Warden: a mid-tier mini-boss, more frequent than a full boss. Difficulty
+  // 12 is roughly the mid-run mark where the pacing needs a bigger threat.
+  g.wardenTimer -= dt;
+  if (g.difficultyMult >= 12 && g.wardenTimer <= 0) {
+    spawnEnemy('warden');
+    spawnParticles(g.player.x, g.player.y, '#fa0', 20, 7);
+    g.wardenTimer = Math.max(30000, 90000 - g.difficultyMult * 1500) * (g.dev.eliteIntervalMult || 1);
+  }
+
   g.bossTimer -= dt;
   if (g.bossTimer <= 0) {
     spawnEnemy('boss');
@@ -280,6 +314,34 @@ function updateEnemies(dt, dtSec) {
       vx = Math.cos(a);
       vy = Math.sin(a);
     }
+
+    // --- Caster AI: keeps distance, holds position in a band, fires bolts ---
+    if (e.kind === 'caster') {
+      const dP = dist(e, p);
+      if (dP > 320) {
+        // chase (keep current steering)
+      } else if (dP < 130) {
+        vx = -vx; vy = -vy;              // retreat
+      } else {
+        vx = 0; vy = 0;                  // hold and shoot
+      }
+      e.fireT -= dt;
+      if (e.fireT <= 0) {
+        e.fireT = e.fireRate || 1800;
+        const fa = angleTo(e, p);
+        g.castProjectiles.push({
+          x: e.x + Math.cos(fa) * (e.radius + 8),
+          y: e.y + Math.sin(fa) * (e.radius + 8),
+          vx: Math.cos(fa) * 130, vy: Math.sin(fa) * 130,
+          dmg: e.damage, radius: 5, color: '#ff3ef5',
+          life: 2500, maxLife: 2500, prevX: e.x, prevY: e.y
+        });
+        Sound.play('shootAlt');
+      }
+    }
+
+    // Shielded fronts: always turn its shield toward the player
+    if (e.kind === 'shielded') e.faceA = angleTo(e, p);
 
     // Move with substep per-axis wall sliding: small substeps let enemies
     // naturally round convex corners by sliding along one axis, then
@@ -398,6 +460,28 @@ function updateEnemies(dt, dtSec) {
   }
 }
 
+// --- Enemy projectiles: caster bolts, slow and dodgeable ---
+function updateEnemyProjectiles(dt, dtSec) {
+  const g = game;
+  const p = g.player;
+  for (let i = g.castProjectiles.length - 1; i >= 0; i--) {
+    const cp = g.castProjectiles[i];
+    cp.prevX = cp.x; cp.prevY = cp.y;
+    cp.x += cp.vx * dtSec;
+    cp.y += cp.vy * dtSec;
+    cp.life -= dt;
+    if (cp.life <= 0) { g.castProjectiles.splice(i, 1); continue; }
+    if (dist(cp, p) < cp.radius + p.radius) {
+      g.castProjectiles.splice(i, 1);
+      damagePlayer(cp.dmg);
+      continue;
+    }
+    if (circleBlocked(cp.x, cp.y, cp.radius * 0.5)) {
+      g.castProjectiles.splice(i, 1);
+    }
+  }
+}
+
 // --- Projectiles: move, trail, hit detection ---
 function updateProjectiles(dt, dtSec) {
   const g = game;
@@ -407,6 +491,22 @@ function updateProjectiles(dt, dtSec) {
     const pr = g.projectiles[i];
     pr.prevX = pr.x;
     pr.prevY = pr.y;
+
+    // Boomerangs fly out straight, then home back to the player
+    if (pr.boomerang) {
+      pr.outDist += Math.hypot(pr.vx, pr.vy) * dtSec * 60;
+      if (!pr.returning && pr.outDist >= pr.maxOut) {
+        pr.returning = true;
+        pr.hitEnemies.clear();              // hit again on the return leg
+      }
+      if (pr.returning) {
+        const ra = angleTo(pr, p);
+        pr.vx = lerp(pr.vx, Math.cos(ra) * 11, 3 * dtSec);
+        pr.vy = lerp(pr.vy, Math.sin(ra) * 11, 3 * dtSec);
+        if (dist(pr, p) < 18) { g.projectiles.splice(i, 1); continue; }
+      }
+    }
+
     pr.x += pr.vx * dtSec * 60;
     pr.y += pr.vy * dtSec * 60;
     pr.rot = Math.atan2(pr.vy, pr.vx);
@@ -487,9 +587,25 @@ function updateXpClustering(dtSec) {
 }
 
 // --- Pickups: magnet attraction + collection ---
+const MAGNET_ACTIVE_MS = 4000;   // how long a touched magnet pulls all XP
+
+// Touch effect of a magnet pickup: for a few seconds every XP gem on the
+// whole map is pulled toward the player, no matter the distance.
+function activateXpMagnet() {
+  const g = game;
+  const p = g.player;
+  g.xpMagnetTimer = MAGNET_ACTIVE_MS;
+  spawnFloatingText(p.x, p.y - 34, 'MAGNET!', '#ff6a7a');
+  spawnParticles(p.x, p.y, '#ff5566', 14, 6);
+  Sound.play('magnet');
+}
+
 function updatePickups(dt, dtSec) {
   const g = game;
   const p = g.player;
+
+  const magnetOn = g.xpMagnetTimer > 0;
+  if (magnetOn) g.xpMagnetTimer -= dt;
 
   g.pickupGrid.clear();
   for (const pk of g.pickups) g.pickupGrid.insert(pk);
@@ -503,13 +619,23 @@ function updatePickups(dt, dtSec) {
     }
 
     const d = dist(pk, p);
-    if (d < p.pickupRange) {
-      pk.magnetSpeed = Math.min(pk.magnetSpeed + 500 * dtSec, 600);
+    // While a magnet is active every XP gem is pulled from anywhere; the
+    // pull is much stronger, so gems streak across the map.
+    const globalPull = magnetOn && pk.type === 'xp';
+    if (globalPull || d < p.pickupRange) {
+      const acc = globalPull ? 1400 : 500;
+      const cap = globalPull ? 1600 : 600;
+      pk.magnetSpeed = Math.min(pk.magnetSpeed + acc * dtSec, cap);
       const a = angleTo(pk, p);
       pk.x += Math.cos(a) * pk.magnetSpeed * dtSec;
       pk.y += Math.sin(a) * pk.magnetSpeed * dtSec;
     }
     if (d < p.radius + pk.radius) {
+      if (pk.type === 'magnet') {
+        activateXpMagnet();
+        g.pickups.splice(i, 1);
+        continue;
+      }
       gainXp(pk.xp);
       Sound.play(pk.type === 'xp' ? 'gem' : 'select');
       g.pickups.splice(i, 1);
@@ -572,6 +698,10 @@ function update(dt) {
   fireWeapons();
   updateShieldOrbit();
   updateProjectiles(dt, dtSec);
+  updateEnemyProjectiles(dt, dtSec);
+  updateClouds(dt, dtSec);
+  updateTurrets(dt, dtSec);
+  updateRifts(dt, dtSec);
   updateXpClustering(dtSec);
   updatePickups(dt, dtSec);
   updateEffects(dt, dtSec);
