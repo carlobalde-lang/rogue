@@ -221,6 +221,39 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   #dev-btn { width: 32px; height: 32px; }
   #pause-btn { width: 42px; height: 42px; bottom: 150px; font-size: 17px; }
 }
+
+/* Landscape phones: width usually >700px so the query above doesn't fire,
+   but the viewport is very short — compact the HUD so nothing falls off the
+   sides or below the fold. */
+@media (orientation: landscape) and (max-height: 600px) {
+  #ui-overlay { gap: 2px; padding-top: calc(4px + env(safe-area-inset-top)); }
+  #top-bar { flex-wrap: nowrap; }
+  #timer { font-size: 14px; }
+  #kills { font-size: 11px; }
+  #level-display { font-size: 11px; }
+  #fps { font-size: 10px; }
+  .bar-container { height: 12px; border-width: 1px; }
+  #hp-bar-bg { width: 18vw; }
+  #xp-bar-bg { width: 26vw; }
+  .bar-text { font-size: 8px; }
+  #weapon-icons { flex-wrap: nowrap; overflow-x: auto; gap: 3px; scrollbar-width: none; }
+  #weapon-icons::-webkit-scrollbar { display: none; }
+  .weapon-icon { width: 26px; height: 26px; font-size: 13px; flex-shrink: 0; }
+  .weapon-level { width: 13px; height: 13px; font-size: 7px; }
+  #pause-btn { width: 38px; height: 38px; bottom: 12px; right: 12px; font-size: 16px; }
+  #dev-btn { width: 30px; height: 30px; bottom: 8px; left: 8px; }
+  #dev-panel { bottom: 44px; max-height: 60vh; }
+  #pause-panel { flex-direction: column; flex-wrap: wrap; max-height: 50vh; }
+  #levelup-title { font-size: 22px; }
+  #levelup-subtitle { font-size: 12px; margin-bottom: 10px; }
+  #gameover-title { font-size: 26px; }
+  #gameover-stats { font-size: 15px; }
+  #restart-btn { padding: 12px 26px; font-size: 16px; }
+  #start-title { font-size: 26px; }
+  #start-subtitle { font-size: 13px; margin-bottom: 20px; }
+  #start-btn { padding: 13px 34px; font-size: 17px; }
+  #start-controls { font-size: 11px; margin-top: 16px; }
+}
 </style>
 </head>
 <body>
