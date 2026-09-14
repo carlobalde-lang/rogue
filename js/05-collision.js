@@ -20,6 +20,17 @@ function circleBlocked(x, y, r) {
   return false;
 }
 
+// Swept check: sample the path between two points so fast projectiles can't
+// skip over (or through) a wall tile between frames.
+function segmentBlocked(x0, y0, x1, y1, r) {
+  const steps = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 4));
+  for (let s = 1; s <= steps; s++) {
+    const f = s / steps;
+    if (circleBlocked(x0 + (x1 - x0) * f, y0 + (y1 - y0) * f, r)) return true;
+  }
+  return false;
+}
+
 // ============================================================
 // SPATIAL GRID FOR COLLISION OPTIMIZATION
 // ============================================================
@@ -47,5 +58,21 @@ class SpatialGrid {
       }
     }
     return results;
+  }
+  // Allocation-free variant: calls `cb(entity)` for every match instead of
+  // building a results array. Use this in per-frame / per-hit hot loops
+  // (thorns, explosions, separation) to keep GC pressure low.
+  queryEach(x, y, radius, cb) {
+    const minCx = Math.floor((x - radius) / this.cellSize);
+    const maxCx = Math.floor((x + radius) / this.cellSize);
+    const minCy = Math.floor((y - radius) / this.cellSize);
+    const maxCy = Math.floor((y + radius) / this.cellSize);
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cy = minCy; cy <= maxCy; cy++) {
+        const cell = this.cells.get(this.key(cx, cy));
+        if (!cell) continue;
+        for (const entity of cell) cb(entity);
+      }
+    }
   }
 }

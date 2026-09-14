@@ -18,7 +18,11 @@ function saveBestRuns(arr) {
   try { localStorage.setItem(BEST_RUNS_KEY, JSON.stringify(arr)); } catch (e) {}
 }
 
-function runScore(r) { return Math.round(r.timeSec * 2 + r.kills + r.level * 5); }
+function runScore(r) {
+  const base = Math.round(r.timeSec * 2 + r.kills + r.level * 5);
+  // Harder difficulty presets scale the score so tougher runs rank higher.
+  return Math.round(base * (r.diffScale || 1));
+}
 
 function recordRun() {
   const g = game; if (!g) return null;
@@ -28,6 +32,8 @@ function recordRun() {
     level: g.player.level,
     kills: g.kills,
     difficulty: Math.round(g.difficultyMult),
+    diffScale: (typeof difficultyScale === 'function') ? difficultyScale() : 1,
+    diffLabel: (typeof difficultyDef === 'function') ? difficultyDef().label : 'Normale',
     date: new Date().toLocaleDateString('it-IT')
   };
   entry.score = runScore(entry);
@@ -53,7 +59,7 @@ function renderBestRuns() {
             <span class="br-rank">${medal}</span>
             <div class="br-info">
               <span class="br-time">${r.time}</span>
-              <span class="br-sub">Lv.${r.level} • ${r.kills} kills • diff ${r.difficulty}</span>
+              <span class="br-sub">Lv.${r.level} • ${r.kills} kills • ${r.diffLabel ? r.diffLabel : ('diff ' + r.difficulty)}</span>
             </div>
             <span class="br-score">${r.score}</span>
           </div>`;
@@ -64,8 +70,16 @@ function updateUI() {
   const g = game;
   const p = g.player;
   document.getElementById('timer').textContent = formatTime(g.time);
-  document.getElementById('kills').textContent = `Kills: ${g.kills}`;
+  document.getElementById('kills').textContent = `Kills: ${g.kills}   💠 ${g.essenceCollected || 0}`;
   document.getElementById('level-display').textContent = `LVL ${p.level}`;
+  const bl = document.getElementById('biome-label');
+  if (bl) {
+    const bm = playerBiome();
+    const chestStill = BIOME_DEFS[bm].weapon && !heartCleared(bm);
+    const stormTag = g.storm ? ' • ' + STORM_DEFS[g.storm.id].name : '';
+    bl.textContent = (BIOME_DEFS[bm].name + (chestStill ? ' ◆' : '') + stormTag).toUpperCase();
+    bl.style.color = chestStill ? '#ffd24d' : g.storm ? '#9fd7ff' : '#9fd8ff';
+  }
 
   const hpPct = (p.hp / p.maxHp * 100) + '%';
   document.getElementById('hp-bar').style.width = hpPct;
@@ -82,7 +96,7 @@ function updateUI() {
     for (const w of p.weapons) {
       const div = document.createElement('div');
       div.className = 'weapon-icon';
-      div.innerHTML = `${WEAPON_DEFS[w.id].icon}<div class="weapon-level">${w.level}</div>`;
+      div.innerHTML = `${pixelIconHTML('w', w.id, 26)}<div class="weapon-level">${w.level}</div>`;
       wi.appendChild(div);
     }
   } else {
@@ -104,7 +118,7 @@ function populatePausePanel() {
   const wHtml = [];
   for (const w of p.weapons) {
     const def = WEAPON_DEFS[w.id];
-    const nm = def ? def.icon + ' ' + escapeHtml(def.name) : w.id;
+    const nm = def ? pixelIconHTML('w', w.id, 20) + ' ' + escapeHtml(def.name) : w.id;
     wHtml.push(
       `<div class="pause-entry"><span class="pe-name">${nm}</span>` +
       `<span class="pe-value">Lv.${w.level}</span></div>`
@@ -146,6 +160,7 @@ function populatePausePanel() {
 
 function togglePause() {
   if (!game || !game.running || game.gameOver || game.levelUpPending) return;
+  if (game.warpOpen) return;   // the warp menu manages its own pause state
   game.manualPause = !game.manualPause;
   game.paused = game.manualPause;
   if (game.manualPause) {
@@ -158,11 +173,67 @@ function togglePause() {
     game.joystick.dy = 0;
     populatePausePanel();
     document.getElementById('pause-screen').style.display = 'flex';
+    const lb = document.getElementById('leave-hub-btn');
+    if (lb) { lb.textContent = '🏠 BACK TO HUB'; lb.classList.remove('armed'); }
     Sound.play('pause');
   } else {
     document.getElementById('pause-screen').style.display = 'none';
     Sound.play('unpause');
   }
+}
+
+// Shared cleanup when a run stops (death game-over or leaving via pause).
+// Idempotent and defensive: never touches missing entities, always returns
+// the UI to a usable state even if reward-banking already threw.
+function clearRunRuntime() {
+  if (!game) return;
+  game.gameOver = false;
+  game.running = false;
+  game.manualPause = false;
+  game.paused = false;
+  game.leavingHub = false;
+  game.input = { up: false, down: false, left: false, right: false };
+  if (game.joystick) { game.joystick.active = false; game.joystick.dx = 0; game.joystick.dy = 0; }
+  // Drop all runtime entities so nothing lingers after the run ends.
+  for (const key of ['enemies', 'projectiles', 'castProjectiles', 'pickups',
+                     'particles', 'clouds', 'turrets', 'rifts',
+                     'floatingTexts', 'lightningEffects']) {
+    if (Array.isArray(game[key])) game[key].length = 0;
+  }
+  for (const id of ['pause-screen', 'levelup-screen', 'pause-btn', 'warp-menu']) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+}
+
+// Leave the current run from the pause menu and go back to the hub.
+// Awards Umbra Shards for the run so far, but does NOT record it in Best Runs.
+function leaveToHub() {
+  if (!game || !game.running || game.leavingHub) return;
+  game.leavingHub = true;
+  try {
+    if (typeof grantRunRewards === 'function') grantRunRewards();
+  } finally {
+    clearRunRuntime();
+  }
+  const lb = document.getElementById('leave-hub-btn');
+  if (lb) { lb.textContent = '🏠 BACK TO HUB'; lb.classList.remove('armed'); }
+  Sound.stopMusic();
+  if (typeof openHub === 'function') openHub('char');
+}
+
+// Return to the start screen after a run (used from the game-over screen).
+function returnToMenu() {
+  if (!game) return;
+  clearRunRuntime();
+  for (const id of ['game-over-screen', 'hub-screen']) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+  const ss = document.getElementById('start-screen');
+  if (ss) ss.style.display = 'flex';
+  Sound.stopMusic();
+  if (typeof updateMetaStarts === 'function') updateMetaStarts();
 }
 
 function endGame() {
@@ -178,12 +249,17 @@ function endGame() {
     ? `<div style="color:#ffd700;font-size:22px;font-weight:bold;margin-bottom:12px;text-shadow:2px 2px 6px #000;">🏆 NEW BEST RUN!</div>`
     : '';
 
+  const earned = typeof grantRunRewards === 'function' ? grantRunRewards() : 0;
+
   document.getElementById('gameover-stats').innerHTML =
     bestBadge +
     `Time Survived: <span style="color:#ffd700">${formatTime(game.time)}</span><br>` +
     `Enemies Killed: <span style="color:#f44">${game.kills}</span><br>` +
     `Level Reached: <span style="color:#4cf">${game.player.level}</span>` +
-    (run && run.rank ? `<br>Best Run Rank: <span style="color:#ff8f4c">#${run.rank}</span>` : '');
+    (run && run.rank ? `<br>Best Run Rank: <span style="color:#ff8f4c">#${run.rank}</span>` : '') +
+    (earned > 0
+      ? `<br><br><span style="color:#d9c9ff">Umbra Shards earned: <span style="color:#ffd700">💠 ${earned}</span></span>`
+      : '');
   document.getElementById('game-over-screen').style.display = 'flex';
   Sound.stopMusic();
   Sound.play('gameover');

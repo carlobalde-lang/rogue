@@ -3,9 +3,153 @@
 // ============================================================
 
 // --- Player movement, regen, camera, flow-field refresh ---
+// Slow factor applied to the player by each terrain hazard type
+const HAZARD_FACTOR = {
+  [HAZARD_ICE]: 1.5, [HAZARD_SNOW]: 0.82, [HAZARD_LAVA]: 0.55,
+  [HAZARD_SWAMP]: 0.72, [HAZARD_WATER]: 0.70
+};
+
+// ============================================================
+// BIOME AMBIENT WEATHER
+// ============================================================
+// Extreme climates periodically unleash their weather for a burst:
+//   Frozen Grass (north) -> FREEZE: cold wind, white-blue streaks
+//   Desert (south)       -> SANDSTORM: blinding sand drops visibility
+// While a storm rages the wave cadence speeds up (more pressure).
+const STORM_DEFS = {
+  north: {
+    name: 'FREEZE', color: '#9fd7ff', streak: 'rgba(190,225,255,0.55)',
+    particle: '#cfe9ff', dur: 12000, interval: 42000, windA: Math.PI / 3,
+    drops: 62, speed: [220, 420], dropLen: [18, 30]
+  },
+  south: {
+    name: 'SANDSTORM', color: '#ffd080', streak: 'rgba(255,205,130,0.50)',
+    particle: '#ffc860', dur: 12000, interval: 45000, windA: -Math.PI / 5,
+    drops: 76, speed: [460, 760], dropLen: [12, 20]
+  }
+};
+const STORM_FIRST_MS = 30000;   // opening half-minute is always calm
+
+// Taiga (northeast) gusts: a cold wind randomly sweeps through and shoves the
+// player for a moment. Direction favours the prevailing wind with jitter.
+const GUST_DEFS = {
+  northeast: {
+    interval: [9000, 14000], hold: 1100, strength: 0.11, baseA: -Math.PI * 0.35
+  }
+};
+const GUST_FIRST_MS = 8000;
+
+function updateStorm(dt, dtSec) {
+  const g = game;
+  if (!g.stormCd) g.stormCd = STORM_FIRST_MS;
+
+  if (g.storm) {
+    const s = g.storm;
+    const def = STORM_DEFS[s.id];
+    s.t += dt;
+    // Streak particles drift with the wind for visibility
+    s.pT = (s.pT || 0) - dt;
+    if (s.pT <= 0) {
+      s.pT = 55;
+      if (g.particles.length < GFX.particleCap) {
+        const a = def.windA;
+        g.particles.push({
+          x: g.player.x + rand(-VIEW_W * 0.75, VIEW_W * 0.75),
+          y: g.player.y + rand(-VIEW_H * 0.75, VIEW_H * 0.75),
+          vx: Math.cos(a) * rand(140, 300), vy: Math.sin(a) * rand(140, 300),
+          radius: rand(1, 2.6), color: def.particle,
+          life: 1500, maxLife: 1500, maxLifeT: 1500, type: 'dot'
+        });
+      }
+    }
+    if (s.t >= s.dur) {
+      g.storm = null;
+      g.stormCd = def.interval;
+      spawnFloatingText(g.player.x, g.player.y - 40, 'skies clear', '#cfd8e6');
+    }
+    return;
+  }
+
+  g.stormCd -= dt;
+  if (g.stormCd <= 0) {
+    const def = STORM_DEFS[playerBiome()];
+    if (def) {
+      g.storm = { id: playerBiome(), t: 0, dur: def.dur, pT: 0 };
+      Sound.play('storm');
+      spawnFloatingText(g.player.x, g.player.y - 48, def.name + '!', def.color);
+      spawnParticles(g.player.x, g.player.y - 20, def.color, 18, 5);
+    } else {
+      g.stormCd = 500;   // not in a stormy biome yet: poll quietly
+    }
+  }
+}
+
+function updateGusts(dt, dtSec) {
+  const g = game;
+  if (g.gust && g.gust.t > 0) {
+    const gu = g.gust;
+    gu.t -= dt;
+    // Wind streak particles while the gust blows
+    gu.pT = (gu.pT || 0) - dt;
+    if (gu.pT <= 0) {
+      gu.pT = 90;
+      if (g.particles.length < GFX.particleCap) {
+        g.particles.push({
+          x: g.player.x + rand(-VIEW_W * 0.7, VIEW_W * 0.7),
+          y: g.player.y + rand(-VIEW_H * 0.7, VIEW_H * 0.7),
+          vx: Math.cos(gu.a) * rand(200, 420), vy: Math.sin(gu.a) * rand(200, 420),
+          radius: rand(1, 2), color: 'rgba(218,235,255,0.75)',
+          life: 900, maxLife: 900, maxLifeT: 900, type: 'dot'
+        });
+      }
+    }
+    if (gu.t <= 0) g.gust = null;
+    return;
+  }
+  const def = GUST_DEFS[playerBiome()];
+  if (!def) { g.gustTimer = 400; return; }
+  if (!g.gustTimer) g.gustTimer = GUST_FIRST_MS;
+  g.gustTimer -= dt;
+  if (g.gustTimer <= 0) {
+    g.gust = {
+      a: def.baseA + rand(-0.9, 0.9),
+      t: def.hold, hold: def.hold, strength: def.strength, pT: 0
+    };
+    g.gustTimer = rand(def.interval[0], def.interval[1]);
+    if (Math.random() < 0.3) {
+      spawnFloatingText(g.player.x, g.player.y - 32, 'WIND', '#cfe4ff');
+    }
+    Sound.play('gust');
+  }
+}
+
 function updatePlayer(dt, dtSec) {
   const g = game;
   const p = g.player;
+
+  // Footing: terrain under the player slows movement (ice slips, snow and
+  // water bog you down, lava burns while you wade through it).
+  const haz = tileHazardAt(p.x, p.y);
+  p._hazF = HAZARD_FACTOR[haz] || 1;
+  p._haz = haz;
+
+  // Ice sliding: track momentum while on ice so the player glides in their
+  // current direction with reduced turning ability.
+  const onIce = haz === HAZARD_ICE;
+  if (!p._iceSlideAngle) p._iceSlideAngle = null;
+  if (!p._iceSlideSpeed) p._iceSlideSpeed = 0;
+
+  // Taiga wind gusts: an impulse in px per ms that decays over the gust.
+  const gust = g.gust;
+  if (gust && gust.t > 0) {
+    const decay = clamp(gust.t / gust.hold, 0, 1);
+    const mag = gust.strength * decay;
+    p._gustVX = Math.cos(gust.a) * mag;
+    p._gustVY = Math.sin(gust.a) * mag;
+  } else {
+    p._gustVX = 0;
+    p._gustVY = 0;
+  }
 
   let mx = 0, my = 0;
   // Keyboard
@@ -19,13 +163,62 @@ function updatePlayer(dt, dtSec) {
     mx += joy.dx;
     my += joy.dy;
   }
+
+  // On ice: blend input toward the slide direction (limited turning)
+  if (onIce && (mx !== 0 || my !== 0)) {
+    const inputAngle = Math.atan2(my, mx);
+    if (p._iceSlideAngle === null) {
+      // First frame on ice: start sliding in the input direction
+      p._iceSlideAngle = inputAngle;
+      p._iceSlideSpeed = p.speed;
+    } else {
+      // Already sliding: allow only 15% of normal turning per frame
+      const inputTurn = wrapAngle(inputAngle - p._iceSlideAngle);
+      p._iceSlideAngle += inputTurn * 0.15;
+      // Blend speed toward input (gradual acceleration)
+      p._iceSlideSpeed = lerp(p._iceSlideSpeed, p.speed, 0.05);
+    }
+    mx = Math.cos(p._iceSlideAngle);
+    my = Math.sin(p._iceSlideAngle);
+  } else if (!onIce) {
+    // Leaving ice: gradually lose slide
+    if (p._iceSlideAngle !== null) {
+      p._iceSlideSpeed *= 0.85;
+      if (p._iceSlideSpeed < 5) {
+        p._iceSlideAngle = null;
+        p._iceSlideSpeed = 0;
+      }
+    }
+  } else {
+    // On ice but no input: keep sliding in current direction
+    if (p._iceSlideAngle !== null) {
+      mx = Math.cos(p._iceSlideAngle);
+      my = Math.sin(p._iceSlideAngle);
+    }
+  }
   if (mx !== 0 || my !== 0) {
     const len = Math.hypot(mx, my);
     if (len > 0.01) {
       mx /= len; my /= len;
+      // Momentum: moving straight >1s builds a streak (damage + speed bonus,
+      // scales with the number of Momentum pickups you own).
+      p.momentumActive = false;
+      if (p.momentum > 0) {
+        const mA = Math.atan2(my, mx);
+        if (p.straightDir === null || Math.abs(wrapAngle(mA - p.straightDir)) < 0.4) {
+          p.straightT = (p.straightT || 0) + dt;
+        } else {
+          p.straightT = dt;
+        }
+        p.straightDir = mA;
+        p.momentumActive = p.straightT > 1000;
+      }
+      const mvSpd = onIce && p._iceSlideAngle !== null
+        ? p._iceSlideSpeed * p._hazF
+        : p.speed * p._hazF * (p.momentumActive ? 1 + (p.momentum || 0) * 0.06 : 1);
       // Move per-axis and back off the failed axis -> wall sliding
-      const stepX = mx * p.speed * dtSec;
-      const stepY = my * p.speed * dtSec;
+      const stepX = mx * mvSpd * dtSec;
+      const stepY = my * mvSpd * dtSec;
       const nx = p.x + stepX;
       if (!circleBlocked(nx, p.y, p.radius)) p.x = nx;
       const ny = p.y + stepY;
@@ -38,7 +231,22 @@ function updatePlayer(dt, dtSec) {
         Math.cos(p.facingAngle - p.renderAngle)
       );
       p.renderAngle += diff * Math.min(1, dtSec * 20);
+    } else {
+      p.momentumActive = false;
+      p.straightT = 0;
     }
+  } else {
+    p.momentumActive = false;
+    p.straightT = 0;
+  }
+
+  // Wind gust displacement (player-scale, slowed a touch so it never overrides
+  // walking completely). Applied after input so gusts buffet you as you move.
+  if (p._gustVX || p._gustVY) {
+    const gx = p.x + p._gustVX * dt;
+    if (!circleBlocked(gx, p.y, p.radius)) p.x = gx;
+    const gy = p.y + p._gustVY * dt;
+    if (!circleBlocked(p.x, gy, p.radius)) p.y = gy;
   }
 
   // --- Animation state ---
@@ -53,16 +261,18 @@ function updatePlayer(dt, dtSec) {
 
   // --- Footstep dust puffs while moving fast ---
   const spd = Math.hypot(p.velX, p.velY);
-  if (spd > 60) {
+  if (spd > 60 && playerBiome() === BIOME_CORE) {
     p._stepT += dtSec * (0.4 + spd / 140);
     if (p._stepT > 1) {
       p._stepT = 0;
-      game.particles.push({
-        x: p.x + rand(-3, 3), y: p.y + rand(-3, 3),
-        vx: rand(-10, 10), vy: rand(-10, 10),
-        radius: rand(1.2, 2.6), color: 'rgba(130,140,155,0.30)',
-        life: 280, maxLife: 280, type: 'dot'
-      });
+      if (game.particles.length < GFX.particleCap) {
+        game.particles.push({
+          x: p.x + rand(-3, 3), y: p.y + rand(-3, 3),
+          vx: rand(-10, 10), vy: rand(-10, 10),
+          radius: rand(1.2, 2.6), color: 'rgba(130,140,155,0.30)',
+          life: 280, maxLife: 280, type: 'dot'
+        });
+      }
     }
   }
 
@@ -78,6 +288,24 @@ function updatePlayer(dt, dtSec) {
   p.invulnTimer = Math.max(0, p.invulnTimer - dt);
   p.hp = Math.min(p.maxHp, p.hp + p.regen * dtSec);
 
+  // --- Lava burn: standing in a lava tile ticks damage on its own clock ---
+  // (deliberately separate from damagePlayer's i-frame timer so enemies can
+  // still hit you while you wade through it)
+  if (p._haz === HAZARD_LAVA) {
+    p.lavaT = (p.lavaT || 0) - dt;
+    if (p.lavaT <= 0) {
+      p.lavaT = 400;
+      if (!game.dev.godMode) {
+        p.hp -= 1;
+        spawnFloatingText(p.x, p.y - 10, -1, '#ff9a4a');
+        spawnParticles(p.x, p.y, '#ff7a2a', 4, 2);
+        resolvePlayerDeath();
+      }
+    }
+  } else {
+    p.lavaT = 0;
+  }
+
   // Camera
   g.camera.x = lerp(g.camera.x, p.x - VIEW_W / 2, 0.08);
   g.camera.y = lerp(g.camera.y, p.y - VIEW_H / 2, 0.08);
@@ -86,6 +314,29 @@ function updatePlayer(dt, dtSec) {
 // --- Dynamic cape: verlet cloth grid that billows like a flag ---
 // A trapezoid of points pinned along its narrow "neck" edge to the player's
 // back; the free (tail) edge widens and waves under wind + flutter.
+// The neck anchor never sweeps around the body: it sticks to the back of the
+// DOMINANT axis (like the sprite's 4-dir facing), so walking diagonally doesn't
+// make the collar rotate — only the free cloth keeps following the continuous
+// render angle and billows smoothly.
+function capeNeckAnchor(p) {
+  const spd = Math.hypot(p.velX, p.velY);
+  let dx = p.velX, dy = p.velY;
+  if (spd <= 0.4) { dx = Math.cos(p.renderAngle); dy = Math.sin(p.renderAngle); }
+  let face;                                            // cardinal FACE direction
+  if (Math.abs(dx) > Math.abs(dy)) face = dx > 0 ? 0 : Math.PI;
+  else face = dy > 0 ? Math.PI / 2 : -Math.PI / 2;
+  const back = face + Math.PI;
+  const capeFront = Math.sin(p.renderAngle) < -0.5;
+  const neckR = (capeFront ? -0.4 : 0.45) * p.radius;
+  return {
+    neckX: p.x + Math.cos(back) * neckR,
+    neckY: p.y + Math.sin(back) * neckR,
+    back,
+    perp: back + Math.PI / 2,
+    capeFront
+  };
+}
+
 function initCape() {
   const p = game.player;
   const L = 3;                  // segments neck -> tail (compact cape)
@@ -95,8 +346,9 @@ function initCape() {
   const TAIL_W = 46;            // free-edge width (widens outward)
   const backAng = p.renderAngle + Math.PI;
   const perp = backAng + Math.PI / 2;
-  const neckX = p.x + Math.cos(backAng) * p.radius;
-  const neckY = p.y + Math.sin(backAng) * p.radius;
+  const neck = capeNeckAnchor(p);
+  const neckX = neck.neckX;
+  const neckY = neck.neckY;
 
   const grid = [];
   for (let j = 0; j < W; j++) {
@@ -137,20 +389,25 @@ function solveCape(a, b, rest) {
 }
 
 function updateCape(dtSec) {
+  if (!GFX.cape) return;
   const p = game.player;
   if (!p.cape) initCape();
   const cap = p.cape;
   const { grid, W, L, NECK_W, TAIL_W, SEG_L } = cap;
   const backAng = p.renderAngle + Math.PI;
   const perp = backAng + Math.PI / 2;
-  const neckX = p.x + Math.cos(backAng) * p.radius;
-  const neckY = p.y + Math.sin(backAng) * p.radius;
+  const neck = capeNeckAnchor(p);
+  const neckX = neck.neckX;
+  const neckY = neck.neckY;
+  const capeFront = neck.capeFront;
+  const perpQ = neck.perp;             // quantized: collar spread never rotates
 
-  // Pin the whole neck column to the player's back (rotates with the body)
+  // Pin the whole neck column to the player's back along the CARDINAL axis, so
+  // diagonal movement keeps the collar glued in place
   for (let j = 0; j < W; j++) {
     const wf = j / (W - 1) - 0.5;
-    const x = neckX + Math.cos(perp) * (NECK_W * wf);
-    const y = neckY + Math.sin(perp) * (NECK_W * wf);
+    const x = neckX + Math.cos(perpQ) * (NECK_W * wf);
+    const y = neckY + Math.sin(perpQ) * (NECK_W * wf);
     const pt = grid[j][0];
     pt.x = x; pt.y = y; pt.px = x; pt.py = y;
   }
@@ -217,6 +474,7 @@ function updateCape(dtSec) {
   const ax = Math.cos(backAng), ay = Math.sin(backAng);
   const ux = Math.cos(perp), uy = Math.sin(perp);
   const maxLongS = SEG_L * 2.2;             // how far it may dash back / stretch
+  const maxLag = -SEG_L * 0.35;             // rows may lag a little, never bunch/reverse
   for (let j = 0; j < W; j++) {
     for (let i = 1; i < L; i++) {
       const pt = grid[j][i];
@@ -228,14 +486,15 @@ function updateCape(dtSec) {
       const maxCross = Math.max(7, SEG_L * 1.0 * (0.5 + frac));
       const lon = (pt.x - rx) * ax + (pt.y - ry) * ay;
       const crs = (pt.x - rx) * ux + (pt.y - ry) * uy;
-      const clon = clamp(lon, -maxLongS, maxLongS);
+      const clon = clamp(lon, maxLag, maxLongS);
       const ccrs = clamp(crs, -maxCross, maxCross);
       pt.x = rx + ax * clon + ux * ccrs;
       pt.y = ry + ay * clon + uy * ccrs;
-      // keep it floating off the body hitbox
+      // keep it floating off the body hitbox (in back view the cape rests over
+      // the body like a cloak, so it must NOT be pushed out of the hitbox)
       const dx = pt.x - p.x, dy = pt.y - p.y;
       const d2 = dx * dx + dy * dy;
-      if (d2 < r * r) {
+      if (!capeFront && d2 < r * r) {
         const d = Math.sqrt(d2) || 1;
         const push = (r - d) * 1.3;
         pt.x += (dx / d) * push; pt.y += (dy / d) * push;
@@ -247,11 +506,13 @@ function updateCape(dtSec) {
 // --- Wave / elite / boss spawning timers ---
 function updateSpawning(dt) {
   const g = game;
+  // Storms whip the horde up: while one rages, waves come ~45% faster.
+  const stormMult = g.storm ? 0.55 : 1;
 
   g.waveTimer -= dt;
   if (g.waveTimer <= 0) {
     spawnWave();
-    g.waveTimer = Math.max(800, 3000 - g.difficultyMult * 200) * (g.dev.waveIntervalMult || 1);
+    g.waveTimer = Math.max(800, 3000 - g.difficultyMult * 200) * (g.dev.waveIntervalMult || 1) * stormMult;
   }
 
   g.eliteTimer -= dt;
@@ -343,10 +604,15 @@ function updateEnemies(dt, dtSec) {
     // Shielded fronts: always turn its shield toward the player
     if (e.kind === 'shielded') e.faceA = angleTo(e, p);
 
+    // Cold: timer counts down; when it expires the speed penalty lifts.
+    if (e.slowT > 0) {
+      e.slowT -= dt;
+      if (e.slowT <= 0) e.slowFactor = 1;
+    }
     // Move with substep per-axis wall sliding: small substeps let enemies
     // naturally round convex corners by sliding along one axis, then
     // transitioning when the wall ends.
-    const spd = e.speed * dtSec;
+    const spd = e.speed * (e.slowFactor && e.slowFactor < 1 ? e.slowFactor : 1) * dtSec;
     // Pathing radius shrinks with size so big enemies can still squeeze
     // through 1-tile doorways; collision is approximate, not visual.
     const hitR = Math.max(3, Math.min(e.radius * 0.4, 10));
@@ -424,9 +690,8 @@ function updateEnemies(dt, dtSec) {
   for (let si = 0; si < g.enemies.length; si++) {
     const a = g.enemies[si];
     if (a.dead) continue;
-    const nb = g.enemyGrid.query(a.x, a.y, a.radius * 2);
-    for (const b of nb) {
-      if (b === a || b.dead) continue;
+    g.enemyGrid.queryEach(a.x, a.y, a.radius * 2, b => {
+      if (b === a || b.dead) return;
       const ddx = a.x - b.x;
       const ddy = a.y - b.y;
       const d2 = ddx * ddx + ddy * ddy;
@@ -441,7 +706,7 @@ function updateEnemies(dt, dtSec) {
         if (!circleBlocked(ax2, ay2, a.radius * 0.4)) { a.x = ax2; a.y = ay2; }
         if (!circleBlocked(bx2, by2, b.radius * 0.4)) { b.x = bx2; b.y = by2; }
       }
-    }
+    });
   }
 
   // --- Resolve enemies stuck inside walls (separation can push them in) ---
@@ -466,18 +731,22 @@ function updateEnemyProjectiles(dt, dtSec) {
   const p = g.player;
   for (let i = g.castProjectiles.length - 1; i >= 0; i--) {
     const cp = g.castProjectiles[i];
+    const nx = cp.x + cp.vx * dtSec;
+    const ny = cp.y + cp.vy * dtSec;
+    // Swept wall collision: bolts die on contact with walls and never pass
+    // through them (unlike the player's projectiles, which are free to fly).
+    if (segmentBlocked(cp.x, cp.y, nx, ny, Math.max(1, cp.radius * 0.5))) {
+      g.castProjectiles.splice(i, 1);
+      continue;
+    }
     cp.prevX = cp.x; cp.prevY = cp.y;
-    cp.x += cp.vx * dtSec;
-    cp.y += cp.vy * dtSec;
+    cp.x = nx; cp.y = ny;
     cp.life -= dt;
     if (cp.life <= 0) { g.castProjectiles.splice(i, 1); continue; }
     if (dist(cp, p) < cp.radius + p.radius) {
       g.castProjectiles.splice(i, 1);
       damagePlayer(cp.dmg);
       continue;
-    }
-    if (circleBlocked(cp.x, cp.y, cp.radius * 0.5)) {
-      g.castProjectiles.splice(i, 1);
     }
   }
 }
@@ -528,24 +797,51 @@ function updateProjectiles(dt, dtSec) {
     }
 
     // Hit enemies
-    const nearby = g.enemyGrid.query(pr.x, pr.y, pr.radius + 20);
-    for (const e of nearby) {
-      if (pr.hitEnemies.has(e)) continue;
+    let stopped = false;
+    g.enemyGrid.queryEach(pr.x, pr.y, pr.radius + 20, e => {
+      if (stopped) return;
+      if (pr.hitEnemies.has(e)) return;
       if (dist(pr, e) < e.radius + pr.radius) {
         damageEnemy(e, pr.dmg);
         pr.hitEnemies.add(e);
         if (pr.areaEffect > 0) {
-          const affected = g.enemyGrid.query(pr.x, pr.y, pr.areaEffect * p.areaMult);
-          for (const ae of affected) {
+          g.enemyGrid.queryEach(pr.x, pr.y, pr.areaEffect * p.areaMult, ae => {
             if (ae !== e && dist(pr, ae) < pr.areaEffect * p.areaMult) {
               damageEnemy(ae, pr.dmg * 0.5);
             }
-          }
+          });
         }
-        if (pr.pierce <= 0) { g.projectiles.splice(i, 1); break; }
-        pr.pierce--;
+        // Mirror Shard: ricochet to the nearest new enemy, else expire
+        if (pr.bounces > 0) {
+          let next = null, nextD = Infinity;
+          const spd = Math.hypot(pr.vx, pr.vy);
+          g.enemyGrid.queryEach(pr.x, pr.y, pr.bounceRange, e2 => {
+            if (e2 === e || e2.dead || pr.hitEnemies.has(e2)) return;
+            const d2 = (e2.x - pr.x) * (e2.x - pr.x) + (e2.y - pr.y) * (e2.y - pr.y);
+            if (d2 < nextD) { nextD = d2; next = e2; }
+          });
+          if (next) {
+            const ba = angleTo(pr, next);
+            pr.vx = Math.cos(ba) * spd * 0.95;
+            pr.vy = Math.sin(ba) * spd * 0.95;
+            pr.bounces--;
+            pr.life = Math.min(pr.life, 2000);
+            // Sparkle at the ricochet point so each chain-link pops out
+            const prCol = pr.color || '#bcd0ff';
+            const tint = pr.hitEnemies && pr.hitEnemies.size % 3 === 0 ? '#ffd176' : prCol;
+            spawnParticles(pr.x, pr.y, tint, 3, 2.5);
+          } else if (pr.pierce <= 0) {
+            g.projectiles.splice(i, 1); stopped = true; return;
+          } else {
+            pr.pierce--;
+          }
+        } else if (pr.pierce <= 0) {
+          g.projectiles.splice(i, 1); stopped = true; return;
+        } else {
+          pr.pierce--;
+        }
       }
-    }
+    });
   }
 }
 
@@ -612,8 +908,8 @@ function updatePickups(dt, dtSec) {
 
   for (let i = g.pickups.length - 1; i >= 0; i--) {
     const pk = g.pickups[i];
-    // XP gems never despawn; other pickups keep their life timer
-    if (pk.type !== 'xp') {
+    // XP gems and Umbra Shards never despawn; other pickups keep their life timer
+    if (pk.type !== 'xp' && pk.type !== 'essence') {
       pk.life -= dt;
       if (pk.life <= 0) { g.pickups.splice(i, 1); continue; }
     }
@@ -621,7 +917,7 @@ function updatePickups(dt, dtSec) {
     const d = dist(pk, p);
     // While a magnet is active every XP gem is pulled from anywhere; the
     // pull is much stronger, so gems streak across the map.
-    const globalPull = magnetOn && pk.type === 'xp';
+    const globalPull = magnetOn && (pk.type === 'xp' || pk.type === 'essence');
     if (globalPull || d < p.pickupRange) {
       const acc = globalPull ? 1400 : 500;
       const cap = globalPull ? 1600 : 600;
@@ -633,6 +929,12 @@ function updatePickups(dt, dtSec) {
     if (d < p.radius + pk.radius) {
       if (pk.type === 'magnet') {
         activateXpMagnet();
+        g.pickups.splice(i, 1);
+        continue;
+      }
+      if (pk.type === 'essence') {
+        g.essenceCollected += pk.amount;
+        Sound.play('gem');
         g.pickups.splice(i, 1);
         continue;
       }
@@ -675,6 +977,211 @@ function updateEffects(dt, dtSec) {
 // ============================================================
 // MAIN UPDATE
 // ============================================================
+// ============================================================
+// BIOME HEART GUARDIANS & WARP PORTALS
+// ============================================================
+// Each biome's treasure statue is SEALED behind a Guardian that only wakes up
+// once the run has opened (~75s in). Walking near a sealed heart awakens its
+// Guardian; killing it purifies the heart — the weapon is granted directly and
+// unlocked permanently (no chest RNG), and the statue becomes a warp portal.
+//
+// Cleared hearts form a permanent warp network (persisted in meta), so future
+// runs can fast-travel between every heart you've ever purified.
+const HEART_WAKE_MS = 75000;      // guardians only wake after this time
+const HEART_AWAKEN_RANGE = 950;   // player proximity that wakes the guardian
+const WARP_CHARGE_MS = 900;       // hold-to-warp on a cleared portal
+
+// A heart is usable as a portal if it was cleared this run OR in any past run.
+function heartCleared(id) {
+  return !!game.openedChests[id] ||
+    (typeof metaHeartCleared === 'function' && metaHeartCleared(id));
+}
+
+// Spawns the biome Guardian at the heart: a beefed-up boss in a purple/gold
+// palette that drops a guaranteed weapon grant when slain.
+function spawnGuardian(biomeId) {
+  const g = game;
+  const def = ENEMY_DEFS.boss;
+  const dm = g.difficultyMult;
+  const pos = chestPos(biomeId);
+  const radius = def.radius(dm) * 1.15;
+  const hp = Math.ceil(def.hp(dm) * 1.6);
+  const gd = {
+    x: pos.x, y: pos.y, radius,
+    hp, maxHp: hp,
+    speed: def.speed(dm) * 0.92,
+    damage: def.damage(dm),
+    xp: typeof def.xp === 'function' ? def.xp(dm) : def.xp,
+    color: '#b07cff',
+    type: 'boss',
+    kind: 'guardian',
+    name: 'WEDGE GUARDIAN',
+    def,
+    body: '#8f5cf0', core: '#4a2a8f', glint: '#d9a7ff',
+    aura: [150, 80, 255], auraAlpha: 0.28, auraScale: 2.6,
+    flashTimer: 0,
+    vx: 0, vy: 0, ph: rand(0, PI2),
+    isGuardian: true, biomeId
+  };
+  // Dev multipliers keep parity with other enemies
+  const dev = game.dev;
+  gd.hp *= (dev.enemyHpMult || 1); gd.maxHp = gd.hp;
+  gd.speed *= (dev.enemySpeedMult || 1);
+  gd.damage *= (dev.enemyDmgMult || 1);
+  g.enemies.push(gd);
+  g.totalEnemiesSpawned++;
+  Sound.play('bossWarn');
+}
+
+function completeHeart(biomeId) {
+  const g = game;
+  const def = BIOME_DEFS[biomeId];
+  if (!def.weapon) return;
+  if (g.openedChests[biomeId]) return;
+  g.openedChests[biomeId] = true;
+  if (typeof markHeartCleared === 'function') markHeartCleared(biomeId);
+  const pos = chestPos(biomeId);
+  spawnParticles(pos.x, pos.y, '#b07cff', 40, 8);
+  spawnParticles(pos.x, pos.y, '#ffd24d', 24, 6);
+  spawnFloatingText(pos.x, pos.y - 40, 'HEART PURIFIED', '#d9a7ff');
+  openChest(biomeId, def.weapon);
+  g.guardian = null;
+  Sound.play('portal');
+}
+
+// Standing on a heart: sealed statues wait for their Guardian, cleared portals
+// charge up the warp network.
+function updateHearts(dt) {
+  const g = game;
+  const p = g.player;
+  for (const id of BIOME_IDS) {
+    const bdef = BIOME_DEFS[id];
+    if (!bdef.weapon) continue;
+    const pos = chestPos(id);
+    const d = Math.hypot(pos.x - p.x, pos.y - p.y);
+
+    if (!heartCleared(id)) {
+      if (g.time < HEART_WAKE_MS) continue;              // still sealed
+      if (g.guardian) continue;                          // one fight at a time
+      if (d < HEART_AWAKEN_RANGE) {
+        g.guardian = { biomeId: id, spawnT: g.time };
+        spawnGuardian(id);
+        spawnFloatingText(pos.x, pos.y - 60, 'GUARDIAN AWAKENED', '#d9a7ff');
+        spawnParticles(pos.x, pos.y - 20, '#b07cff', 30, 8);
+      }
+      continue;
+    }
+
+    // Cleared portal: standing on it charges the warp menu.
+    if (d < 40) {
+      g.warpCharges[id] = (g.warpCharges[id] || 0) + dt;
+      if (g.warpCharges[id] >= WARP_CHARGE_MS && !g.warpOpen) openWarpMenu();
+    } else if (g.warpCharges[id]) {
+      g.warpCharges[id] = Math.max(0, g.warpCharges[id] - dt * 3);
+    }
+  }
+}
+
+function openWarpMenu() {
+  const g = game;
+  if (g.warpOpen) return;
+  const menu = document.getElementById('warp-menu');
+  if (!menu) return;
+  const list = document.getElementById('warp-list');
+  list.innerHTML = '';
+  let n = 0;
+  for (const id of BIOME_IDS) {
+    if (!BIOME_DEFS[id].weapon || !heartCleared(id)) continue;
+    n++;
+    const btn = document.createElement('button');
+    btn.className = 'warp-btn';
+    btn.innerHTML = `${metaEsc(BIOME_DEFS[id].name)}`;
+    btn.addEventListener('click', () => doWarp(id));
+    list.appendChild(btn);
+  }
+  document.getElementById('warp-hint').textContent =
+    n > 1 ? 'Choose a purified heart to travel to.' : 'Only one heart cleared so far.';
+  document.getElementById('warp-list').innerHTML = list.innerHTML.length
+    ? list.innerHTML
+    : '<div class="warp-none">No warps available yet.</div>';
+  g.warpOpen = true;
+  g.manualPause = true;
+  g.paused = true;
+  menu.style.display = 'flex';
+  Sound.play('portal');
+}
+
+function closeWarpMenu(abort) {
+  const g = game;
+  const menu = document.getElementById('warp-menu');
+  if (menu) menu.style.display = 'none';
+  g.warpOpen = false;
+  if (abort) {
+    g.manualPause = false;
+    g.paused = false;
+  }
+}
+
+function doWarp(biomeId) {
+  const g = game;
+  const p = g.player;
+  const pos = chestPos(biomeId);
+  p.x = pos.x; p.y = pos.y;
+  g.camera.x = p.x - VIEW_W / 2;
+  g.camera.y = p.y - VIEW_H / 2;
+  updateFlowField(p.x, p.y);
+  spawnParticles(p.x, p.y, '#d9a7ff', 34, 7);
+  spawnParticles(p.x, p.y, '#ffd24d', 16, 5);
+  spawnFloatingText(p.x, p.y - 30, BIOME_DEFS[biomeId].name, '#d9a7ff');
+  closeWarpMenu(false);
+  g.manualPause = false;
+  g.paused = false;
+  Sound.play('portal');
+}
+
+// Minimap bookkeeping: remember every biome wedge the player ever enters this
+// run so the minimap can reveal its name and heart.
+function updateDiscoveries() {
+  const g = game;
+  const b = playerBiome();
+  if (b !== BIOME_CORE && !g.discoveredBiomes.includes(b)) g.discoveredBiomes.push(b);
+}
+
+function openChest(biomeId, weaponId) {
+  const g = game;
+  const p = g.player;
+  const pos = chestPos(biomeId);
+  const def = WEAPON_DEFS[weaponId];
+  if (!def) return;
+  const freshlyUnlocked = unlockChestWeapon(weaponId);
+
+  // Grant to the current run: level it up if already owned, add it otherwise.
+  // A full loadout (level-up picker caps at 6) still accepts up to 8; beyond
+  // that the new weapon replaces the weakest slot so it never goes to waste.
+  const owned = p.weapons.find(w => w.id === weaponId);
+  let grantedText = 'Equipped!';
+  if (owned) {
+    owned.level += 1;
+    grantedText = `Level ${owned.level}`;
+  } else if (p.weapons.length < 8) {
+    p.weapons.push({ id: weaponId, level: 1, lastFired: 0 });
+  } else {
+    let lowest = p.weapons[0];
+    for (const w of p.weapons) if (w.level < lowest.level) lowest = w;
+    const li = p.weapons.indexOf(lowest);
+    p.weapons.splice(li, 1, { id: weaponId, level: Math.max(1, lowest.level), lastFired: 0 });
+    grantedText = `Replaces ${WEAPON_DEFS[lowest.id].name}`;
+  }
+
+  spawnParticles(pos.x, pos.y, '#ffd24d', 26, 6);
+  spawnParticles(pos.x, pos.y, def.color, 14, 5);
+  spawnFloatingText(pos.x, pos.y - 26, def.name, def.color);
+  spawnFloatingText(pos.x, pos.y - 12,
+    (freshlyUnlocked ? 'Unlocked! ' : '') + grantedText, freshlyUnlocked ? '#ffd24d' : '#fff');
+  Sound.play('levelup');
+  Sound.play('gem');
+}
+
 function update(dt) {
   const g = game;
   if (!g.running || g.paused || g.gameOver) return;
@@ -690,9 +1197,12 @@ function update(dt) {
   const lvlTerm = lvl <= 15 ? lvl * 0.15 : 15 * 0.15 + (lvl - 15) * (lvl - 15) * 0.25;
   g.difficultyMult = (g.dev.difficultyOverride > 0)
     ? g.dev.difficultyOverride
-    : 1 + (g.time / 60000) * (1 + g.time / 300000) + lvlTerm;
+    : (1 + (g.time / 60000) * (1 + g.time / 300000) + lvlTerm) * (typeof difficultyScale === 'function' ? difficultyScale() : 1);
 
   updatePlayer(dt, dtSec);
+  updateHearts(dt);
+  updateStorm(dt, dtSec);
+  updateGusts(dt, dtSec);
   updateSpawning(dt);
   updateEnemies(dt, dtSec);
   fireWeapons();
@@ -700,14 +1210,23 @@ function update(dt) {
   updateProjectiles(dt, dtSec);
   updateEnemyProjectiles(dt, dtSec);
   updateClouds(dt, dtSec);
+  updateFamiliar(dt);
   updateTurrets(dt, dtSec);
   updateRifts(dt, dtSec);
   updateXpClustering(dtSec);
   updatePickups(dt, dtSec);
   updateEffects(dt, dtSec);
 
-  // Cap arrays for performance
-  if (g.particles.length > 500) g.particles.splice(0, g.particles.length - 500);
+  // Cheap periodic systems: recipe discovery + minimap discoveries
+  g.recipeTimer = (g.recipeTimer || 0) - dt;
+  if (g.recipeTimer <= 0) {
+    g.recipeTimer = 400;
+    if (typeof checkRecipes === 'function') checkRecipes();
+    updateDiscoveries();
+  }
+
+  // Cap arrays for performance (particle cap scales down with quality)
+  if (g.particles.length > GFX.particleCap) g.particles.splice(0, g.particles.length - GFX.particleCap);
   if (g.enemies.length > g.dev.enemyCap) {
     // Cull the FARTHEST enemies, never the ones close to the player —
     // sort nearest-first, then the tail (farthest) gets removed.

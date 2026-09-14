@@ -3,12 +3,20 @@
 // ============================================================
 
 // Find a candidate enemy spawn point on a ring around the player, nudged
-// out of walls. Returns {x, y}.
-function findEnemySpawnPos() {
+// out of walls. Distance is randomized too, so hordes don't pop on a fixed
+// ring. `bias` (optional) pins the direction to a broad arc centered at
+// bias.a with half-width bias.spread, so waves sweep in from a random side
+// instead of always pouring out of the four cardinal corridors.
+// Returns {x, y}.
+function findEnemySpawnPos(bias) {
   const g = game;
   const p = g.player;
-  const angle = rand(0, PI2);
-  const spawnDist = Math.max(VIEW_W, VIEW_H) * 0.55 + 50;
+  const rMin = Math.max(VIEW_W, VIEW_H) * 0.52 + 40;
+  const rMax = Math.max(VIEW_W, VIEW_H) * 0.82 + 120;
+  const angle = bias
+    ? bias.a + rand(-bias.spread, bias.spread)
+    : rand(0, PI2);
+  const spawnDist = rand(rMin, rMax);
   let x = p.x + Math.cos(angle) * spawnDist;
   let y = p.y + Math.sin(angle) * spawnDist;
 
@@ -25,14 +33,15 @@ function findEnemySpawnPos() {
 }
 
 // Spawn a specific enemy type. `type` is a key in ENEMY_DEFS.
-function spawnEnemy(type) {
+// `bias` (optional) aims the spawn toward a random arc (see findEnemySpawnPos).
+function spawnEnemy(type, bias) {
   const g = game;
   const p = g.player;
   const def = ENEMY_DEFS[type];
   if (!def) return;
 
   const dm = g.difficultyMult;
-  const pos = findEnemySpawnPos();
+  const pos = findEnemySpawnPos(bias);
   let { x, y } = pos;
 
   const radius = def.radius(dm);
@@ -48,6 +57,7 @@ function spawnEnemy(type) {
     type: def.category,
     kind: type,
     name: def.name,
+    def,
     // Visual palette for the shadow-blob renderer
     body: def.body, core: def.core, glint: def.glint,
     aura: def.aura, auraAlpha: def.auraAlpha, auraScale: def.auraScale,
@@ -116,8 +126,12 @@ function spawnSwarmlings() {
 
 // Pick which "little guy" types show up in a regular wave, based on
 // current difficulty. Elites/Bosses are timed events, not in pools.
+// While the player is inside a climate wedge, that biome's exclusive enemy
+// can join in too — so every sector of the ring has its own identity.
 function pickWaveType() {
   const dm = game.difficultyMult;
+  const bonus = BIOME_ENEMY[playerBiome()];
+  if (bonus && dm >= 2 && Math.random() < 0.30) return bonus;
   for (const entry of WAVE_POOL) {
     if (dm >= entry.minDiff && Math.random() < entry.chance) return entry.type;
   }
@@ -133,7 +147,10 @@ function spawnWave() {
     return;
   }
   const count = Math.floor(5 + dm * 4 + dm * dm * 0.3);
-  for (let i = 0; i < count; i++) spawnEnemy(pickWaveType());
+  // Each wave sweeps in from a random broad front, so pressure never locks
+  // onto the north/south/east/west approach lines.
+  const bias = { a: rand(0, PI2), spread: rand(1.1, 2.2) };
+  for (let i = 0; i < count; i++) spawnEnemy(pickWaveType(), bias);
 }
 
 // ============================================================
@@ -152,7 +169,9 @@ function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEf
     hitEnemies: new Set(),
     boomerang: !!(opts && opts.boomerang),
     maxOut: (opts && opts.maxOut) || 0,
-    outDist: 0, returning: false
+    outDist: 0, returning: false,
+    bounces: (opts && opts.bounces) || 0,
+    bounceRange: (opts && opts.bounceRange) || 120
   });
 
   // Duplicator: chance the same projectile fires a second, slightly offset copy
@@ -171,7 +190,9 @@ function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEf
       hitEnemies: new Set(),
       boomerang: !!(opts && opts.boomerang),
       maxOut: (opts && opts.maxOut) || 0,
-      outDist: 0, returning: false
+      outDist: 0, returning: false,
+      bounces: (opts && opts.bounces) || 0,
+      bounceRange: (opts && opts.bounceRange) || 120
     });
   }
 }

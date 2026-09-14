@@ -21,7 +21,12 @@ function gameLoop(timestamp) {
   const now2 = performance.now();
   if (now2 - fpsLast >= 500) {
     const fpsEl = document.getElementById('fps');
-    if (fpsEl) fpsEl.textContent = Math.round(fpsFrames * 1000 / (now2 - fpsLast)) + ' FPS';
+    const fpsNow = fpsFrames * 1000 / (now2 - fpsLast);
+    if (fpsEl) fpsEl.textContent = Math.round(fpsNow) + ' FPS';
+    // Feed the adaptive quality system only during live gameplay;
+    // idle screens always report a healthy frame rate.
+    if (game && game.running) gfxQualityTick(fpsNow);
+    else gfxQualityTick(120);
     fpsFrames = 0;
     fpsLast = now2;
   }
@@ -56,6 +61,17 @@ document.addEventListener('keydown', e => {
       return;
     }
     // Block all other keys during level-up
+    e.preventDefault();
+    return;
+  }
+
+  // Warp menu: Esc/P cancels it (the menu owns the pause state)
+  if (game.warpOpen) {
+    if (e.code === 'KeyP' || e.code === 'Escape') {
+      closeWarpMenu(true);
+      e.preventDefault();
+      return;
+    }
     e.preventDefault();
     return;
   }
@@ -101,12 +117,16 @@ window.addEventListener('keydown', e => {
 function startGame() {
   game = createGameState();
   game.running = true;
+  resetGfx();   // start every run at full quality
+  // AUTO power-ups are a per-run preference: always off at the start.
+  if (typeof resetAutoLevelUp === 'function') resetAutoLevelUp();
+  applyMetaToRun(game.player);   // permanent upgrades + chosen character
   game.bossTimer = 180000;
   game.eliteTimer = 20000;
   game.waveTimer = 1000;
 
   // Give starting weapon
-  game.player.weapons.push({ id: 'magicBolt', level: 1, lastFired: 0 });
+  game.player.weapons.push({ id: getStartWeapon(), level: 1, lastFired: 0 });
 
   // Initialize flow field + world around the player
   ffCX = 999999; ffCY = 999999;   // force recomputation on first update
@@ -117,6 +137,7 @@ function startGame() {
   document.getElementById('game-over-screen').style.display = 'none';
   document.getElementById('levelup-screen').style.display = 'none';
   document.getElementById('pause-screen').style.display = 'none';
+  document.getElementById('warp-menu').style.display = 'none';
   document.getElementById('pause-btn').style.display = 'block';
   Sound.play('start');
   Sound.startMusic();
@@ -207,6 +228,31 @@ canvas.addEventListener('touchcancel', e => { endTouch(e); }, { passive: false }
 // Pause / resume buttons
 document.getElementById('pause-btn').addEventListener('click', togglePause);
 document.getElementById('resume-btn').addEventListener('click', togglePause);
+const warpCancelBtn = document.getElementById('warp-cancel');
+if (warpCancelBtn) warpCancelBtn.addEventListener('click', () => closeWarpMenu(true));
+
+// Back-to-hub button from the pause menu (two-step confirm)
+let hubLeaveArmed = false, hubLeaveTimer = null;
+const hubLeaveBtn = document.getElementById('leave-hub-btn');
+hubLeaveBtn.addEventListener('click', () => {
+  if (!hubLeaveArmed) {
+    hubLeaveArmed = true;
+    hubLeaveBtn.classList.add('armed');
+    hubLeaveBtn.textContent = '⚠ CONFIRM — ABANDON RUN';
+    clearTimeout(hubLeaveTimer);
+    hubLeaveTimer = setTimeout(() => {
+      hubLeaveArmed = false;
+      hubLeaveBtn.classList.remove('armed');
+      hubLeaveBtn.textContent = '🏠 BACK TO HUB';
+    }, 2500);
+    return;
+  }
+  hubLeaveArmed = false;
+  clearTimeout(hubLeaveTimer);
+  hubLeaveBtn.classList.remove('armed');
+  hubLeaveBtn.textContent = '🏠 BACK TO HUB';
+  leaveToHub();
+});
 
 // Start / restart buttons
 document.getElementById('start-btn').addEventListener('click', startGame);

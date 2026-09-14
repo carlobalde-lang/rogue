@@ -53,15 +53,66 @@
     { label: 'God Mode (no damage)', path: 'dev.godMode' },
   ];
 
-  const ACTIONS = [
-    { label: 'Full Heal',      fn: g => { g.player.hp = g.player.maxHp; } },
-    { label: '+500 XP',        fn: g => gainXp(500) },
-    { label: '+Level',         fn: g => gainXp(g.player.xpToLevel) },
-    { label: 'Spawn Wave',     fn: g => spawnWave() },
-    { label: 'Spawn Elite',    fn: g => spawnEnemy('elite') },
-    { label: 'Spawn Boss',     fn: g => spawnEnemy('boss') },
-    { label: 'Kill All',       fn: g => { g.enemies.forEach(e => killEnemy(e)); } },
-    { label: 'Reset Dev',      fn: () => resetFields() },
+  const ACTION_GROUPS = [
+    { title: 'Run', actions: [
+      { label: 'Full Heal',   fn: g => { g.player.hp = g.player.maxHp; } },
+      { label: '+500 XP',     fn: g => gainXp(500) },
+      { label: '+Level',      fn: g => gainXp(g.player.xpToLevel) },
+      { label: 'Spawn Wave',  fn: g => spawnWave() },
+      { label: 'Spawn Elite', fn: g => spawnEnemy('elite') },
+      { label: 'Spawn Boss',  fn: g => spawnEnemy('boss') },
+      { label: 'Kill All',    fn: g => { g.enemies.forEach(e => killEnemy(e)); } },
+      { label: 'Reset Dev',   fn: () => resetFields() },
+    ]},
+    { title: 'World', actions: BIOME_IDS.map(id => ({
+      label: 'To ' + BIOME_DEFS[id].name,
+      // Teleport a couple of tiles away from the chest point, on a safe floor
+      // tile, so you land "near the centre" without triggering the chest
+      // (it needs a 600ms hold, but a 1-tile step would start it).
+      fn: g => {
+        const c = chestPos(id);
+        const offs = [
+          [c.x - TILE, c.y - TILE], [c.x + TILE, c.y - TILE],
+          [c.x - TILE, c.y + TILE], [c.x + TILE, c.y + TILE],
+          [c.x - 2 * TILE, c.y], [c.x + 2 * TILE, c.y],
+          [c.x, c.y - 2 * TILE], [c.x, c.y + 2 * TILE],
+          [c.x, c.y],
+        ];
+        const pick = offs.find(([x, y]) =>
+          getTile(x, y) === T_FLOOR && tileHazardAt(x, y) === HAZARD_NONE) || offs[offs.length - 1];
+        g.player.x = pick[0];
+        g.player.y = pick[1];
+      },
+    }))},
+    { title: 'Meta', actions: [
+      { label: '+100 Umbra Shards', requires: 'any', fn: () => {
+          meta.essence += 100; saveMeta(); refreshMetaUI(); updateMetaStarts();
+      }},
+      { label: '+1000 Umbra Shards', requires: 'any', fn: () => {
+          meta.essence += 1000; saveMeta(); refreshMetaUI(); updateMetaStarts();
+      }},
+      { label: 'Unlock All Weapons', requires: 'any', fn: () => {
+          META_START_WEAPONS.forEach(w => { if (meta.weapons.indexOf(w.id) === -1) meta.weapons.push(w.id); });
+          chestWeapons().forEach(cw => { if (meta.weapons.indexOf(cw.weapon) === -1) meta.weapons.push(cw.weapon); });
+          saveMeta(); refreshMetaUI(); updateMetaStarts();
+      }},
+      { label: 'Unlock All Characters', requires: 'any', fn: () => {
+          META_CHARS.forEach(c => {
+            if (meta.characters.indexOf(c.id) === -1) {
+              meta.characters.push(c.id);
+              if (!meta.charStarts[c.id]) meta.charStarts[c.id] = c.startWeapon;
+            }
+          });
+          meta.charStarts[meta.selectedChar] = meta.charStarts[meta.selectedChar] || metaChar(meta.selectedChar).startWeapon;
+          saveMeta(); refreshMetaUI(); updateMetaStarts();
+      }},
+      { label: 'Reset All Stats', requires: 'any', fn: () => {
+          if (!confirm('Reset ALL progress?\nThis wipes unlocks, Umbra Shards and the best-runs leaderboard.')) return;
+          try { localStorage.removeItem(META_KEY); } catch (e) {}
+          try { localStorage.removeItem(BEST_RUNS_KEY); } catch (e) {}
+          loadMeta(); refreshMetaUI(); updateMetaStarts(); renderBestRuns();
+      }},
+    ]},
   ];
 
   // --- Build DOM ---
@@ -133,11 +184,21 @@
     });
   }
 
-  for (const act of ACTIONS) {
-    const btn = document.createElement('button');
-    btn.textContent = act.label;
-    btn.addEventListener('click', () => { if (game) act.fn(game); syncAll(); });
-    actionsBox.appendChild(btn);
+  for (const group of ACTION_GROUPS) {
+    const header = document.createElement('div');
+    header.className = 'dev-section';
+    header.textContent = group.title;
+    actionsBox.appendChild(header);
+    for (const act of group.actions) {
+      const btn = document.createElement('button');
+      btn.textContent = act.label;
+      btn.addEventListener('click', () => {
+        if (act.requires !== 'any' && !game) return;
+        act.fn(game);
+        syncAll();
+      });
+      actionsBox.appendChild(btn);
+    }
   }
 
   // --- Sync current values into the UI ---
