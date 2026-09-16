@@ -354,7 +354,7 @@ swarmling: {
   elite: {
     name: 'Elite', category: 'elite',
     radius: dm => 18,
-    hp: dm => 50 * dm * dm,
+    hp: dm => 40 + 12 * dm * dm,
     speed: dm => 55 + rand(0, 25) + dm * 2,
     damage: dm => 8 + Math.floor(dm * 3),
     xp: 25,
@@ -365,7 +365,7 @@ swarmling: {
   warden: {
     name: 'Warden', category: 'warden',
     radius: dm => 24,
-    hp: dm => 120 * dm * dm,
+    hp: dm => 90 + 26 * dm * dm,
     speed: dm => 55 + dm * 3 + rand(0, 20),
     damage: dm => 10 + Math.floor(dm * 3),
     xp: 45,
@@ -376,7 +376,7 @@ swarmling: {
   boss: {
     name: 'Boss', category: 'boss',
     radius: dm => 30 + dm * 2,
-    hp: dm => 200 * dm * dm,
+    hp: dm => 150 + 45 * dm * dm,
     speed: dm => 50 + dm * 3 + rand(0, 20),
     damage: dm => 15 + Math.floor(dm * 5),
     xp: dm => 100 + Math.floor(dm * 20),

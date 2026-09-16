@@ -1006,7 +1006,7 @@ function spawnGuardian(biomeId) {
   const dm = g.difficultyMult;
   const pos = chestPos(biomeId);
   const radius = def.radius(dm) * 1.15;
-  const hp = Math.ceil(def.hp(dm) * 1.6);
+  const hp = Math.ceil(def.hp(dm) * 1.25);
   const gd = {
     x: pos.x, y: pos.y, radius,
     hp, maxHp: hp,
