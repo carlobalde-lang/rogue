@@ -116,6 +116,12 @@ window.addEventListener('keydown', e => {
 // ============================================================
 function startGame() {
   game = createGameState();
+  // World tile (8,8) in chunk 0 is the ruins heart: this run's spawn point
+  // (same spot doWarpToSpawn() returns to). Start standing right on it.
+  game.player.x = 8 * TILE + TILE / 2;
+  game.player.y = 8 * TILE + TILE / 2;
+  game.camera.x = game.player.x - VIEW_W / 2;
+  game.camera.y = game.player.y - VIEW_H / 2;
   game.running = true;
   resetGfx();   // start every run at full quality
   // AUTO power-ups are a per-run preference: always off at the start.
@@ -176,10 +182,15 @@ function initVolumeControls() {
 // ============================================================
 const JOY_DEADZONE = 12;
 
+// Tracks fingers currently on screen, so the joystick can be re-linked after a
+// pause (the browser keeps firing touchmove, but the joystick went inactive).
+const heldTouches = new Map();
+
 canvas.addEventListener('touchstart', e => {
-  if (!game || !game.running || game.paused || game.gameOver) return;
   e.preventDefault();
   const touch = e.changedTouches[0];
+  heldTouches.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+  if (!game || !game.running || game.paused || game.gameOver) return;
   game.joystick.active = true;
   game.joystick.id = touch.identifier;
   game.joystick.baseX = touch.clientX;
@@ -189,6 +200,10 @@ canvas.addEventListener('touchstart', e => {
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
+  for (const touch of e.changedTouches) {
+    const h = heldTouches.get(touch.identifier);
+    if (h) { h.x = touch.clientX; h.y = touch.clientY; }
+  }
   if (!game || !game.joystick.active) return;
   e.preventDefault();
   for (const touch of e.changedTouches) {
@@ -210,13 +225,12 @@ canvas.addEventListener('touchmove', e => {
 }, { passive: false });
 
 function endTouch(e) {
-  if (!game || !game.joystick.active) return;
   for (const touch of e.changedTouches) {
-    if (touch.identifier !== game.joystick.id) continue;
+    heldTouches.delete(touch.identifier);
+    if (!game || !game.joystick.active || touch.identifier !== game.joystick.id) continue;
     game.joystick.active = false;
     game.joystick.dx = 0;
     game.joystick.dy = 0;
-    break;
   }
 }
 canvas.addEventListener('touchend', e => { e.preventDefault(); endTouch(e); }, { passive: false });

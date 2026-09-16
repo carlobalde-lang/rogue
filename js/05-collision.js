@@ -8,7 +8,8 @@ function circleBlocked(x, y, r) {
   const maxY = Math.floor((y + r) / TILE);
   for (let ty = minY; ty <= maxY; ty++) {
     for (let tx = minX; tx <= maxX; tx++) {
-      if (getTile(tx * TILE + TILE * 0.5, ty * TILE + TILE * 0.5) !== T_WALL) continue;
+      const tt = getTile(tx * TILE + TILE * 0.5, ty * TILE + TILE * 0.5);
+      if (tt !== T_WALL && tt !== T_TREE && tt !== T_TALLGRASS && tt !== T_CLIFF) continue;
       const x0 = tx * TILE, x1 = x0 + TILE;
       const y0 = ty * TILE, y1 = y0 + TILE;
       const cx = clamp(x, x0, x1);

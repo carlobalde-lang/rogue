@@ -19,10 +19,10 @@ function getChunkTorches(cx, cy) {
     for (let tx = 1; tx < CHUNK - 1; tx++) {
       if (tiles[ty * CHUNK + tx] !== T_FLOOR) continue;
       const nearWall =
-        tiles[(ty - 1) * CHUNK + tx] === T_WALL ||
-        tiles[(ty + 1) * CHUNK + tx] === T_WALL ||
-        tiles[ty * CHUNK + tx - 1] === T_WALL ||
-        tiles[ty * CHUNK + tx + 1] === T_WALL;
+        tiles[(ty - 1) * CHUNK + tx] === T_WALL || tiles[(ty - 1) * CHUNK + tx] === T_TREE || tiles[(ty - 1) * CHUNK + tx] === T_TALLGRASS || tiles[(ty - 1) * CHUNK + tx] === T_CLIFF ||
+        tiles[(ty + 1) * CHUNK + tx] === T_WALL || tiles[(ty + 1) * CHUNK + tx] === T_TREE || tiles[(ty + 1) * CHUNK + tx] === T_TALLGRASS || tiles[(ty + 1) * CHUNK + tx] === T_CLIFF ||
+        tiles[ty * CHUNK + tx - 1] === T_WALL || tiles[ty * CHUNK + tx - 1] === T_TREE || tiles[ty * CHUNK + tx - 1] === T_TALLGRASS || tiles[ty * CHUNK + tx - 1] === T_CLIFF ||
+        tiles[ty * CHUNK + tx + 1] === T_WALL || tiles[ty * CHUNK + tx + 1] === T_TREE || tiles[ty * CHUNK + tx + 1] === T_TALLGRASS || tiles[ty * CHUNK + tx + 1] === T_CLIFF;
       if (!nearWall) continue;
       // Torches exist only on Ruins tiles, and only inside the true core
       // disc: a hard r <= BIOME_RADIUS_CORE test. Beyond that radius the
@@ -283,7 +283,7 @@ function buildLightPath(wx, wy, radius, rays, step, cx, cy) {
     for (let s = 1; s <= segs; s++) {
       const px2 = wx + dx * s * step;
       const py2 = wy + dy * s * step;
-      if (getTile(px2, py2) === T_WALL) {
+      if (getTile(px2, py2) === T_WALL || getTile(px2, py2) === T_TREE || getTile(px2, py2) === T_TALLGRASS || getTile(px2, py2) === T_CLIFF) {
         rr = (s - 1) * step + step * 0.5;
         break;
       }

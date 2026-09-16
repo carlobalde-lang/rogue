@@ -14,8 +14,9 @@ let VIEW_H = 0;
 function resizeCanvas() {
   VIEW_W = window.innerWidth;
   VIEW_H = window.innerHeight;
-  canvas.width = Math.max(1, Math.round(VIEW_W * DPR));
-  canvas.height = Math.max(1, Math.round(VIEW_H * DPR));
+  const ps = (typeof GFX !== 'undefined' && GFX.pixelScale) ? GFX.pixelScale : 1;
+  canvas.width = Math.max(1, Math.round(VIEW_W * DPR * ps));
+  canvas.height = Math.max(1, Math.round(VIEW_H * DPR * ps));
   canvas.style.width = VIEW_W + 'px';
   canvas.style.height = VIEW_H + 'px';
 }

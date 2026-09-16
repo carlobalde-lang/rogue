@@ -44,10 +44,10 @@ const META_UPGRADES = [
     desc: l => `+10 Max HP per level (currently +${10 * l})`,
     apply: p => { p.maxHp += 10; } },
   { id: 'swiftness', name: 'Swiftness', icon: '👟', max: 5, base: 50, growth: 1.6,
-    desc: l => `+5% move speed per level (currently +${5 * l}%)`,
+    desc: l => `+5% move speed per level (currently +${Math.round((Math.pow(1.05, l) - 1) * 100)}%)`,
     apply: p => { p.speed *= 1.05; } },
   { id: 'might', name: 'Might', icon: '⚔️', max: 5, base: 60, growth: 1.6,
-    desc: l => `+6% damage per level (currently +${6 * l}%)`,
+    desc: l => `+6% damage per level (currently +${Math.round((Math.pow(1.06, l) - 1) * 100)}%)`,
     apply: p => { p.dmgMult *= 1.06; } },
   { id: 'regen', name: 'Regen', icon: '💚', max: 5, base: 45, growth: 1.6,
     desc: l => `+0.15 HP/s per level (currently +${(0.15 * l).toFixed(2)})`,
@@ -68,8 +68,8 @@ const META_UPGRADES = [
     desc: l => `Start runs with +5% lifesteal per level (currently +${5 * l}%)`,
     apply: p => { p.vamp = (p.vamp || 0) + 0.05; } },
   { id: 'fortune', name: 'Fortune', icon: '🍀', max: 4, base: 65, growth: 1.6,
-    desc: l => `Start runs with +1 Luck per level (gem/shards odds, magnets)`,
-    apply: p => { p.luck = (p.luck || 0) + 1; } },
+    desc: l => `Start runs with +8% Luck per level (extra gems, better drops; currently +${Math.round(0.08 * l * 100)}%)`,
+    apply: p => { p.luck = (p.luck || 0) + 0.08; } },
   { id: 'twin', name: 'Twin Munitions', icon: '🔀', max: 3, base: 70, growth: 1.65,
     desc: l => `Start runs with +10% duplicate-chance per level (currently +${10 * l}%)`,
     apply: p => { p.duplicate = (p.duplicate || 0) + 0.10; } },
@@ -77,7 +77,7 @@ const META_UPGRADES = [
     desc: l => `Start runs with 1 revive per level (currently ${l})`,
     apply: p => { p.revives = (p.revives || 0) + 1; } },
   { id: 'ledger', name: "Banker's Ledger", icon: '📒', max: 5, base: 60, growth: 1.6,
-    desc: l => `+25% Umbra Shards from elite/warden drops per level (currently +${25 * l}%)`,
+    desc: l => `+25% Umbra Shards from elite/warden drops per level (currently +${Math.round((Math.pow(1.25, l) - 1) * 100)}%)`,
     apply: p => { p.essenceMult = (p.essenceMult || 1) * 1.25; } }
 ];
 

@@ -50,7 +50,9 @@ GFX.compass   = lvl < 2;
   GFX.shockwaves = lvl < 2;
   GFX.enemyFx    = lvl < 2;
   GFX.particleCap  = [500, 300, 150, 60][lvl];
+  const prevScale = GFX.pixelScale;
   GFX.pixelScale   = lvl < 3 ? 1 : 0.66;
+  if (GFX.pixelScale !== prevScale && typeof resizeCanvas === 'function') resizeCanvas();
 }
 
 // Feed it the measured FPS every ~0.5s while the game is running.

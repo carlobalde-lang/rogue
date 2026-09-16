@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // GAME LOOP UPDATES (split by subsystem)
 // ============================================================
 
@@ -24,8 +24,8 @@ const STORM_DEFS = {
   },
   south: {
     name: 'SANDSTORM', color: '#ffd080', streak: 'rgba(255,205,130,0.50)',
-    particle: '#ffc860', dur: 12000, interval: 45000, windA: -Math.PI / 5,
-    drops: 76, speed: [460, 760], dropLen: [12, 20]
+    particle: '#ffc860', dur: 12000, interval: 45000, windA: -Math.PI * 0.04,
+    drops: 160, speed: [320, 460], dropLen: [8, 14]
   }
 };
 const STORM_FIRST_MS = 30000;   // opening half-minute is always calm
@@ -987,8 +987,9 @@ function updateEffects(dt, dtSec) {
 //
 // Cleared hearts form a permanent warp network (persisted in meta), so future
 // runs can fast-travel between every heart you've ever purified.
-const HEART_WAKE_MS = 75000;      // guardians only wake after this time
+const HEART_WAKE_MS = 30000;      // guardian wakes after 30s of the player staying nearby
 const HEART_AWAKEN_RANGE = 950;   // player proximity that wakes the guardian
+const HEART_COUNT_RANGE = 600;    // inside this radius the countdown runs; beyond it it resets
 const WARP_CHARGE_MS = 900;       // hold-to-warp on a cleared portal
 
 // A heart is usable as a portal if it was cleared this run OR in any past run.
@@ -1061,8 +1062,18 @@ function updateHearts(dt) {
     const d = Math.hypot(pos.x - p.x, pos.y - p.y);
 
     if (!heartCleared(id)) {
-      if (g.time < HEART_WAKE_MS) continue;              // still sealed
-      if (g.guardian) continue;                          // one fight at a time
+      // Per-biome guardian countdown: every heart owns a separate 30s timer
+      // that only runs while the player stays within 600px of the statue.
+      // Walking further than that stops AND resets it, so nothing charges in
+      // the background while you roam the rest of the world.
+      if (g.heartTimers[id] == null) g.heartTimers[id] = HEART_WAKE_MS;
+      if (d <= HEART_COUNT_RANGE && !g.guardian) {
+        g.heartTimers[id] = Math.max(0, g.heartTimers[id] - dt);
+      } else if (d > HEART_COUNT_RANGE) {
+        g.heartTimers[id] = HEART_WAKE_MS;
+      }
+      if (g.heartTimers[id] > 0) continue;             // still sealed
+      if (g.guardian) continue;                        // one fight at a time
       if (d < HEART_AWAKEN_RANGE) {
         g.guardian = { biomeId: id, spawnT: g.time };
         spawnGuardian(id);
@@ -1074,11 +1085,42 @@ function updateHearts(dt) {
 
     // Cleared portal: standing on it charges the warp menu.
     if (d < 40) {
-      g.warpCharges[id] = (g.warpCharges[id] || 0) + dt;
-      if (g.warpCharges[id] >= WARP_CHARGE_MS && !g.warpOpen) openWarpMenu();
+      // A ring only charges while "armed" - i.e. after the player has stepped
+      // OFF *this* portal and walked back on top. A cancel or a warp therefore
+      // never makes the menu explode back open while you still stand on it.
+      if (g.warpArmed[id]) {
+        g.warpCharges[id] = (g.warpCharges[id] || 0) + dt;
+        if (g.warpCharges[id] >= WARP_CHARGE_MS && !g.warpOpen) openWarpMenu();
+      }
     } else if (g.warpCharges[id]) {
       g.warpCharges[id] = Math.max(0, g.warpCharges[id] - dt * 3);
     }
+    // Stepped well clear of the ring: this portal is re-armed, so the menu may
+    // open again the next time the player stands on it.
+    if (d >= 90) g.warpArmed[id] = true;
+  }
+
+  // RUINS SPAWN ring: the starting heart is BIOME_CORE which has no weapon, so
+  // the cleared-heart loop above never arms it. Once any warp is unlocked the
+  // spawn becomes its own real portal: stand on it (after stepping off) to
+  // re-open the menu, exactly like the weapon hearts. It keeps its own arm
+  // flag (g.warpArmed.spawn) so the far-away biome hearts can't re-arm it.
+  let anyWarpUnlocked = false;
+  for (const sid of BIOME_IDS) {
+    if (BIOME_DEFS[sid].weapon && heartCleared(sid)) { anyWarpUnlocked = true; break; }
+  }
+  if (anyWarpUnlocked) {
+    const spX = 8 * TILE + TILE / 2, spY = 8 * TILE + TILE / 2 ;
+    const dSp = Math.hypot(g.player.x - spX, g.player.y - spY);
+    if (dSp < 40) {
+      if (g.warpArmed.spawn) {
+        g.warpCharges.spawn = (g.warpCharges.spawn || 0) + dt;
+        if (g.warpCharges.spawn >= WARP_CHARGE_MS && !g.warpOpen) openWarpMenu();
+      }
+    } else if (g.warpCharges.spawn) {
+      g.warpCharges.spawn = Math.max(0, g.warpCharges.spawn - dt * 3);
+    }
+    if (dSp >= 90) g.warpArmed.spawn = true;
   }
 }
 
@@ -1089,9 +1131,13 @@ function openWarpMenu() {
   if (!menu) return;
   const list = document.getElementById('warp-list');
   list.innerHTML = '';
+  const here = owningBiomeAt(g.player.x, g.player.y);
   let n = 0;
+  let anyWarp = 0;
   for (const id of BIOME_IDS) {
     if (!BIOME_DEFS[id].weapon || !heartCleared(id)) continue;
+    anyWarp++;
+    if (id === here) continue;                              // never warp to where you stand
     n++;
     const btn = document.createElement('button');
     btn.className = 'warp-btn';
@@ -1099,11 +1145,30 @@ function openWarpMenu() {
     btn.addEventListener('click', () => doWarp(id));
     list.appendChild(btn);
   }
+  if (anyWarp > 0 && here !== BIOME_CORE) {                   // first warp unlocks
+    n++;                                                      // the spawn warp —
+    const spawnBtn = document.createElement('button');         // but never one back
+    spawnBtn.className = 'warp-btn warp-spawn-btn';            // to where you stand.
+    spawnBtn.innerHTML = '&#127968; RUINS SPAWN';
+    spawnBtn.addEventListener('click', () => doWarpToSpawn());
+    list.prepend(spawnBtn);
+  }
   document.getElementById('warp-hint').textContent =
-    n > 1 ? 'Choose a purified heart to travel to.' : 'Only one heart cleared so far.';
-  document.getElementById('warp-list').innerHTML = list.innerHTML.length
-    ? list.innerHTML
-    : '<div class="warp-none">No warps available yet.</div>';
+    n > 1
+      ? 'Warp to a cleared heart - or return to the ruins spawn.'
+      : 'First warp unlocked: you can now return to the ruin spawn.';
+  // NOTE — do NOT re-assign warp-list.innerHTML here. `list` IS warp-list, so
+  // its children (buttons created with addEventListener above) are already live
+  // in the DOM; round-tripping them through innerHTML would destroy every
+  // button and drop all their click listeners — which is exactly what made the
+  // visible RUINS SPAWN button look "dead" even though clicks reached it. Only
+  // if the list stayed empty do we inject a non-interactive placeholder.
+  if (!list.children.length) {
+    const none = document.createElement('div');
+    none.className = 'warp-none';
+    none.textContent = 'No warps available yet.';
+    list.appendChild(none);
+  }
   g.warpOpen = true;
   g.manualPause = true;
   g.paused = true;
@@ -1116,7 +1181,16 @@ function closeWarpMenu(abort) {
   const menu = document.getElementById('warp-menu');
   if (menu) menu.style.display = 'none';
   g.warpOpen = false;
+  // Disarm every portal: a ring may only charge again after the player steps
+  // well clear of THAT portal (>=90px) and walks back on top of it. This is
+  // what makes both CANCEL and a successful warp feel stable instead of the
+  // menu snapping open again while you still stand on the heart.
+  g.warpArmed = {};
+  // Forget every charge too: a stale full charge would re-open the menu on the
+  // very first frame after any portal is re-armed.
+  g.warpCharges = {};
   if (abort) {
+    g.warpCloseT = g.time;
     g.manualPause = false;
     g.paused = false;
   }
@@ -1137,6 +1211,46 @@ function doWarp(biomeId) {
   g.manualPause = false;
   g.paused = false;
   Sound.play('portal');
+}
+
+// Untracked return ticket: warp straight back to the ruins spawn (the chunk-0
+// heart at world tile 8,8). It is always listed once ANY warp is unlocked, so
+// you are never stranded far from home after your first purification. Clearing
+// the current chunk's charge here keeps the portal trigger from instantly
+// re-opening the menu if you happen to stand on the ruins heart.
+function doWarpToSpawn() {
+  const g = game;
+  const p = g.player;
+  // World tile (8,8) in chunk 0 is the ruins heart: this run's spawn point.
+  const sx = 8 * TILE + TILE / 2;
+  const sy = 8 * TILE + TILE / 2;
+  p.x = sx; p.y = sy;
+  g.camera.x = p.x - VIEW_W / 2;
+  g.camera.y = p.y - VIEW_H / 2;
+  updateFlowField(p.x, p.y);
+  spawnParticles(p.x, p.y, '#d9a7ff', 34, 7);
+  spawnParticles(p.x, p.y, '#ffd24d', 16, 5);
+  spawnFloatingText(p.x, p.y - 30, 'RUINS SPAWN', '#d9a7ff');
+  closeWarpMenu(false);
+  g.manualPause = false;
+  g.paused = false;
+  Sound.play('portal');
+}
+
+// Delegated, capture-phase handler for the RUINS SPAWN button. It runs BEFORE
+// the button's own listener: if the click lands on .warp-spawn-btn we take
+// over, mark it handled so nothing else double-fires, and warp. This keeps the
+// spawn warp reliable no matter how many times the button is rebuilt (each
+// rebuild would otherwise orphan the listener bound to the old node).
+const warpListRoot = document.getElementById('warp-list');
+if (warpListRoot) {
+  warpListRoot.addEventListener('click', function (ev) {
+    const btn = ev.target && ev.target.closest ? ev.target.closest('.warp-spawn-btn') : null;
+    if (!btn) return;
+    ev.stopImmediatePropagation();
+    ev.preventDefault();
+    doWarpToSpawn();
+  }, true); // capture: prima di ogni altro listener sul bottone/clone
 }
 
 // Minimap bookkeeping: remember every biome wedge the player ever enters this

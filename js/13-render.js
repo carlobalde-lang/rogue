@@ -2597,8 +2597,71 @@ function drawTopDownNix(x, y, pl, time) {
   ctx.restore();
 }
 
+// Continuous overlay animation shared by every water mirror (prairie lake,
+// swamp pool, northern ice, taiga snow): a few slow crossing waves computed
+// from WORLD coordinates so the effect never restarts at tile boundaries.
+// Colors are tuned per biome via the palette map below.
+var WATER_PULSE_PAL = {
+  [HAZARD_WATER]: { patch: '125,195,205',   rip: '185,225,230', rip2: '210,240,242', glint: '225,248,248', breathe: '145,205,215' },
+  [HAZARD_SWAMP]: { patch: '110,155,70',    rip: '165,190,100', rip2: '185,200,115', glint: '210,225,145', breathe: '135,165,85'  },
+  [HAZARD_ICE]:   { patch: '140,200,235',   rip: '200,235,250', rip2: '215,242,255', glint: '235,248,255', breathe: '150,205,235' },
+  [HAZARD_SNOW]:  { patch: '218,233,248',   rip: '233,244,255', rip2: '240,248,255', glint: '248,252,255', breathe: '213,228,248' }
+};
+
+function drawWaterMirrorPulse(sx, sy, hz, t, pal) {
+  const wx = hz.x;
+  const wy = hz.y;
+  const time = t * 0.00032;
+
+  // Several slow waves with different directions/frequencies.
+  const w1 = Math.sin(wx * 0.050 + wy * 0.018 + time * 2.0);
+  const w2 = Math.sin(wx * 0.027 - wy * 0.041 - time * 1.25);
+  const w3 = Math.sin(wx * 0.073 + wy * 0.031 + time * 1.7);
+
+  // Soft moving water patch
+  const patch = (w1 + w2) * 0.5;
+  if (patch > 0.25) {
+    const alpha = 0.025 + (patch - 0.25) * 0.035;
+    ctx.fillStyle = `rgba(${pal.patch},${alpha})`;
+    ctx.fillRect(sx + 4 + w2 * 2, sy + 5 + w1 * 2, 8, 3);
+  }
+
+  // Small irregular ripple
+  const ripple = Math.sin(wx * 0.085 + wy * 0.037 - time * 2.8);
+  if (ripple > 0.62) {
+    const alpha = (ripple - 0.62) * 0.13;
+    ctx.fillStyle = `rgba(${pal.rip},${alpha})`;
+    ctx.fillRect(sx + 5 + w1 * 2, sy + 11 + w2 * 2, 4 + Math.floor((ripple - 0.62) * 4), 1);
+  }
+
+  // Second small ripple
+  const ripple2 = Math.sin(wx * 0.041 - wy * 0.067 + time * 1.9);
+  if (ripple2 > 0.72) {
+    ctx.fillStyle = `rgba(${pal.rip2},${(ripple2 - 0.72) * 0.11})`;
+    ctx.fillRect(sx + 18 + w2 * 2, sy + 20 + w1, 3, 1);
+  }
+
+  // Moving specular glint (modulo kept in range so negative world coords on
+  // the west/north sides never draw off the tile).
+  const glint = Math.sin(wx * 0.019 + wy * 0.031 + time * 1.35);
+  if (glint > 0.90) {
+    ctx.fillStyle = `rgba(${pal.glint},0.20)`;
+    const gx = sx + (((wx * 0.13 + t * 0.002) % (TILE - 3)) + (TILE - 3)) % (TILE - 3);
+    const gy = sy + (((wy * 0.09 + Math.sin(time + wx) * 3) % (TILE - 2)) + (TILE - 2)) % (TILE - 2);
+    ctx.fillRect(gx, gy, 2, 1);
+    if (glint > 0.96) ctx.fillRect(gx + 3, gy, 2, 1);
+  }
+
+  // Very subtle breathing: almost invisible global shimmer.
+  const breathe = 0.5 + 0.5 * Math.sin(wx * 0.018 + wy * 0.014 + time * 0.7);
+  if (breathe > 0.78) {
+    ctx.fillStyle = `rgba(${pal.breathe},${(breathe - 0.78) * 0.035})`;
+    ctx.fillRect(sx + 8, sy + 26, 6, 1);
+  }
+}
+
 // Animated surface effects on hazard tiles (drawn above the baked floor but
-// below units), so lava bubbles, swamp ripples and ice glints feel alive.
+// below units), so lava bubbles and the unified water shimmer feel alive.
 function drawTerrainAnimated(cx, cy, w, h) {
   const g = game;
   const firstCx = Math.floor(cx / CHUNK_PX) - 1;
@@ -2623,31 +2686,11 @@ function drawTerrainAnimated(cx, cy, w, h) {
           ctx.beginPath();
           ctx.arc(sx - Math.sin(t * 0.005 + hz.ph * 7) * 4, sy - b2 * 0.07, 1.6, 0, PI2);
           ctx.fill();
-        } else if (hz.type === HAZARD_SWAMP) {
-          const rr = (t * 0.006 + hz.ph) % 1;
-          ctx.strokeStyle = `rgba(140,180,70,${0.35 * (1 - rr)})`;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.arc(sx, sy, 3 + rr * 9, 0, PI2);
-          ctx.stroke();
-          ctx.fillStyle = `rgba(90,120,40,${0.25 + 0.2 * Math.sin(t * 0.004 + hz.ph)})`;
-          ctx.fillRect(sx - 4, sy - 3, 3, 1);
-        } else if (hz.type === HAZARD_ICE) {
-          const a = Math.max(0, Math.sin(t * 0.004 + hz.ph));
-          if (a > 0.05) {
-            ctx.fillStyle = `rgba(220,245,255,${0.5 * a})`;
-            ctx.fillRect(sx - 5 + (hz.ph % 3), sy - 6, 2, 2);
-            ctx.fillRect(sx + 4 - ((hz.ph * 2) % 4), sy - 3, 2, 2);
-          }
-        } else if (hz.type === HAZARD_WATER) {
-          const drift = (t * 0.012 + hz.ph) % 16;
-          ctx.fillStyle = 'rgba(190,230,240,0.3)';
-          ctx.fillRect(sx - 6 + drift, sy - 2, 3, 1);
-        } else if (hz.type === HAZARD_SNOW) {
-          if (Math.sin(t * 0.006 + hz.ph) > 0.4) {
-            ctx.fillStyle = 'rgba(235,245,255,0.3)';
-            ctx.fillRect(sx + 3, sy - 5, 2, 2);
-          }
+        } else if (hz.type === HAZARD_WATER || hz.type === HAZARD_SWAMP ||
+                   hz.type === HAZARD_ICE || hz.type === HAZARD_SNOW) {
+          // Same continuous world-coord water animation for every mirror,
+          // tinted per biome.
+          drawWaterMirrorPulse(sx, sy, hz, t, WATER_PULSE_PAL[hz.type] || WATER_PULSE_PAL[HAZARD_WATER]);
         }
       }
     }
@@ -2711,6 +2754,41 @@ function drawStatues(cx, cy, w, h) {
         ctx.fillStyle = beam;
         ctx.fillRect(sx - 2.5, sy - 30 - beamH, 5, beamH);
       }
+    }
+
+    // Progressive awaken ring: an arc that fills as THIS heart's own 30s
+    // countdown winds down, then pulses "ready" — approach the statue to
+    // actually spawn the boss and unlock the weapon. The countdown only runs
+    // within 600px of the statue and resets if the player walks farther away.
+    if (!opened && !gA) {
+      const hpt = (g.heartTimers && g.heartTimers[id] != null)
+        ? g.heartTimers[id] : HEART_WAKE_MS;
+      const p = clamp(1 - hpt / HEART_WAKE_MS, 0, 1);
+      const rr = 46 + Math.sin(t * 0.005 + ph) * 2;
+      ctx.strokeStyle = 'rgba(120,220,255,0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(sx, sy - 14, rr, -Math.PI / 2, -Math.PI / 2 + PI2 * p);
+      ctx.stroke();
+      if (p >= 1) {
+        const pulse = 0.5 + 0.5 * Math.sin(t * 0.008 + ph);
+        ctx.strokeStyle = `rgba(120,220,255,${(0.35 + 0.45 * pulse).toFixed(2)})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx, sy - 14, rr + 8 + pulse * 5, 0, PI2);
+        ctx.stroke();
+      }
+      // Wake countdown: seconds until this guardian may awaken and you can
+      // fight it to unlock the weapon. Ticks from 30 down to "ready".
+      ctx.font = 'bold 11px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = p < 1
+        ? 'rgba(150,225,255,0.9)'
+        : `rgba(120,225,255,${(0.6 + 0.4 * pulse).toFixed(2)})`;
+      ctx.fillText(p < 1
+        ? Math.max(1, Math.ceil(hpt / 1000)) + 's'
+        : '\u2022 READY',
+        sx, sy + 40);
     }
 
     // Ground shadow + pedestal slab anchoring the floating statue
@@ -2780,6 +2858,46 @@ function drawStatues(cx, cy, w, h) {
     if (!gA && Math.sin(t * 0.003 + ph) > 0.45) {
       ctx.fillStyle = 'rgba(255,240,190,0.7)';
       ctx.fillRect(sx + 10 + Math.sin(t * 0.005 + ph * 2) * 5, sy - 26, 2, 2);
+    }
+  }
+
+  // RUINS SPAWN ring: the starting heart is BIOME_CORE which carries no weapon,
+  // so the cleared-weapon loop above never draws a portal on it. Once any warp
+  // is unlocked the spawn becomes a real portal too — same ring, same charge
+  // arc, standing on it (after stepping off) re-opens the menu.
+  let anyWarpR = false;
+  for (const sid of BIOME_IDS) {
+    if (BIOME_DEFS[sid].weapon && heartCleared(sid)) { anyWarpR = true; break; }
+  }
+  if (anyWarpR) {
+    const spoX = 8 * TILE + TILE / 2, spoY = 8 * TILE + TILE / 2;
+    // Convert world -> screen like every other world-space draw: missing this
+    // subtraction used to pin the ring to the viewport, so it "followed" the
+    // player around the screen instead of sitting on the ruins floor.
+    const spsx = spoX - cx, spsy = spoY - cy;
+    if (Math.abs(spsx) < w + 90 && Math.abs(spsy) < h + 90) {
+      const phS = seed2(8, 8) * PI2;
+      // Ground shadow + pedestal slab anchoring the ring to the floor
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.beginPath();
+      ctx.ellipse(spsx, spsy + 8, 22, 6, 0, 0, PI2);
+      ctx.fill();
+      ctx.fillStyle = '#2a2320';
+      ctx.fillRect(spsx - 14, spsy + 4, 28, 4);
+      ctx.fillStyle = '#35302c';
+      ctx.fillRect(spsx - 14, spsy + 8, 28, 3);
+      ctx.fillStyle = '#1b1816';
+      ctx.fillRect(spsx - 14, spsy + 1, 28, 3);
+      // Portal resting on the ground, gentle breathe only
+      drawPortal(spsx, spsy + Math.sin(t * 0.002 + phS) * 2, t, phS);
+      const wcS = clamp((g.warpCharges.spawn || 0) / WARP_CHARGE_MS, 0, 1);
+      if (wcS > 0 && wcS < 1) {
+        ctx.strokeStyle = '#ffd24d';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(spsx, spsy, 42, -Math.PI / 2, -Math.PI / 2 + PI2 * wcS);
+        ctx.stroke();
+      }
     }
   }
 }
@@ -2979,74 +3097,283 @@ function render() {
     }
   }
 
-  // --- Enemies (solid shadow blobs with per-type palette) ---
+  // --- Enemies: Shadow Survivors visual system ---
+  // Every enemy renders a distinct shadow-creature silhouette instead of the
+  // old circular blob. `e.kind` selects fast/tank/ranged biome shapes, while
+  // `e.type` (category) dominates for boss/warden; everything else falls back
+  // to the basic Shadowling.
   const t = g.time;
+  const FAST_FORMS = ['runner', 'dunerunner', 'swarmling', 'pinewraith', 'riverwisp', 'frostling'];
+  const TANK_FORMS = ['brute', 'canyongolem', 'shielded', 'leecher', 'boghaunt'];
+  const RANGED_FORMS = ['caster', 'scorcher', 'dryadseer'];
+
   for (const e of g.enemies) {
     if (e.dead) continue;
+
     const sx = e.x - cx;
     const sy = e.y - cy;
-    if (sx < -60 || sx > w + 60 || sy < -60 || sy > h + 60) continue;
+    if (sx < -70 || sx > w + 70 || sy < -70 || sy > h + 70) continue;
 
     const R = e.radius;
     const eph = e.ph || 0;
 
     const [ar, ag, ab] = e.aura || [120, 0, 30];
 
-    // Outer type-colored aura (very soft)
+    // Common shadow palette (per biome)
+    const body = e.body || '#ff4d4d';
+    const core = e.core || '#7a1a1a';
+    const glint = e.glint || '#ff9e9e';
+
+    // Silhouette: category rules first, then kind-based archetypes.
+    const fkind = e.kind || e.type;
+    let form = 'normal';
+    if (e.type === 'boss') form = 'boss';
+    else if (e.type === 'warden') form = 'warden';
+    else if (FAST_FORMS.indexOf(fkind) >= 0) form = 'fast';
+    else if (TANK_FORMS.indexOf(fkind) >= 0) form = 'tank';
+    else if (RANGED_FORMS.indexOf(fkind) >= 0) form = 'ranged';
+
+    // Shadow aura (soft, breathing)
     if (GFX.enemyFx) {
-      ctx.globalAlpha = e.auraAlpha ?? 0.15;
+      const pulse = 1 + 0.08 * Math.sin(t * 0.003 + eph);
+      ctx.globalAlpha = (e.auraAlpha ?? 0.15) * pulse;
       ctx.fillStyle = `rgb(${ar},${ag},${ab})`;
       ctx.beginPath();
-      ctx.arc(sx, sy, R * (e.auraScale ?? 2.2), 0, PI2);
+      ctx.arc(sx, sy, R * (e.auraScale ?? 2.2) * pulse, 0, PI2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
 
-    // Amorphous body. Fancy mode uses the wobbly blob; reduced quality drops
-    // to a plain circle to save the expensive 14-point outline.
-    const r1 = R * (1 + 0.10 * Math.sin(t * 0.006 + eph));
-    const r2 = R * (1 + 0.10 * Math.sin(t * 0.006 + eph + 2.1));
-    const wobR = R * 0.45;
-    if (GFX.enemyFx) {
-      ctx.fillStyle = e.body || '#ff4d4d';
+    if (form === 'boss') {
+      // SHADOW LORD: a mountain of shadow with three tall curling horns.
+      // Rounded lumpy mass (no radial spikes, so it never reads as a star).
+      const pulse = 1 + 0.06 * Math.sin(t * 0.003 + eph);
+
+      ctx.fillStyle = body;
       ctx.beginPath();
       for (let i = 0; i <= 14; i++) {
         const a = PI2 / 14 * i;
-        const rr = R + wobR * Math.sin(a * 3 + t * 0.005 + eph)
-                        + wobR * 0.6 * Math.sin(a * 5 - t * 0.008 + eph * 2);
-        const rr2 = rr * (0.92 + 0.08 * Math.sin(t * 0.004 + eph));
-        const xx = sx + Math.cos(a) * rr2;
-        const yy = sy + Math.sin(a) * rr2;
+        const lump = R * (0.10 * Math.sin(a * 3 + eph * 1.7) + 0.05 * Math.sin(a * 5 - t * 0.002 + eph));
+        const rr = R * 1.0 + lump;
+        const xx = sx + Math.cos(a) * rr * pulse;
+        const yy = sy + Math.sin(a) * rr * pulse;
         if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
       }
       ctx.closePath();
       ctx.fill();
-    } else {
-      ctx.fillStyle = e.body || '#ff4d4d';
+
+      // Dark heart core, slightly lower
+      ctx.fillStyle = core;
       ctx.beginPath();
-      ctx.arc(sx, sy, R, 0, PI2);
+      ctx.arc(sx, sy + R * 0.10, R * 0.52, 0, PI2);
       ctx.fill();
+
+      // Three tall horns crowning the top, curving outward
+      for (const ux of [-0.55, 0, 0.55]) {
+        const hx = sx + ux * R;
+        const lean = ux * 0.25;
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.moveTo(hx - R * 0.14, sy - R * 0.52);
+        ctx.quadraticCurveTo(hx + lean * R, sy - R * 1.0, hx + ux * R * 0.45, sy - R * 1.28);
+        ctx.lineTo(hx + R * 0.06, sy - R * 0.6);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Two glowing eyes
+      ctx.fillStyle = glint;
+      ctx.fillRect(sx - R * 0.32, sy - R * 0.08, R * 0.18, R * 0.10);
+      ctx.fillRect(sx + R * 0.14, sy - R * 0.08, R * 0.18, R * 0.10);
+
+      // Orbiting shadow shards
+      if (GFX.enemyFx) {
+        ctx.fillStyle = body;
+        for (let i = 0; i < 6; i++) {
+          const a = eph + t * 0.0005 + i * (PI2 / 6);
+          const fd = R * (1.3 + 0.12 * Math.sin(t * 0.002 + i));
+          const fx = sx + Math.cos(a) * fd;
+          const fy = sy + Math.sin(a) * fd;
+          const s = 3 + R * 0.06;
+          ctx.fillRect(fx - s * 0.5, fy - s * 0.5, s, s);
+        }
+      }
+    } else if (form === 'warden' || form === 'tank') {
+      // WARDEN / heavy tank: broad rounded shoulders with pauldron studs and
+      // a crown of spikes over the top arc only.
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - R * 1.1);
+      ctx.quadraticCurveTo(sx + R * 0.75, sy - R * 1.2, sx + R * 1.12, sy - R * 0.30);
+      ctx.quadraticCurveTo(sx + R * 1.05, sy + R * 0.80, sx + R * 0.30, sy + R * 1.08);
+      ctx.quadraticCurveTo(sx, sy + R * 1.14, sx - R * 0.30, sy + R * 1.08);
+      ctx.quadraticCurveTo(sx - R * 1.05, sy + R * 0.80, sx - R * 1.12, sy - R * 0.30);
+      ctx.quadraticCurveTo(sx - R * 0.75, sy - R * 1.2, sx, sy - R * 1.1);
+      ctx.closePath();
+      ctx.fill();
+
+      // Pauldron studs (separate discs so the fill never bridges)
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(sx - R * 0.72, sy - R * 0.32, R * 0.22, 0, PI2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sx + R * 0.72, sy - R * 0.32, R * 0.22, 0, PI2);
+      ctx.fill();
+
+      // Chest core
+      ctx.beginPath();
+      ctx.arc(sx, sy + R * 0.14, R * 0.38, 0, PI2);
+      ctx.fill();
+
+      // Crown of spikes over the top arc only
+      ctx.strokeStyle = 'rgba(255,215,120,0.9)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI * 0.85 + i * (Math.PI * 1.45 / 4);
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(a) * (R + 1), sy + Math.sin(a) * (R + 1));
+        ctx.lineTo(sx + Math.cos(a) * (R + 7), sy + Math.sin(a) * (R + 7));
+        ctx.stroke();
+      }
+    } else if (form === 'fast') {
+      // STALKER: sleek directional blade, pointed at the player. faceA is only
+      // updated for shielded enemies, so fall back to a cheap aim each frame.
+      const bob = Math.sin(t * 0.009 + eph) * R * 0.05;
+      const ang = e.faceA ?? Math.atan2(g.player?.y - e.y || 0, g.player?.x - e.x || 1);
+
+      ctx.save();
+      ctx.translate(sx, sy + bob);
+      ctx.rotate(ang);
+
+      // Sleek tapered body: pointed head, thin trailing tail
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.moveTo(R * 1.8, 0);
+      ctx.quadraticCurveTo(R * 0.3, -R * 0.48, -R * 1.15, -R * 0.26);
+      ctx.quadraticCurveTo(-R * 1.55, 0, -R * 1.15, R * 0.26);
+      ctx.quadraticCurveTo(R * 0.3, R * 0.48, R * 1.8, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      // Dark spine line
+      ctx.strokeStyle = core;
+      ctx.lineWidth = R * 0.24;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(R * 0.85, 0);
+      ctx.lineTo(-R * 0.95, 0);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+
+      // Single eye near the head
+      ctx.fillStyle = glint;
+      ctx.fillRect(R * 0.8, -R * 0.07, R * 0.22, R * 0.14);
+
+      ctx.restore();
+    } else if (form === 'ranged') {
+      // SHADE: floating watcher with a halo ring, swaying tendrils and a
+      // blinking eye.
+      const pulse = 1 + Math.sin(t * 0.004 + eph) * 0.07;
+
+      // Halo ring
+      if (GFX.enemyFx) {
+        ctx.strokeStyle = `rgba(${ar},${ag},${ab},0.45)`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(sx, sy, R * 1.5 * pulse, 0, PI2);
+        ctx.stroke();
+      }
+
+      // Floating body
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.arc(sx, sy, R * pulse, 0, PI2);
+      ctx.fill();
+
+      // Five swaying tendrils (curved, not straight spokes)
+      ctx.strokeStyle = body;
+      ctx.lineWidth = Math.max(1.5, R * 0.14);
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 5; i++) {
+        const a = eph + i * (PI2 / 5) + t * 0.0004;
+        const sway = Math.sin(t * 0.004 + i * 2.1) * R * 0.22;
+        const tipR = R * (1.2 + 0.08 * Math.sin(t * 0.003 + i));
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(a) * R * 0.5, sy + Math.sin(a) * R * 0.5);
+        ctx.quadraticCurveTo(
+          sx + Math.cos(a) * R * 0.85 + Math.cos(a + 1.4) * sway,
+          sy + Math.sin(a) * R * 0.85 + Math.sin(a + 1.4) * sway,
+          sx + Math.cos(a) * tipR,
+          sy + Math.sin(a) * tipR
+        );
+        ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+
+      // Watching eye (blinks now and then)
+      ctx.fillStyle = glint;
+      ctx.beginPath();
+      ctx.arc(sx, sy, R * 0.26, 0, PI2);
+      ctx.fill();
+      const blink = Math.max(0.12, Math.abs(Math.sin(t * 0.002 + eph)));
+      ctx.fillStyle = '#140b18';
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, R * 0.11, Math.max(1, R * 0.11 * blink), 0, 0, PI2);
+      ctx.fill();
+    } else {
+      // SHADOWLING: small lumpy shadow with two short trailing tendrils and a
+      // pair of eyes — organic, not a star.
+      const sway = Math.sin(t * 0.006 + eph);
+
+      // Lumpy organic body (low-amplitude wobble)
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      for (let i = 0; i <= 10; i++) {
+        const a = PI2 / 10 * i;
+        const lump = R * (0.09 * Math.sin(a * 2 + eph) + 0.05 * Math.sin(a * 4 - t * 0.004));
+        const rr = R * (0.92 + 0.04 * Math.sin(a + sway)) + lump;
+        const xx = sx + Math.cos(a) * rr;
+        const yy = sy + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Two short trailing tendrils hang from the lower body
+      ctx.strokeStyle = core;
+      ctx.lineWidth = Math.max(2, R * 0.18);
+      ctx.lineCap = 'round';
+      for (const side of [-1, 1]) {
+        const ba = 1.1 + side * 0.85 + sway * 0.18;
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(ba) * R * 0.5, sy + Math.sin(ba) * R * 0.5);
+        ctx.quadraticCurveTo(
+          sx + Math.cos(ba) * R * 0.85, sy + Math.sin(ba) * R * 0.85,
+          sx + Math.cos(ba) * R * 1.15, sy + Math.sin(ba) * R * 1.15
+        );
+        ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+
+      // Dark core
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(sx + sway * R * 0.05, sy + R * 0.10, R * 0.5, 0, PI2);
+      ctx.fill();
+
+      // Two small eyes
+      ctx.fillStyle = glint;
+      ctx.fillRect(sx - R * 0.30, sy - R * 0.20, R * 0.14, R * 0.11);
+      ctx.fillRect(sx + R * 0.16, sy - R * 0.20, R * 0.14, R * 0.11);
     }
-
-    // Darker solid inner core (opaque, gives "heavy shadow" depth)
-    const coreR = R * 0.55;
-    ctx.fillStyle = e.core || '#7a1a1a';
-    ctx.beginPath();
-    ctx.arc(sx + r1 * 0.12 - r2 * 0.08, sy + r2 * 0.12 - r1 * 0.08, coreR, 0, PI2);
-    ctx.fill();
-
-    // Highlight glint (opaque, small)
-    ctx.fillStyle = e.glint || '#ff9e9e';
-    ctx.beginPath();
-    ctx.arc(sx - coreR * 0.25, sy - coreR * 0.25, coreR * 0.35, 0, PI2);
-    ctx.fill();
 
     // Hit flash overlay
     if (e.flashTimer > 0) {
       ctx.globalAlpha = 0.45 * (e.flashTimer / 100);
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(sx, sy, R * 1.1, 0, PI2);
+      ctx.arc(sx, sy, R * 1.15, 0, PI2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -3070,7 +3397,7 @@ function render() {
     // Shielded enemy: visible shield wedge always facing the player
     if (e.shield > 0) {
       const fA = e.faceA || 0;
-      const half = Math.PI * 0.19;          // ~34Â° front arc (user: a little less arc)
+      const half = Math.PI * 0.19;           // ~34° front arc
       const shR = R + 6;
       const shieldHp = clamp(e.shield / (e.maxShield || 1), 0.2, 1);
       ctx.strokeStyle = '#9fe8ff';
@@ -3089,27 +3416,7 @@ function render() {
       ctx.globalAlpha = 1;
     }
 
-    // Warden: golden rim + crown spikes on the sentinel armor
-    if (e.type === 'warden' && GFX.enemyFx) {
-      ctx.strokeStyle = 'rgba(255,215,120,0.9)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(sx, sy, R + 2, 0.6, 2.5);   // partial rim
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,215,120,0.7)';
-      ctx.lineWidth = 3;
-      for (let i = 0; i < 4; i++) {
-        const sa = eph + g.time * 0.001 + i * (PI2 / 4);
-        ctx.beginPath();
-        ctx.moveTo(sx + Math.cos(sa) * (R + 2), sy + Math.sin(sa) * (R + 2));
-        ctx.lineTo(sx + Math.cos(sa) * (R + 7), sy + Math.sin(sa) * (R + 7));
-        ctx.stroke();
-      }
-    }
-
-    ctx.globalAlpha = 1;
-
-    // HP bar for elites and bosses
+    // HP bar for elites, wardens and bosses
     if (e.type !== 'normal') {
       const barW = R * 2;
       const barH = 4;
@@ -3120,6 +3427,8 @@ function render() {
       ctx.fillStyle = e.type === 'boss' ? '#f0f' : e.type === 'warden' ? '#af6' : '#fa0';
       ctx.fillRect(barX, barY, barW * (e.hp / e.maxHp), barH);
     }
+
+    ctx.globalAlpha = 1;
   }
 
   // --- Poison clouds (stationary DoT zones) ---
@@ -4040,9 +4349,53 @@ function drawStormOverlay() {
 
   // Tinted visibility: sandstorms blind, freezes chill
   ctx.fillStyle = g.storm.id === 'south'
-    ? 'rgba(255,190,110,0.10)'
+    ? 'rgba(255,190,110,0.12)'
     : 'rgba(140,190,255,0.07)';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+  if (g.storm.id === 'south') {
+    // Sandstorm: NOT rain. Short sandy dashes blow almost horizontally with
+    // the wind, plus big translucent dust cells drifting across, so the desert
+    // storm reads as airborne sand instead of falling streaks.
+    const n = def.drops || 160;
+    const margin = 80;
+    const spanX = VIEW_W + margin * 2;
+    const spanY = VIEW_H + margin * 2;
+    const angle = def.windA || -0.06;
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    const t = g.time;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const h1 = (i * 2654435761 + 40503) % 65536;
+      const h2 = (i * 40503 + 104729) % 65536;
+      const x0 = (h1 / 65536) * spanX - margin;
+      const y0 = (i % 23) * (spanY / 23) - 20;      // fixed rows of streaks
+      const len = 7 + (h1 % 9);                     // short dashes
+      const spd = 420 + (i * 37) % 360;             // fast sideways drift
+      const phase = (h1 % 4096) / 4096;
+      const along = (((t * 0.001 * spd + phase * spanX * 1.6) % (spanX * 1.6)) + spanX * 1.6) % (spanX * 1.6) - margin;
+      const lx = x0 + ca * along, ly = y0 + sa * along + ((h2 % 60) / 60 - 0.5) * 10;
+      ctx.strokeStyle = i % 5 === 0 ? 'rgba(255,214,140,0.50)' : 'rgba(230,170,95,0.28)';
+      ctx.lineWidth = i % 4 === 0 ? 2 : 1;
+      ctx.globalAlpha = 0.5 + (h2 % 50) / 100;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(lx - ca * len, ly - sa * len);
+      ctx.stroke();
+    }
+    // Drifting dust cells keep the air visibly thick between the dashes.
+    ctx.fillStyle = 'rgba(255,200,120,0.09)';
+    for (let i = 0; i < 9; i++) {
+      const x = ((i * 97 + 11) % 100) / 100 * VIEW_W;
+      const y = (i * 53 + t * 0.006 * (28 + (i % 5) * 9)) % (VIEW_H + 60) - 30;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 30 + (i % 3) * 16, 12 + (i % 4) * 6, -0.06, 0, PI2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+    return;
+  }
 
   const n = def.drops || 50;
   const margin = 60;
@@ -4102,31 +4455,10 @@ function drawGustOverlay() {
   ctx.globalAlpha = 1;
   ctx.lineCap = 'butt';
 }
+// --- Progressive boss-spawn ring (drawn in drawStatues via spawnRingFor) ---
 
-// --- Slow fog lifecycle: banks fade in over 5-10s, hold for ~15s, then fade
-// out over 5-10s before the cycle restarts. Durations and start phase are
-// seeded per bank so nearby banks are always out of sync. Returns 0..1.
-function fogBreathe(sx, sy, t) {
-  const fadeIn = (5 + seed2(sx + 1, sy + 3) * 5) * 1000;
-  const hold = 15000;
-  const fadeOut = (5 + seed2(sx + 7, sy + 11) * 5) * 1000;
-  const total = fadeIn + hold + fadeOut;
-  const off = seed2(sx + 5, sy + 9) * total;
-  const tt = ((t + off) % total + total) % total;
-  if (tt < fadeIn) return tt / fadeIn;
-  if (tt < fadeIn + hold) return 1;
-  return 1 - (tt - fadeIn - hold) / fadeOut;
-}
+// Nota al margine: eliminata la funzione di edge-fade assieme alla nebbia.
 
-// Soft cull: 1 while a bank's centre is inside the view, easing to 0 as it
-// crosses the screen border — banks slide past the edge instead of popping.
-function viewEdgeFade(sx, sy, R) {
-  const dx = Math.max(0, -sx, sx - VIEW_W);
-  const dy = Math.max(0, -sy, sy - VIEW_H);
-  const d = Math.hypot(dx, dy);
-  if (d >= R) return 0;
-  return 1 - d / R;
-}
 
 // --- Swamp fog: soft banks of green mist anchored to the WORLD inside the
 // south-west swamp wedge. Banks follow the slow fogBreathe lifecycle (fade in
@@ -4134,6 +4466,8 @@ function viewEdgeFade(sx, sy, R) {
 // a margin cell, so walking never makes banks pop: they ease past the screen
 // edges via viewEdgeFade instead of blinking in/out.
 function drawFogOverlay() {
+  // Nebbia rimossa — gnarly: nessun banco viene più disegnato.
+  return;
   const g = game;
   const camX = g.camera.x, camY = g.camera.y;
   const CELL = SWAMP_FOG_CELL * TILE;
@@ -4180,6 +4514,7 @@ function drawFogOverlay() {
 // so banks on the screen edges never pop with movement.
 const AMBIENT_FOG_CELL = 20;   // macro cell (tiles) anchoring ambient mist
 function drawAmbientFog() {
+  return; // nebbia rimossa — nessun banco ambientale viene disegnato
   const g = game;
   const camX = g.camera.x, camY = g.camera.y;
   const CELL = AMBIENT_FOG_CELL * TILE;

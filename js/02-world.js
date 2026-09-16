@@ -9,6 +9,12 @@ const T_WALL = 1;
 // Canyon cliffs: passable by the player (kiting), but the enemy flow field
 // treats them as unwalkable, so they become narrow-channel choke points.
 const T_CLIFF = 2;
+// Big biome trees: impassable groves that replace the stone structures in the
+// tree biomes. Rendered as forest floor with a dense canopy drawn over them.
+const T_TREE = 3;
+// Prairie thickets: impassable blocks of very tall grass that replace the stone
+// structures in the prairie. Baked like floor but fully covered by tall grass.
+const T_TALLGRASS = 4;
 
 // Deterministic hash for a world cell -> [0,1)
 function seed2(x, y) {
@@ -267,6 +273,17 @@ function ensureChunk(cx, cy) {
 
     // The desert and frozen grass are open basins: no constructed walls.
     if (structureBiome === 'south' || structureBiome === 'north') continue;
+    // Tree biomes have no stone buildings either: organic groves of huge
+    // impassable trees take their place (carved below, like lava pools).
+    if (TREE_BIOMES[structureBiome]) continue;
+    // The prairie is open grassland too: impassable tall-grass thickets take
+    // the place of buildings (carved below, like the tree groves).
+    if (structureBiome === 'southwest') continue;
+    // The canyon has no buildings either: carved pit lanes replace them.
+    if (structureBiome === 'southeast') continue;
+    // The savanna has no stone buildings either: single giant baobab trees
+    // replace the adobe compounds (carved below).
+    if (structureBiome === 'east') continue;
 
     if (structureBiome === BIOME_CORE) {
       // Classic Ruins architecture
@@ -320,6 +337,49 @@ function ensureChunk(cx, cy) {
         }
       }
       if (cliff) tiles[ty * CHUNK + tx] = T_CLIFF;
+    }
+  }
+
+  // Big-tree groves in the tree biomes + tall-grass thickets in the prairie +
+  // single giant baobabs in the savanna: organic pools of impassable terrain
+  // (exactly the lava/ice pool shape logic) carved over floor tiles only, from
+  // the world-aligned macro grid so neighbouring chunks always agree. Groves
+  // never overwrite structures.
+  for (let ty = 0; ty < CHUNK; ty++) {
+    for (let tx = 0; tx < CHUNK; tx++) {
+      if (tiles[ty * CHUNK + tx] !== T_FLOOR) continue;
+      const wx = cx * CHUNK_PX + tx * TILE + TILE * 0.5;
+      const wy = cy * CHUNK_PX + ty * TILE + TILE * 0.5;
+      const bm = owningBiomeAt(wx, wy);
+      let shape = null, shapeCfg = null, groveTile = T_TREE;
+      if (TREE_BIOMES[bm]) {
+        shape = groveShapeAt;
+        shapeCfg = {
+          chance: GROVE_CHANCE[bm] || 0.1, cell: GROVE_CELL,
+          minR: GROVE_MIN_R[bm] || 1.5, maxR: GROVE_MAX_R[bm] || 4.0
+        };
+      } else if (bm === 'southwest') {
+        shape = groveShapeAt;
+        shapeCfg = {
+          chance: PRAIRIE_GROVE_CHANCE, cell: PRAIRIE_GROVE_CELL,
+          minR: PRAIRIE_GROVE_MIN_R, maxR: PRAIRIE_GROVE_MAX_R
+        };
+        groveTile = T_TALLGRASS;
+      } else if (bm === 'east') {
+        // Savanna baobabs (see baobabAnchor/baobabShapeAt).
+        shape = baobabShapeAt;
+      }
+      if (!shape) continue;
+      const cell = shapeCfg ? shapeCfg.cell : BAOBAB_CELL;
+      const mx = Math.floor(wx / TILE / cell);
+      const my = Math.floor(wy / TILE / cell);
+      let grove = false;
+      for (let ay = my - 2; ay <= my + 2 && !grove; ay++) {
+        for (let ax = mx - 2; ax <= mx + 2; ax++) {
+          if (shape(ax, ay, wx, wy, shapeCfg)) { grove = true; break; }
+        }
+      }
+      if (grove) tiles[ty * CHUNK + tx] = groveTile;
     }
   }
 
@@ -391,12 +451,85 @@ const ICE_POOL_CHANCE = 0.08;     // slightly fewer pools than desert
 const ICE_POOL_MIN_R = 1.2;       // smallest ice pool radius (tiles)
 const ICE_POOL_MAX_R = 3.5;       // largest ice pool radius (tiles)
 
+// Water pools in the prairie + murky pools in the swamp: they spawn exactly
+// like the ice pools (big organic macro-cell lakes instead of scattered
+// puddles) and slow the player. Swamps get the biggest, most frequent pools.
+const WATER_POOL_CHANCE = 0.08;   // prairie lakes: halved count, still big
+const WATER_POOL_MIN_R = 2.0;
+const WATER_POOL_MAX_R = 5.0;
+const SWAMP_POOL_CHANCE = 0.24;   // swamps are the wettest wedge of all
+const SWAMP_POOL_MIN_R = 2.8;
+const SWAMP_POOL_MAX_R = 6.8;
+
+// Taiga frozen sheets (northeast): the old snow hazard was a scatter of tiny
+// pale ellipses (read as "water mirrors"); now it's ~90% fewer tiles in rare
+// HUGE blocky slabs of compacted snow/frozen ponds.
+const SNOW_POOL_CHANCE = 0.02;
+const SNOW_POOL_MIN_R = 6;
+const SNOW_POOL_MAX_R = 16;
+
 // Canyon cliffs: non-lethal pits carved into the southeast wedge. The player
 // can run across them, but the enemy flow field treats them as unwalkable, so
 // they funnel hordes through the lanes in between (kiting corridors).
 const CLIFF_CHANCE = 0.16;        // share of macro cells that host a cliff
 const CLIFF_MIN_R = 3.0;          // smallest cliff radius (tiles)
 const CLIFF_MAX_R = 6.5;          // largest cliff radius (tiles)
+
+// Big-tree groves in the tree biomes: the organic pool/ice shape logic above,
+// tuned per biome — the forest is the most tree-dense climate of all.
+const TREE_BIOMES = { west: 1, northeast: 1, northwest: 1 };
+const GROVE_CELL = 12;            // macro-cell (tiles) anchoring grove blobs
+const GROVE_CHANCE = { west: 0.30, northeast: 0.16, northwest: 0.16 };
+const GROVE_MIN_R =   { west: 2.0, northeast: 1.6, northwest: 1.6 };
+const GROVE_MAX_R =   { west: 5.5, northeast: 4.0, northwest: 4.5 };
+// Share of floor tiles in the shed line around a grove that carry a small
+// canopy tree, so big-tree blocks fade out through a ragged ring instead of
+// an abrupt edge.
+const GROVE_RING =   { west: 0.55, northeast: 0.40, northwest: 0.45 };
+
+// Prairie tall-grass thickets: the exact same organic grove/blob logic as the
+// big-tree groves above, but anchored on their own macro grid/seeds and stamped
+// as impassable T_TALLGRASS. Bigger and sparser than the forest groves so the
+// prairie stays a wide open kiting basin with a few dense hedge blocks.
+const PRAIRIE_GROVE_CELL = 12;
+const PRAIRIE_GROVE_CHANCE = 0.22;   // share of macro cells hosting a thicket
+const PRAIRIE_GROVE_MIN_R = 2.6;     // smallest thicket radius (tiles)
+const PRAIRIE_GROVE_MAX_R = 6.5;     // largest thicket radius (tiles)
+
+// Savanna baobabs (east wedge): the adobe structures are replaced by single
+// giant baobab trees. Each macro cell may host ONE tree — an anchor trunk tile
+// (always present) plus a soft organic canopy footprint of impassable T_TREE
+// tiles. Cells are small and sparse so the trees stand alone with wide kiting
+// lanes kept open between them.
+const BAOBAB_CELL = 10;
+const BAOBAB_CHANCE = 0.16;
+const BAOBAB_MIN_R = 1.4;
+const BAOBAB_MAX_R = 2.6;
+
+// Deterministic per-cell baobab: returns the anchor (trunk) tile + world centre
+// pixels, or null when the cell hosts no tree. The anchor tile always carries
+// the trunk so every baobab is a single connected blob with a guaranteed core.
+function baobabAnchor(mx, my) {
+  if (seed2(mx * 113 + 3, my * 89 + 7) >= BAOBAB_CHANCE) return null;
+  const offX = 2.0 + seed2(mx * 113 + 9, my * 89 + 13) * (BAOBAB_CELL - 4.0);
+  const offY = 2.0 + seed2(mx * 113 + 15, my * 89 + 17) * (BAOBAB_CELL - 4.0);
+  return {
+    tx: Math.floor(mx * BAOBAB_CELL + offX),
+    ty: Math.floor(my * BAOBAB_CELL + offY),
+    wx: (mx * BAOBAB_CELL + offX) * TILE,
+    wy: (my * BAOBAB_CELL + offY) * TILE
+  };
+}
+
+// Inclusive test for a world tile centre (wx,wy): inside the baobab footprint
+// (anchored trunk tile + organic canopy body).
+function baobabShapeAt(mx, my, wx, wy) {
+  const a = baobabAnchor(mx, my);
+  if (!a) return false;
+  if (Math.floor(wx / TILE) === a.tx && Math.floor(wy / TILE) === a.ty) return true;
+  const R = BAOBAB_MIN_R + seed2(mx * 113 + 5, my * 89 + 11) * (BAOBAB_MAX_R - BAOBAB_MIN_R);
+  return organicPoolBody(mx, my, wx, wy, R, a.wx, a.wy, 113);
+}
 
 const BIOME_CORE = 'core';
 const BIOME_IDS = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
@@ -484,6 +617,42 @@ const BIOME_DEFS = {
     ambient: { tint: [112, 142, 58], strength: 0.12 }
   }
 };
+
+// Per-biome climate temperature (0 = frozen, 1 = scorched). Every climate
+// biome bakes a continuous grass mat; its density and blade height follow this
+// value — peak growth near temperate (0.6), sparse and short in the cold, thin
+// and dry in the heat.
+const BIOME_TEMP = {
+  north: 0.05, northeast: 0.20, northwest: 0.55, west: 0.60,
+  southwest: 0.70, east: 0.80, southeast: 0.90, south: 1.00
+};
+
+// Grass mat colour per biome (the "grass prop" types below). The desert
+// (south) has no grass at all.
+const BIOME_GRASS = {
+  north: 'icegrass', northeast: 'icegrass', northwest: 'swampgrass',
+  west: 'thickgrass', southwest: 'tallgrass', east: 'savgrass',
+  southeast: 'canyongrass'
+};
+
+// Prop types that are pure grass: never scattered as single plants anymore,
+// exclusive stamped as a continuous mat via stampBiomeGrass.
+const GRASS_PROPS = {
+  icegrass: 1, savgrass: 1, tallgrass: 1, thickgrass: 1,
+  swampgrass: 1, canyongrass: 1, drygrass: 1, prairiegrass: 1
+};
+
+// Temperature -> mat density: densest in the temperate wet band, thinning out
+// toward both the frozen and the scorched extremes.
+function grassDensity(temp) {
+  return Math.min(0.92, Math.max(0.32, 0.92 - Math.abs(temp - 0.6) * 1.05));
+}
+
+// Temperature -> mat blade-length multiplier: tall in temperate, short in the
+// cold and in the heat.
+function grassHeight(temp) {
+  return Math.min(1.35, Math.max(0.70, 1.35 - Math.abs(temp - 0.6) * 1.3));
+}
 
 // Slow smoothstep: 0 at BIOME_RADIUS_CORE, 1 at/after BIOME_RADIUS_FULL
 function biomeIntensity(r) {
@@ -596,6 +765,27 @@ function playerBiome() {
   return owningBiomeAt(game.player.x, game.player.y);
 }
 
+// Shared organic lake body: the lava/cliff rounded-square blended with angular
+// wobble, sampled on tile centres so water mirrors stay fully-filled slabs of
+// tiles (never a wobbling circle of fragments) but never read as big squares.
+// `hx` is a per-biome seed basis so no two hazard types mirror each other.
+// `R` comes in tiles, `cxW/cyW` in world px, `wx/wy` is the tile centre.
+function organicPoolBody(mx, my, wx, wy, R, cxW, cyW, hx) {
+  const u = (wx - cxW) / (R * TILE);
+  const v = (wy - cyW) / (R * TILE);
+  const d = Math.hypot(u, v);
+  if (d >= 2.4) return false;
+  const sq = 0.30 + seed2(mx * hx + 21, my * hx + 23) * 0.70;
+  const theta = Math.atan2(wy - cyW, wx - cxW);
+  const wob =
+    0.16 * Math.sin(theta * 3 + seed2(mx * hx + 27, my * hx + 29) * 9) +
+    0.10 * Math.sin(theta * 5 + seed2(mx * hx + 31, my * hx + 37) * 13) +
+    0.14 * Math.sin(theta * 2 + seed2(mx * hx + 33, my * hx + 41) * 7);
+  const ca = Math.abs(Math.cos(theta)), sa = Math.abs(Math.sin(theta));
+  const radial = (1 - sq) + sq * Math.max(ca, sa);
+  return d <= (1 + wob) * radial;
+}
+
 // Deterministic lava pool shape anchored on a macro-cell: an organic rounded
 // square (circle↔box blend with angular wobble) of any size up to POOL_MAX_R
 // tiles radius, crossing macro-cell and chunk boundaries freely so pools from
@@ -633,19 +823,9 @@ function icePoolShapeAt(mx, my, wx, wy) {
   const offY = 2.2 + seed2(mx * 571 + 15, my * 419 + 17) * (POOL_CELL - 4.4);
   const cxW = mx * POOL_CELL * TILE + offX * TILE;
   const cyW = my * POOL_CELL * TILE + offY * TILE;
-  const u = (wx - cxW) / (R * TILE);
-  const v = (wy - cyW) / (R * TILE);
-  const d = Math.hypot(u, v);
-  if (d >= 2.4) return false;
-  const sq = 0.35 + seed2(mx * 571 + 21, my * 419 + 23) * 0.65;
-  const theta = Math.atan2(wy - cyW, wx - cxW);
-  const wob =
-    0.15 * Math.sin(theta * 3 + seed2(mx * 571 + 27, my * 419 + 29) * 11) +
-    0.09 * Math.sin(theta * 5 + seed2(mx * 571 + 31, my * 419 + 37) * 17) +
-    0.12 * Math.sin(theta * 2 + seed2(mx * 571 + 33, my * 419 + 41) * 5);
-  const ca = Math.abs(Math.cos(theta)), sa = Math.abs(Math.sin(theta));
-  const radial = (1 - sq) + sq * Math.max(ca, sa);
-  return d <= (1 + wob) * radial;
+  // Organic lake body (see organicPoolBody): frozen sheets follow the
+  // lava/cliff rounded-shape-with-wobble test instead of a chamfered square.
+  return organicPoolBody(mx, my, wx, wy, R, cxW, cyW, 571);
 }
 
 // Canyon cliff blobs: same macro-cell shape logic as lava/ice, but carved into
@@ -672,6 +852,76 @@ function cliffShapeAt(mx, my, wx, wy) {
   const radial = (1 - sq) + sq * Math.max(ca, sa);
   return d <= (1 + wob) * radial;
 }
+
+// Grove/thicket blob: the same organic pool shape as lava/ice/cliffs, driven
+// by a cfg {chance,minR,maxR,cell} so trees and prairie thickets each sit on
+// their own macro grid and never mirror any hazard pattern. Fully
+// deterministic — sibling chunks always agree on which floor tiles are trees.
+function groveShapeAt(mx, my, wx, wy, cfg) {
+  if (seed2(mx * 701 + 3, my * 613 + 7) >= cfg.chance) return false;
+  const R = cfg.minR + seed2(mx * 701 + 5, my * 613 + 11) * (cfg.maxR - cfg.minR);
+  const offX = 2.0 + seed2(mx * 701 + 9, my * 613 + 13) * (cfg.cell - 4.0);
+  const offY = 2.0 + seed2(mx * 701 + 15, my * 613 + 17) * (cfg.cell - 4.0);
+  const cxW = mx * cfg.cell * TILE + offX * TILE;
+  const cyW = my * cfg.cell * TILE + offY * TILE;
+  const u = (wx - cxW) / (R * TILE);
+  const v = (wy - cyW) / (R * TILE);
+  const d = Math.hypot(u, v);
+  if (d >= 2.5) return false;
+  const sq = 0.30 + seed2(mx * 701 + 21, my * 613 + 23) * 0.70;
+  const theta = Math.atan2(wy - cyW, wx - cxW);
+  const wob =
+    0.16 * Math.sin(theta * 3 + seed2(mx * 701 + 27, my * 613 + 29) * 9) +
+    0.10 * Math.sin(theta * 5 + seed2(mx * 701 + 31, my * 613 + 37) * 13) +
+    0.14 * Math.sin(theta * 2 + seed2(mx * 701 + 33, my * 613 + 41) * 7);
+  const ca = Math.abs(Math.cos(theta)), sa = Math.abs(Math.sin(theta));
+  const radial = (1 - sq) + sq * Math.max(ca, sa);
+  return d <= (1 + wob) * radial;
+}
+
+// Water pools in the prairie (southwest): the same organic pool shape logic as
+// lava/ice, but on its own macro grid + seeds so the lakes never mirror any
+// hazard pattern. Open lakes instead of isolated puddles.
+function waterPoolShapeAt(mx, my, wx, wy) {
+  if (seed2(mx * 877 + 3, my * 503 + 7) >= WATER_POOL_CHANCE) return false;
+  const R = WATER_POOL_MIN_R + seed2(mx * 877 + 5, my * 503 + 11) * (WATER_POOL_MAX_R - WATER_POOL_MIN_R);
+  const offX = 2.2 + seed2(mx * 877 + 9, my * 503 + 13) * (POOL_CELL - 4.4);
+  const offY = 2.2 + seed2(mx * 877 + 15, my * 503 + 17) * (POOL_CELL - 4.4);
+  const cxW = mx * POOL_CELL * TILE + offX * TILE;
+  const cyW = my * POOL_CELL * TILE + offY * TILE;
+  // Organic lake body (see organicPoolBody): prairie lakes get the lava-style
+  // rounded wobble so they stop reading as big squares.
+  return organicPoolBody(mx, my, wx, wy, R, cxW, cyW, 877);
+}
+
+// Swamp pools (northwest): the wettest wedge gets the biggest, most frequent
+// organic pools of murky water.
+function swampPoolShapeAt(mx, my, wx, wy) {
+  if (seed2(mx * 677 + 3, my * 937 + 7) >= SWAMP_POOL_CHANCE) return false;
+  const R = SWAMP_POOL_MIN_R + seed2(mx * 677 + 5, my * 937 + 11) * (SWAMP_POOL_MAX_R - SWAMP_POOL_MIN_R);
+  const offX = 2.0 + seed2(mx * 677 + 9, my * 937 + 13) * (POOL_CELL - 4.0);
+  const offY = 2.0 + seed2(mx * 677 + 15, my * 937 + 17) * (POOL_CELL - 4.0);
+  const cxW = mx * POOL_CELL * TILE + offX * TILE;
+  const cyW = my * POOL_CELL * TILE + offY * TILE;
+  // Organic lake body (see organicPoolBody): swamp murk gets the same rounded
+  // wobble, big but never square.
+  return organicPoolBody(mx, my, wx, wy, R, cxW, cyW, 677);
+}
+
+// Taiga frozen sheets: organic macro-cell lakes like the water pools, but with
+// its own seeds and a much rarer / much larger footprint.
+function snowPoolShapeAt(mx, my, wx, wy) {
+  if (seed2(mx * 149 + 3, my * 107 + 7) >= SNOW_POOL_CHANCE) return false;
+  const R = SNOW_POOL_MIN_R + seed2(mx * 149 + 5, my * 107 + 11) * (SNOW_POOL_MAX_R - SNOW_POOL_MIN_R);
+  const offX = 2.2 + seed2(mx * 149 + 9, my * 107 + 13) * (POOL_CELL - 4.4);
+  const offY = 2.2 + seed2(mx * 149 + 15, my * 107 + 17) * (POOL_CELL - 4.4);
+  const cxW = mx * POOL_CELL * TILE + offX * TILE;
+  const cyW = my * POOL_CELL * TILE + offY * TILE;
+  // Organic lake body (see organicPoolBody): taiga sheets keep their huge
+  // footprint but get lava-style irregular shores.
+  return organicPoolBody(mx, my, wx, wy, R, cxW, cyW, 149);
+}
+
 // Swamp mist: soft seeded patches of fog in the northwestern wedge. Returns
 // density 0..1 (thicker = fogger) for a world point. Deterministic and cheap —
 // only a handful of macro cells get probed per call.
@@ -746,7 +996,68 @@ function chunkHazardMap(cx, cy) {
     }
   }
 
-  // Non-pool hazards from biome definitions (snow, swamp, water)
+  // Water pools in the prairie (southwest): organic lakes that slow the player.
+  for (let ty = 0; ty < CHUNK; ty++) {
+    for (let tx = 0; tx < CHUNK; tx++) {
+      if (map2[ty * CHUNK + tx] !== HAZARD_NONE) continue;
+      if (tiles[ty * CHUNK + tx] !== T_FLOOR) continue;
+      const wx = cx * CHUNK_PX + tx * TILE + TILE * 0.5;
+      const wy = cy * CHUNK_PX + ty * TILE + TILE * 0.5;
+      if (owningBiomeAt(wx, wy) !== 'southwest') continue;
+      const mx = Math.floor(wx / TILE / POOL_CELL);
+      const my = Math.floor(wy / TILE / POOL_CELL);
+      let water = false;
+      for (let ay = my - 2; ay <= my + 2 && !water; ay++) {
+        for (let ax = mx - 2; ax <= mx + 2; ax++) {
+          if (waterPoolShapeAt(ax, ay, wx, wy)) { water = true; break; }
+        }
+      }
+      if (water) map2[ty * CHUNK + tx] = HAZARD_WATER;
+    }
+  }
+
+  // Murky pools in the swamp (northwest): the biggest, wettest lakes of all.
+  for (let ty = 0; ty < CHUNK; ty++) {
+    for (let tx = 0; tx < CHUNK; tx++) {
+      if (map2[ty * CHUNK + tx] !== HAZARD_NONE) continue;
+      if (tiles[ty * CHUNK + tx] !== T_FLOOR) continue;
+      const wx = cx * CHUNK_PX + tx * TILE + TILE * 0.5;
+      const wy = cy * CHUNK_PX + ty * TILE + TILE * 0.5;
+      if (owningBiomeAt(wx, wy) !== 'northwest') continue;
+      const mx = Math.floor(wx / TILE / POOL_CELL);
+      const my = Math.floor(wy / TILE / POOL_CELL);
+      let murk = false;
+      for (let ay = my - 2; ay <= my + 2 && !murk; ay++) {
+        for (let ax = mx - 2; ax <= mx + 2; ax++) {
+          if (swampPoolShapeAt(ax, ay, wx, wy)) { murk = true; break; }
+        }
+      }
+      if (murk) map2[ty * CHUNK + tx] = HAZARD_SWAMP;
+    }
+  }
+
+  // Taiga frozen sheets (northeast): rare huge blocky slabs instead of the
+  // old tiny snow-ellipse scatter.
+  for (let ty = 0; ty < CHUNK; ty++) {
+    for (let tx = 0; tx < CHUNK; tx++) {
+      if (map2[ty * CHUNK + tx] !== HAZARD_NONE) continue;
+      if (tiles[ty * CHUNK + tx] !== T_FLOOR) continue;
+      const wx = cx * CHUNK_PX + tx * TILE + TILE * 0.5;
+      const wy = cy * CHUNK_PX + ty * TILE + TILE * 0.5;
+      if (owningBiomeAt(wx, wy) !== 'northeast') continue;
+      const mx = Math.floor(wx / TILE / POOL_CELL);
+      const my = Math.floor(wy / TILE / POOL_CELL);
+      let snow = false;
+      for (let ay = my - 2; ay <= my + 2 && !snow; ay++) {
+        for (let ax = mx - 2; ax <= mx + 2; ax++) {
+          if (snowPoolShapeAt(ax, ay, wx, wy)) { snow = true; break; }
+        }
+      }
+      if (snow) map2[ty * CHUNK + tx] = HAZARD_SNOW;
+    }
+  }
+
+  // Left-over scatter hazards from biome definitions
   for (let ty = 0; ty < CHUNK; ty++) {
     for (let tx = 0; tx < CHUNK; tx++) {
       if (map2[ty * CHUNK + tx] !== HAZARD_NONE) continue;
@@ -755,7 +1066,7 @@ function chunkHazardMap(cx, cy) {
       const wy = cy * CHUNK_PX + ty * TILE + TILE * 0.5;
       const bm = owningBiomeAt(wx, wy);
       const def = BIOME_DEFS[bm];
-      if (!def.hazard || bm === 'south' || bm === 'north') continue;
+      if (!def.hazard || bm === 'south' || bm === 'north' || bm === 'southwest' || bm === 'northwest' || bm === 'northeast') continue;
       const r = seed2(tx * 7 + 131, ty * 5 + 47);
       if (r < def.hazard.density) map2[ty * CHUNK + tx] = def.hazard.type;
     }
@@ -897,7 +1208,7 @@ function chestPos(biomeId) {
         if (Math.abs(dx) !== rad && Math.abs(dy) !== rad) continue;
         const wx = Math.round(cx / TILE) * TILE + TILE * 0.5 + dx * TILE;
         const wy = Math.round(cy / TILE) * TILE + TILE * 0.5 + dy * TILE;
-        if (getTile(wx, wy) === T_WALL || getTile(wx, wy) === T_CLIFF) continue;
+        if (getTile(wx, wy) === T_WALL || getTile(wx, wy) === T_CLIFF || getTile(wx, wy) === T_TREE || getTile(wx, wy) === T_TALLGRASS) continue;
         if (tileHazardAt(wx, wy) !== HAZARD_NONE) continue;
         best = { x: wx, y: wy };
         break outer;
@@ -971,31 +1282,48 @@ function applyAmbient(c, px, py, bm, weights) {
 }
 
 // --- Hazard decor: ground-level puddles / ice / lava / snow ---
+
+// Organic mirror surface shared by every water mirror (prairie, swamp, frozen
+// sheets): no horizontal stripes — depth patches, pockets, reflection
+// fragments and a one-pixel glint, all varied per tile. Colors are per biome.
+function drawMirrorSurface(c, px, py, r, deep, body, patch, pocket, organic, refl, glint) {
+  const v = ((r * 17 + 7) % 7);
+  c.fillStyle = deep;
+  c.fillRect(px, py, TILE, TILE);
+  c.fillStyle = body;
+  c.fillRect(px, py, TILE, TILE);
+  c.fillStyle = patch;
+  c.fillRect(px + 3 + (v % 5), py + 4 + ((v * 3) % 5), 9, 6);
+  c.fillRect(px + 17 - (v % 4), py + 18 + ((v * 2) % 4), 8, 5);
+  c.fillStyle = pocket;
+  c.fillRect(px + 11 + ((v * 4) % 7), py + 11, 7, 5);
+  c.fillStyle = organic;
+  c.fillRect(px + 2 + ((v * 5) % 12), py + 25, 6, 2);
+  c.fillRect(px + 21 - ((v * 3) % 8), py + 7 + (v % 4), 5, 2);
+  c.fillStyle = refl;
+  c.fillRect(px + 5 + ((v * 7) % 14), py + 9 + (v % 5), 3, 1);
+  c.fillRect(px + 18 - ((v * 4) % 9), py + 22, 4, 1);
+  c.fillStyle = glint;
+  if ((v & 1) === 0) {
+    c.fillRect(px + 10 + ((v * 3) % 13), py + 16 + (v % 7), 2, 1);
+  }
+}
+
 function drawHazardTile(c, px, py, type, r) {
   if (type === HAZARD_ICE) {
-    // Full ice sheet: solid, visible frozen surface like the lava pools.
-    c.fillStyle = '#2a3a52';                 // dark icy base (rim)
-    c.fillRect(px, py, TILE, TILE);
-    c.fillStyle = '#4a7a9a';                 // frozen body
-    c.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-    c.fillStyle = '#6aa8cc';                 // frost layer
-    c.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-    c.fillStyle = '#8cc8e8';                 // ice streaks
-    c.fillRect(px + 4 + (r * 5 | 0), py + 6 + (r * 4 | 0), TILE - 10 - (r * 7 | 0), 3);
-    c.fillRect(px + 6 + (r * 8 | 0), py + 18 + (r * 3 | 0), 14 + (r * 4 | 0), 3);
-    c.fillStyle = '#b8e8ff';                 // icy highlights
-    c.fillRect(px + 10 + (r * 6 | 0), py + 12, 8, 3);
-    c.fillStyle = '#e8f8ff';                 // frost flakes
-    c.fillRect(px + 8 + (r * 5 | 0), py + 24, 4, 2);
-    c.fillRect(px + 20 - (r * 6 | 0), py + 8, 3, 3);
+    // Northern frozen sheet: pale blue mirror, same organic layout.
+    drawMirrorSurface(c, px, py, r,
+      '#2a3a52', '#4a7a9a',
+      'rgba(130,180,220,0.16)', 'rgba(20,60,95,0.14)',
+      'rgba(150,210,240,0.10)', 'rgba(200,235,250,0.22)',
+      'rgba(240,252,255,0.28)');
   } else if (type === HAZARD_SNOW) {
-    c.fillStyle = 'rgba(225,235,250,0.35)';
-    c.beginPath();
-    c.ellipse(px + 16, py + 18, 9 + r * 5, 5 + r * 3, r, 0, PI2);
-    c.fill();
-    c.fillStyle = 'rgba(255,255,255,0.75)';
-    c.fillRect(px + 10 + (r * 5 | 0), py + 8, 4, 3);
-    c.fillRect(px + 20 + (r * 3 | 0), py + 20, 3, 2);
+    // Taiga frozen lake: frosted white-blue slab, same organic layout.
+    drawMirrorSurface(c, px, py, r,
+      '#6a7f96', '#93adc8',
+      'rgba(210,230,250,0.16)', 'rgba(70,90,120,0.15)',
+      'rgba(240,248,255,0.12)', 'rgba(235,248,255,0.24)',
+      'rgba(250,255,255,0.30)');
   } else if (type === HAZARD_LAVA) {
     // Full-pool lava: the whole tile is molten so adjacent pool tiles read as
     // one continuous pond instead of isolated red circles.
@@ -1013,28 +1341,98 @@ function drawHazardTile(c, px, py, type, r) {
     c.fillRect(px + 6 + (r * 4 | 0), py + 10 + (r * 6 | 0), 3, 2);
     c.fillRect(px + 21 - (r * 5 | 0), py + 24 - (r * 6 | 0), 4, 2);
   } else if (type === HAZARD_SWAMP) {
-    c.fillStyle = 'rgba(60,80,35,0.45)';
-    c.beginPath();
-    c.ellipse(px + 16, py + 17, 11 + r * 4, 6 + r * 3, r * 2, 0, PI2);
-    c.fill();
-    c.fillStyle = 'rgba(120,150,60,0.35)';
-    c.fillRect(px + 8, py + 12, 5, 2);
-    c.fillRect(px + 22, py + 19, 4, 2);
+    // Swamp mirror: murky green, same organic layout (no stripes).
+    drawMirrorSurface(c, px, py, r,
+      '#1f2414', '#33401c',
+      'rgba(100,140,50,0.16)', 'rgba(20,35,15,0.14)',
+      'rgba(120,150,70,0.10)', 'rgba(170,195,100,0.20)',
+      'rgba(210,225,140,0.22)');
   } else if (type === HAZARD_WATER) {
-    c.fillStyle = 'rgba(80,150,160,0.40)';
-    c.beginPath();
-    c.ellipse(px + 16, py + 16, 10 + r * 4, 6 + r * 3, r * 2, 0, PI2);
-    c.fill();
-    c.fillStyle = 'rgba(170,220,230,0.35)';
-    c.fillRect(px + 10, py + 12, 7, 2);
+    // Prairie lake: deep blue, same organic layout.
+    drawMirrorSurface(c, px, py, r,
+      '#17475a', '#24657a',
+      'rgba(70,145,163,0.16)', 'rgba(15,65,82,0.14)',
+      'rgba(110,180,190,0.10)', 'rgba(185,225,230,0.24)',
+      'rgba(225,245,245,0.28)');
   }
 }
 
 // --- Decorative props (non-colliding scenery, kept inside their tile) ---
-function drawPropTile(c, type, px, py, r) {
+function drawPropTile(c, type, px, py, r, hgt) {
   const bx = px + 16;
   const by = py + TILE;
-  if (type === 'tree') {                     // FOREST TREE - TOP DOWN
+  const vs = 0.6 + r * 0.8;      // size variation from the tile seed
+  const vx = (r - 0.5) * 4;      // small horizontal jitter
+  if (hgt === undefined) hgt = 1; // temperature growth multiplier (grass mats)
+  // Per-blade hash: decorrelates the clump geometry from the tile grid so the
+  // grass mat never lines up in rows across neighbouring tiles.
+  const rh = (k) => {
+    const v = Math.sin(r * 43758.5453 + k * 12.9898) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  // Full-tile grass mat: roots scattered across the tile HEIGHT (never pinned
+  // to the bottom edge) so the mat never forms periodic horizontal lines at
+  // tile boundaries, and blades spill over the neighbours as a continuous mat.
+  const grassMat = (dark, light, base, vari, lean, nDark, nLight, sw) => {
+    c.strokeStyle = dark;
+    c.lineWidth = sw || 2;
+    c.beginPath();
+    for (let i = 0; i < (nDark || 12); i++) {
+      const gx = bx + (rh(i + 1) - 0.5) * 34;
+      const grt = py + rh(i + 47) * TILE;
+      const gh = (base + rh(i + 20) * vari) * vs * hgt;
+      c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 31) - 0.5) * lean, grt - gh);
+    }
+    c.stroke();
+    c.strokeStyle = light;
+    c.lineWidth = 1;
+    c.beginPath();
+    for (let i = 0; i < (nLight || 10); i++) {
+      const gx = bx + (rh(i + 41) - 0.5) * 34;
+      const grt = py + rh(i + 59) * TILE;
+      const gh = (base * 0.72 + rh(i + 53) * vari) * vs * hgt;
+      c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 67) - 0.5) * lean * 0.7, grt - gh);
+    }
+    c.stroke();
+  };
+  if (type === 'icegrass') {            // frozen grass: short, sparse, icy blue
+    grassMat('#6f93b8', '#c2ddf5', 15, 10, 5);
+  } else if (type === 'savgrass') {     // savanna: warm dry yellow-green
+    grassMat('#7a5a20', '#a37a2c', 18, 12, 6);
+  } else if (type === 'tallgrass') {    // prairie open-ground grass
+    grassMat('#4c5a1e', '#74902c', 20, 14, 7);
+  } else if (type === 'thickgrass') {   // dense forest undergrowth
+    grassMat('#2e5a22', '#4a8530', 24, 14, 6, 14, 11);
+  } else if (type === 'swampgrass') {   // murky swamp reeds
+    grassMat('#3a4020', '#50591f', 26, 14, 7, 14, 11);
+  } else if (type === 'canyongrass') {  // canyon: scarce dry tufts, never a mat
+    const cl = 1 + (rh(3) > 0.62 ? 1 : 0);   // 1-2 isolated clumps per tile
+    for (let k = 0; k < cl; k++) {
+      const cxx = bx + (rh(4 + k * 5) - 0.5) * 22;
+      const cyy = py + 7 + rh(8 + k * 7) * (TILE - 14);
+      c.strokeStyle = '#7a5738';
+      c.lineWidth = 2;
+      c.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const gx = cxx + (rh(11 + i + k * 13) - 0.5) * 10;
+        const gh = 7 + rh(19 + i + k * 17) * 6;
+        c.moveTo(gx, cyy); c.lineTo(gx + (rh(29 + i + k * 9) - 0.5) * 4, cyy - gh);
+      }
+      c.stroke();
+      c.strokeStyle = '#a57950';
+      c.lineWidth = 1;
+      c.beginPath();
+      for (let i = 0; i < 3; i++) {
+        const gx = cxx + (rh(37 + i + k * 23) - 0.5) * 8;
+        c.moveTo(gx, cyy); c.lineTo(gx + (rh(43 + i + k * 31) - 0.5) * 5, cyy - (5 + rh(47 + i + k * 11) * 4));
+      }
+      c.stroke();
+    }
+  } else if (type === 'drygrass') {     // desert: thin pale scruff
+    grassMat('#a07a3a', '#cfa65c', 12, 8, 4);
+  } else if (type === 'prairiegrass') { // impassable thicket: twice as thick as any grass mat
+    grassMat('#3a5420', '#5f7f2e', 42, 18, 10, 36, 28, 3);
+  } else if (type === 'tree') {                     // FOREST TREE - TOP DOWN
     c.fillStyle = 'rgba(0,0,0,0.22)';
     c.fillRect(bx - 12, by - 7, 24, 8);
     c.fillRect(bx - 8, by - 10, 16, 10);
@@ -1130,54 +1528,55 @@ function drawPropTile(c, type, px, py, r) {
     c.fillStyle = '#3a6e35';
     c.fillRect(bx - 6, by - 11, 3, 1);
     c.fillRect(bx + 5, by - 9, 1, 1);
-  } else if (type === 'icegrass') {         // savanna tufts recolored as ice
-    c.strokeStyle = '#7fa4cc';
-    c.lineWidth = 2;
+  } else if (type === 'baobab') {           // BAOBAB - TOP DOWN (giant savanna tree)
+    c.fillStyle = 'rgba(0,0,0,0.22)';       // fat cast shadow ring
+    c.fillRect(bx - 14, by - 8, 28, 9);
+    c.fillRect(bx - 9, by - 12, 18, 11);
+    c.fillStyle = '#3d2b15';                // thick water-storing bole
     c.beginPath();
-    c.moveTo(bx - 5, by); c.lineTo(bx - 7, by - 10);
-    c.moveTo(bx, by); c.lineTo(bx, by - 12);
-    c.moveTo(bx + 5, by); c.lineTo(bx + 7, by - 9);
-    c.stroke();
-    c.strokeStyle = '#c2ddf5';
-    c.lineWidth = 1;
-    c.beginPath(); c.moveTo(bx - 3, by); c.lineTo(bx - 4, by - 7); c.stroke();
-    c.beginPath(); c.moveTo(bx + 2, by); c.lineTo(bx + 2, by - 9); c.stroke();
-  } else if (type === 'savgrass') {          // savanna tufts
-    c.strokeStyle = '#7a5a20';
-    c.lineWidth = 2;
+    c.ellipse(bx, by - 3, 6, 4.5, 0, 0, 7);
+    c.fill();
+    c.fillStyle = '#5c4426';
     c.beginPath();
-    c.moveTo(bx - 5, by); c.lineTo(bx - 7, by - 10);
-    c.moveTo(bx, by); c.lineTo(bx, by - 12);
-    c.moveTo(bx + 5, by); c.lineTo(bx + 7, by - 9);
-    c.stroke();
-    c.strokeStyle = '#a37a2c';
-    c.lineWidth = 1;
-    c.beginPath(); c.moveTo(bx - 3, by); c.lineTo(bx - 4, by - 7); c.stroke();
-    c.beginPath(); c.moveTo(bx + 2, by); c.lineTo(bx + 2, by - 9); c.stroke();
-  } else if (type === 'tallgrass') {         // prairie tufts
-    c.strokeStyle = '#4c5a1e';
-    c.lineWidth = 2;
+    c.ellipse(bx - 1, by - 4, 3.5, 2.5, 0, 0, 7);
+    c.fill();
+    c.fillStyle = '#284018';                // flat-topped irregular crown
     c.beginPath();
-    c.moveTo(bx - 6, by); c.lineTo(bx - 8, by - 11);
-    c.moveTo(bx, by); c.lineTo(bx, by - 13);
-    c.moveTo(bx + 6, by); c.lineTo(bx + 8, by - 10);
-    c.stroke();
-    c.strokeStyle = '#74902c';
-    c.lineWidth = 1;
-    c.beginPath(); c.moveTo(bx - 4, by); c.lineTo(bx - 5, by - 8); c.stroke();
-    c.beginPath(); c.moveTo(bx + 3, by); c.lineTo(bx + 4, by - 9); c.stroke();
-  } else if (type === 'canyonrock') {        // rocky canyon boulder
+    c.arc(bx - 7, by - 17, 11, 0, 7);
+    c.arc(bx + 7, by - 16, 12, 0, 7);
+    c.arc(bx, by - 23, 9, 0, 7);
+    c.fill();
+    c.fillStyle = '#335522';
+    c.beginPath();
+    c.arc(bx - 6, by - 15, 8, 0, 7);
+    c.arc(bx + 6, by - 15, 9, 0, 7);
+    c.fill();
+    c.fillStyle = '#3f6b2a';
+    c.beginPath();
+    c.arc(bx - 3, by - 19, 5, 0, 7);
+    c.arc(bx + 3, by - 18, 5, 0, 7);
+    c.fill();
+  } else if (type === 'canyonrock') {        // small scattered scree / boulder
+    const rk = 0.38 + r * 0.55;              // much smaller + varied rock size
+    const ox = (r - 0.5) * 8;
     c.fillStyle = '#3a2a1e';
     c.beginPath();
-    c.moveTo(bx - 8, by); c.lineTo(bx - 9, by - 8);
-    c.lineTo(bx - 4, by - 13); c.lineTo(bx + 3, by - 12);
-    c.lineTo(bx + 9, by - 7); c.lineTo(bx + 8, by);
+    c.moveTo(bx - 8 * rk + ox, by); c.lineTo(bx - 9 * rk + ox, by - 8 * rk);
+    c.lineTo(bx - 4 * rk + ox, by - 13 * rk); c.lineTo(bx + 3 * rk + ox, by - 12 * rk);
+    c.lineTo(bx + 9 * rk + ox, by - 7 * rk); c.lineTo(bx + 8 * rk + ox, by);
     c.closePath(); c.fill();
     c.fillStyle = '#5c4230';
     c.beginPath();
-    c.moveTo(bx - 6, by); c.lineTo(bx - 5, by - 7);
-    c.lineTo(bx, by - 10); c.lineTo(bx + 5, by - 6);
+    c.moveTo(bx - 6 * rk + ox, by); c.lineTo(bx - 5 * rk + ox, by - 7 * rk);
+    c.lineTo(bx + ox, by - 10 * rk); c.lineTo(bx + 5 * rk + ox, by - 6 * rk);
     c.closePath(); c.fill();
+    if (r > 0.6) {                           // occasional pebble cluster
+      c.fillStyle = '#2c2015';
+      c.beginPath();
+      c.arc(bx - 10 * rk + 2, by - 3, 2.2 * rk, 0, 7);
+      c.arc(bx + 7 * rk + 3, by - 2, 1.6 * rk, 0, 7);
+      c.fill();
+    }
   }
 }
 
@@ -1185,7 +1584,7 @@ function drawPropTile(c, type, px, py, r) {
 // tile and drawn in a dedicated world-space pass so they can grow big (2-3x the
 // player) and vary in size without clipping at chunk seams or under neighbour
 // floors.
-const BIOME_TREES = { tree: 1, pine: 1, swamptree: 1, cactus: 1 };
+const BIOME_TREES = { tree: 1, pine: 1, swamptree: 1, cactus: 1, baobab: 1 };
 
 const treeSpriteCache = new Map();
 const treeCache = new Map();
@@ -1219,9 +1618,11 @@ function bigTreeSprite(type, s) {
   return cv;
 }
 
-// Deterministic per-chunk list of big trees, mirroring the old bake rule
-// (same owning-biome, density seed and hazard check) plus a size seed so every
-// tree gets its own scale from ~1.5x to ~3.4x.
+// Deterministic per-chunk list of big trees: always-present trees inside the
+// impassable groves (T_TREE tiles) plus a ragged ring of small trees on the
+// shed tiles RIGHT NEXT to a grove — no free-standing canopies in the open
+// clearings, which read as thick grass instead. Grove tiles carry a denser,
+// larger tree cluster; the ring trees are small and vary a lot in scale.
 function getChunkTrees(cx, cy) {
   const key = cx + ',' + cy;
   let list = treeCache.get(key);
@@ -1229,22 +1630,67 @@ function getChunkTrees(cx, cy) {
   ensureChunk(cx, cy);
   const tiles = chunkMap.get(key);
   list = [];
+  const nearGrove = (wx, wy) => {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        if (getTile(wx + dx * TILE + TILE * 0.5, wy + dy * TILE + TILE * 0.5) === T_TREE) return true;
+      }
+    }
+    return false;
+  };
   for (let ty = 0; ty < CHUNK; ty++) {
     for (let tx = 0; tx < CHUNK; tx++) {
-      if (tiles[ty * CHUNK + tx] !== T_FLOOR) continue;
+      const t = tiles[ty * CHUNK + tx];
+      if (t !== T_FLOOR && t !== T_TREE) continue;
       const wx = cx * CHUNK_PX + tx * TILE;
       const wy = cy * CHUNK_PX + ty * TILE;
       const def = BIOME_DEFS[owningBiomeAt(wx, wy)];
-      if (!def || !def.prop || !BIOME_TREES[def.prop.type]) continue;
+      if (!def || !def.prop) continue;
       if (ownHazardAt(wx, wy) !== HAZARD_NONE) continue;
-      const pr = seed2(cx * CHUNK + tx * 31 + 7, cy * CHUNK + ty * 17 + 3);
-      if (pr >= def.prop.density) continue;
+      if (t === T_TREE && owningBiomeAt(wx + TILE * 0.5, wy + TILE * 0.5) === 'east') {
+        // Savanna baobab: only the anchor tile of the hosting macro cell draws
+        // the single giant tree — the rest of the footprint stays impassable
+        // but is covered by that one canopy, so a baobab reads as one tree,
+        // not a grove cluster.
+        const wxC = wx + TILE * 0.5, wyC = wy + TILE * 0.5;
+        const cmx = Math.floor(wxC / TILE / BAOBAB_CELL);
+        const cmy = Math.floor(wyC / TILE / BAOBAB_CELL);
+        let anchor = null;
+        for (let by = cmy - 2; by <= cmy + 2 && !anchor; by++) {
+          for (let bx = cmx - 2; bx <= cmx + 2; bx++) {
+            if (baobabShapeAt(bx, by, wxC, wyC)) { anchor = baobabAnchor(bx, by); break; }
+          }
+        }
+        if (anchor && cx * CHUNK + tx === anchor.tx && cy * CHUNK + ty === anchor.ty) {
+          const sg = seed2(anchor.tx * 13 + 1, anchor.ty * 29 + 5);
+          list.push({ type: 'baobab', x: anchor.wx, y: anchor.wy, s: 4.6 + sg * 1.6 });
+        }
+        continue;
+      }
+      if (t === T_TREE) {
+        // Grove tile: always carries a big tree (denser + bigger than decor).
+        // Groves can bleed across the biome wedge edge, so fall back to the
+        // generic tree whenever the local prop isn't a canopy type.
+        const pType = BIOME_TREES[def.prop.type] ? def.prop.type : 'tree';
+        const sg = seed2(cx * CHUNK + tx * 13 + 1, cy * CHUNK + ty * 29 + 5);
+        list.push({ type: pType, x: wx + TILE * 0.5, y: wy + TILE, s: 2.4 + sg * 1.6 });
+        continue;
+      }
+      // Clearings stay open (thick grass only): a small tree grows here only
+      // when this floor tile touches a grove, and only with ring probability,
+      // so the big blocks fade out through a natural ragged skirt.
+      if (!BIOME_TREES[def.prop.type]) continue;
+      if (!nearGrove(wx + TILE * 0.5, wy + TILE * 0.5)) continue;
+      const bm = owningBiomeAt(wx, wy);
+      const rg = seed2(cx * CHUNK + tx * 23 + 5, cy * CHUNK + ty * 19 + 9);
+      if (rg >= (GROVE_RING[bm] || 0.5)) continue;
       const sg = seed2(cx * CHUNK + tx * 13 + 1, cy * CHUNK + ty * 29 + 5);
       list.push({
         type: def.prop.type,
         x: wx + TILE * 0.5,
         y: wy + TILE,
-        s: 1.5 + sg * 1.9
+        s: 0.5 + sg * 1.0
       });
     }
   }
@@ -1269,13 +1715,93 @@ function drawTrees(cx, cy, w, h) {
       const list = getChunkTrees(ccx, ccy);
       for (const t of list) {
         const sx = t.x - cx, sy = t.y - cy;
-        if (sx < -120 || sx > w + 120 || sy < -160 || sy > h + 40) continue;
+        if (sx < -140 || sx > w + 140 || sy < -200 || sy > h + 60) continue;
+        // Low-sun ground shadow: long shade cast down-right from the trunk base.
+        // Drawn under the canopy but over the baked terrain, so every tree in
+        // every biome throws a clearly visible long shadow.
+        const shL = 34 + t.s * 16;
+        const shDr = Math.round(shL * 0.45);
+        const shW = 5 + t.s * 5;
+        ctx.fillStyle = 'rgba(8,10,14,0.34)';
+        ctx.beginPath();
+        ctx.moveTo(sx - shW, sy - 9);
+        ctx.lineTo(sx - shW + shDr, sy + shL - 9);
+        ctx.lineTo(sx + shW + shDr, sy + shL - 9);
+        ctx.lineTo(sx + shW, sy - 9);
+        ctx.closePath();
+        ctx.fill();
+        // Wind sway: every tree leans very slowly and subtly, like a light
+        // breeze, pivoting around its trunk base. The phase is deterministic
+        // per tree so a grove never sways perfectly in unison.
         const spr = bigTreeSprite(t.type, t.s);
-        ctx.drawImage(spr, sx - spr._ox, sy - spr._oy);
+        const ph0 = (((t.x % 977) * 137) + ((t.y % 971) * 61)) % 628;
+        const swayA = 0.010 + t.s * 0.002;
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(Math.sin(game.time * 0.00065 + ph0 * 0.012) * swayA);
+        ctx.drawImage(spr, -spr._ox, -spr._oy);
+        ctx.restore();
       }
     }
   }
   ctx.imageSmoothingEnabled = true;
+}
+
+// Grass mat for one tile: every climate biome bakes a continuous mat (never a
+// single decorative plant) so blade geometry stays in sync between the tile
+// pass and the chunk-edge overflow stamping below. Density and blade height
+// follow the biome temperature; colour follows the biome. Impassable prairie
+// thickets (T_TALLGRASS) bake a dense, very tall patch instead of the open mat.
+function stampBiomeGrass(c, lx, ly, cx, cy, ox, oy) {
+  const px = lx * TILE + (ox || 0);
+  const py = ly * TILE + (oy || 0);
+  const wx = cx * CHUNK_PX + lx * TILE;
+  const wy = cy * CHUNK_PX + ly * TILE;
+  const tt = getTile(wx + TILE * 0.5, wy + TILE * 0.5);
+  if (tt !== T_FLOOR && tt !== T_TREE && tt !== T_TALLGRASS) return;
+  if (ownHazardAt(wx, wy) !== HAZARD_NONE) return;
+  const gr = seed2(cx * CHUNK + lx * 57 + 3, cy * CHUNK + ly * 41 + 11);
+  if (tt === T_TALLGRASS) {
+    drawPropTile(c, 'prairiegrass', px, py, gr);
+    return;
+  }
+  const gtype = BIOME_GRASS[owningBiomeAt(wx, wy)];
+  if (!gtype) return;
+  const temp = BIOME_TEMP[owningBiomeAt(wx, wy)] || 0.6;
+  // The canyon keeps its grass down to scarce dry clumps (never a continuous
+  // mat), so the rock lanes read as skeleton terrain.
+  const dens = temp === 0.9 ? 0.07 : grassDensity(temp);
+  if (gr >= dens) return;
+  drawPropTile(c, gtype, px, py, gr, temp === 0.9 ? 1 : grassHeight(temp));
+}
+
+// Low-sun shadow cast by one solid tile (wall / tree / thicket): a long shade
+// stretching down-right over the baked floor. Also stamped from the border
+// tiles of the upstream chunks so the shadows never break at chunk seams.
+function stampShadow(c, lx, ly, cx, cy, ox, oy) {
+  const px = lx * TILE + (ox || 0);
+  const py = ly * TILE + (oy || 0);
+  const t = getTile(cx * CHUNK_PX + lx * TILE + TILE * 0.5, cy * CHUNK_PX + ly * TILE + TILE * 0.5);
+  if (t !== T_WALL && t !== T_TREE && t !== T_TALLGRASS && t !== T_CLIFF) return;
+  // The Ruins core keeps a flat, torch-lit look: no long low-sun cast shadows.
+  const wsx = cx * CHUNK_PX + px;
+  const wsy = cy * CHUNK_PX + py;
+  if (owningBiomeAt(wsx, wsy) === BIOME_CORE) return;
+  const LEN = 40, DR = Math.round(LEN * 0.45), TOP = 4;
+  const x0 = px + 3, x1 = px + 29;
+  const y0 = py + TOP, y1 = py + TOP + LEN;
+  // main shade body
+  c.fillStyle = 'rgba(8,10,14,0.30)';
+  c.beginPath();
+  c.moveTo(x0, y0); c.lineTo(x0 + DR, y1);
+  c.lineTo(x1 + DR, y1); c.lineTo(x1, y0);
+  c.closePath(); c.fill();
+  // longer, weaker tail for the low-sun streak
+  c.fillStyle = 'rgba(8,10,14,0.16)';
+  c.beginPath();
+  c.moveTo(x1, y0); c.lineTo(x1 + DR, y1);
+  c.lineTo(x1 + DR + 2, y1 + 8); c.lineTo(x1 + 2, y0 + 8);
+  c.closePath(); c.fill();
 }
 
 function drawFloorTile(c, px, py, lx, ly, cx, cy) {
@@ -1368,9 +1894,12 @@ function drawFloorTile(c, px, py, lx, ly, cx, cy) {
   const haz = ownHazardAt(wx, wy);
   if (haz !== HAZARD_NONE) drawHazardTile(c, px, py, haz, r);
 
-  // Decorative prop: small ground props bake into the floor; big trees are
-  // handled by the world-space canopy pass (getChunkTrees/drawTrees).
-  if (def.prop && !haz && !BIOME_TREES[def.prop.type]) {
+  // Grass mat always bakes below the props (colour/density follow the biome
+  // temperature). Only real objects (scree rocks) scatter as small ground
+  // props; canopy trees are handled by the world-space pass
+  // (getChunkTrees/drawTrees).
+  stampBiomeGrass(c, lx, ly, cx, cy, 0, 0);
+  if (def.prop && !haz && !GRASS_PROPS[def.prop.type] && !BIOME_TREES[def.prop.type]) {
     const pr = seed2(cx * CHUNK + lx * 31 + 7, cy * CHUNK + ly * 17 + 3);
     if (pr < def.prop.density) drawPropTile(c, def.prop.type, px, py, pr);
   }
@@ -1392,8 +1921,8 @@ function drawWallTile(c, px, py, lx, ly, cx, cy) {
     c.fillStyle = 'rgba(255,255,255,0.14)';
     c.fillRect(px, py, TILE, 3);
     c.fillRect(px, py, 3, TILE);
-    c.fillStyle = 'rgba(0,0,0,0.28)';
-    c.fillRect(px, py + TILE - 5, TILE, 5);
+    c.fillStyle = 'rgba(0,0,0,0.30)';
+    c.fillRect(px, py + TILE - 12, TILE, 12);
     c.fillRect(px + TILE - 5, py, 5, TILE);
     c.strokeStyle = 'rgba(0,0,0,0.25)';
     c.lineWidth = 1;
@@ -1405,11 +1934,16 @@ function drawWallTile(c, px, py, lx, ly, cx, cy) {
     return;
   }
 
-  // Shared shading for all climate walls: ground shadow + faint top light.
-  c.fillStyle = 'rgba(0,0,0,0.22)';
-  c.fillRect(px, py + TILE - 5, TILE, 5);
-  c.fillStyle = 'rgba(255,255,255,0.08)';
-  c.fillRect(px, py, TILE, 2);
+  // Shared shading for all climate walls: low sun — a long soft shadow climbing
+  // the lower face of the tile, with only a thin top-light band left.
+  const shGrad = c.createLinearGradient(px, py + 6, px, py + TILE);
+  shGrad.addColorStop(0, 'rgba(0,0,0,0.05)');
+  shGrad.addColorStop(0.55, 'rgba(0,0,0,0.10)');
+  shGrad.addColorStop(1, 'rgba(0,0,0,0.38)');
+  c.fillStyle = shGrad;
+  c.fillRect(px, py + 6, TILE, TILE - 6);
+  c.fillStyle = 'rgba(255,255,255,0.06)';
+  c.fillRect(px, py, TILE, 1);
 
   if (bm === 'north') {                   // snowbank / ice massif
     c.fillStyle = 'rgba(205,222,240,0.55)';
@@ -1622,6 +2156,27 @@ function getChunkCanvas(cx, cy) {
       else drawFloorTile(c, px, py, lx, ly, cx, cy);
     }
   }
+  // Grass blades root anywhere on a floor tile and grow upward, so they cross
+  // chunk seams and would be clipped at the canvas edge (horizontal or vertical
+  // line every 512px). Stamp the border tiles of the chunk below and of the
+  // chunk to the right into this canvas; their own canvas still draws the rest,
+  // so the mat joins seamlessly.
+  for (let ex = 0; ex < 2; ex++) {
+    for (let lx = 0; lx < CHUNK; lx++) stampBiomeGrass(c, lx, ex, cx, cy + 1, 0, CHUNK_PX);
+    for (let ly = 0; ly < CHUNK; ly++) stampBiomeGrass(c, ex, ly, cx + 1, cy, CHUNK_PX, 0);
+  }
+  // Low-sun shadows: solid tiles cast long shadows down-right over the floor.
+  // The border tiles of the upstream chunks (above / left / up-left) are
+  // stamped too, so a shadow that crosses a chunk edge appears in whichever
+  // canvas covers it — the same guaranteed coverage as the grass overflow.
+  for (let ly = 0; ly < CHUNK; ly++)
+    for (let lx = 0; lx < CHUNK; lx++) stampShadow(c, lx, ly, cx, cy, 0, 0);
+  for (let my = 13; my < CHUNK; my++)
+    for (let lx = 0; lx < CHUNK; lx++) stampShadow(c, lx, my, cx, cy - 1, 0, -CHUNK_PX);
+  for (let mx = 13; mx < CHUNK; mx++)
+    for (let ly = 0; ly < CHUNK; ly++) stampShadow(c, mx, ly, cx - 1, cy, -CHUNK_PX, 0);
+  for (let mx = 13; mx < CHUNK; mx++)
+    for (let my = 13; my < CHUNK; my++) stampShadow(c, mx, my, cx - 1, cy - 1, -CHUNK_PX, -CHUNK_PX);
   chunkCanvasCache.set(key, cv);
 
   // Keep the canvas cache bounded

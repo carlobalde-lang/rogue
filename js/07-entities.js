@@ -21,7 +21,8 @@ function findEnemySpawnPos(bias) {
   let y = p.y + Math.sin(angle) * spawnDist;
 
   // Nudge spawn point along the ray toward the player until it's not in a wall
-  if (getTile(x, y) === T_WALL) {
+  // or inside one of the big impassable tree groves.
+  if (getTile(x, y) === T_WALL || getTile(x, y) === T_TREE || getTile(x, y) === T_TALLGRASS || getTile(x, y) === T_CLIFF) {
     const outA = angleTo({ x, y }, p);
     for (let step = 1; step <= 20; step++) {
       const sx = x + Math.cos(outA) * TILE * step;

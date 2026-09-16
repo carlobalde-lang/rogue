@@ -508,7 +508,7 @@ function fireWeapons() {
             shardTip.x, shardTip.y,
             Math.cos(a) * stats.speed, Math.sin(a) * stats.speed,
             stats.dmg, 7, '#bcd0ff', 2600, 0, 0, 'shard', true,
-            { bounce: bounces, bounceRange: 200 }
+            { bounces: bounces, bounceRange: 200 }
           );
           spawnParticles(shardTip.x, shardTip.y, '#bcd0ff', 5, 3.5);
         }

@@ -45,7 +45,9 @@ function createGameState() {
     gustTimer: 0,
     // Biome heart guardians & warp portal network
     guardian: null,       // active guardian fight { biomeId, spawnT }
+    heartTimers: {},      // per-biome guardian countdowns, ms left before wake (30s each)
     warpCharges: {},      // ms spent standing on each cleared heart portal
+    warpArmed: {},        // per-portal: true only after stepping off and back on
     warpOpen: false,
     recipesTriggered: {}, // recipe id -> true (one-shot per run)
     discoveredBiomes: [], // biome ids explored this run (minimap)

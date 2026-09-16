@@ -63,7 +63,7 @@ function updateFlowField(px, py) {
       const ni = idx + ndx[i] + ndy[i] * FF_DIM;
       if (ffCost[ni] > c + ncost[i] && isWalkableTile(nx, ny)) {
         ffCost[ni] = c + ncost[i];
-        ffQueue[tail++] = ni;
+        if (tail < FF_SIZE) ffQueue[tail++] = ni;
       }
     }
   }

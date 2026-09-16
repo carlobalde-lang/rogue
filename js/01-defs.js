@@ -216,7 +216,7 @@ swarmling: {
     damage: dm => 4 + Math.floor(dm),
     xp: 3,
     color: '#8f8',
-    body: '#66e66', core: '#1c5c1c', glint: '#c8ffc8',
+    body: '#66ee66', core: '#1c5c1c', glint: '#c8ffc8',
     aura: [60, 200, 60], auraAlpha: 0.16, auraScale: 2.4,
     // On death it bursts into two half-HP Shadowlings
     onDeath: e => { spawnSplitlings(e.x, e.y, e.maxHp, e.xp); }

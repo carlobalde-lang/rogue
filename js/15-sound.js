@@ -242,20 +242,21 @@ const Sound = (() => {
 
   // ============================================================
   // DYNAMIC PROCEDURAL MUSIC
-  // Adapts tempo and layers to nearby enemy count.
-  // Calm: 72 BPM, soft pads + steady arp.
-  // Intense (30+ enemies within 350px): up to ~220 BPM, louder pads,
-  // added kick/hi-hat percussion and thicker bass; arp stays fixed.
+  // Every biome has its own song (see BIOME_SONGS below): a root key, a
+  // melody scale, an 8-chord progression and a percussion fingerprint. The
+  // scheduler swaps to the biome's song at the first chord boundary after
+  // the player crosses into a new climate.
+  // Calm: soft pads + steady arp at the biome's resting BPM.
+  // Intense (30+ enemies within 350px): up to the biome's peak BPM, louder
+  // pads, thicker bass and layered percussion. The drums also sync with the
+  // melody: at high swarm the kick+snare land on the arpeggio's phrase
+  // accents and the hi-hat clicks on every note change of the lead.
   //
-  // The harmony is one long 16-bar loop in A minor (Am7 → Fmaj7 → Cmaj7
-  // → G6 → Dm7 → Em7 → Am7 → E7 → back to Am7): each chord gets a unique
-  // 16-note melodic contour, and every full pass through the loop the
-  // contour shifts a few steps so the melody keeps evolving while always
-  // staying on diatonic chord tones.
+  // The core ("Ruins") keeps the original A-minor loop (Am7 → Fmaj7 → Cmaj7
+  // → G6 → Dm7 → Em7 → Am7 → E7): each chord gets a unique 16-note melodic
+  // contour, and every full pass through the loop the contour shifts a few
+  // steps so the melody keeps evolving while always staying diatonic.
   // ============================================================
-  const CALM_BEAT = 60 / 72;                // 0.833s — 72 BPM
-  const HOT_BEAT  = 60 / 220;               // 0.273s — 220 BPM
-
   const CHORDS = [
     {
       bass: 110.00, pad: [220.00, 261.63, 329.63, 392.00],
@@ -298,6 +299,190 @@ const Sound = (() => {
             246.94, 329.63, 415.30, 493.88, 415.30, 329.63, 246.94, 207.65]
     }    // E7    — harmonic-minor tension that resolves home
   ];
+
+  // --- Per-biome songs -----------------------------------------------------
+  // Each climate writes its own harmony: a root key, a melody scale, an
+  // 8-chord progression and a percussion fingerprint. The chord voicings and
+  // the 16-step melody are stamped out below into the same {bass,pad,arp}
+  // format the scheduler always used, so a single scheduler drives every
+  // biome's song — and swaps between them at chord boundaries as the player
+  // crosses into a new climate.
+  const sTone = (root, semi) => root * Math.pow(2, semi / 12);
+  const SCALES = {
+    minor:        [0, 2, 3, 5, 7, 8, 10, 12, 14, 15, 17, 19, 20, 22, 24],
+    major:        [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24],
+    phrygian:     [0, 1, 3, 5, 7, 8, 10, 12, 13, 15, 17, 19, 20, 22, 24],
+    dorian:       [0, 2, 3, 5, 7, 9, 10, 12, 14, 15, 17, 19, 21, 22, 24],
+    harmonicminor:[0, 2, 3, 5, 7, 8, 11, 12, 14, 15, 17, 19, 20, 23, 24]
+  };
+  const BIOME_SONGS = {
+    core: {
+      id: 'core', name: 'Ruins', bpm: [72, 220],
+      chords: CHORDS,
+      perc: { kick: [0, 8], hat: [1, 3, 5, 7, 9, 11, 13, 15], snare: [], accents: [0, 8] }
+    },
+    north: {
+      id: 'north', name: 'Frozen Grass', root: 146.83, scale: SCALES.minor,
+      bpm: [68, 190],
+      chords: [
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 0,  tones: [0, 3, 7, 10], bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 5,  tones: [0, 4, 7],     bass: 5 },
+        { root: 10, tones: [0, 4, 7, 10], bass: 10 },
+        { root: 0,  tones: [0, 3, 7, 10], bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 4, 7],     bass: 10 }
+      ],
+      arp: [7, 8, 9, 8, 7, 9, 11, 9, 10, 9, 10, 12, 11, 10, 9, 7],
+      perc: { kick: [0, 8], hat: [1, 3, 5, 7, 9, 11, 13, 15], snare: [], accents: [0, 8], accentSnare: false }
+    },
+    northeast: {
+      id: 'northeast', name: 'Taiga', root: 164.81, scale: SCALES.minor,
+      bpm: [78, 230],
+      chords: [
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 3,  tones: [0, 4, 7],     bass: 3 },
+        { root: 10, tones: [0, 4, 7],     bass: 10 },
+        { root: 5,  tones: [0, 3, 7],     bass: 5 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 4, 7, 10], bass: 10 },
+        { root: 0,  tones: [0, 3, 7, 10], bass: 0 }
+      ],
+      arp: [4, 4, 2, 4, 7, 4, 2, 4, 9, 9, 7, 9, 11, 9, 7, 9],
+      perc: { kick: [0, 8], hat: [2, 6, 10, 14], snare: [4, 12], accents: [0, 8] }
+    },
+    east: {
+      id: 'east', name: 'Savanna', root: 220, scale: SCALES.major,
+      bpm: [80, 210],
+      chords: [
+        { root: 0,  tones: [0, 4, 7],     bass: 0 },
+        { root: 5,  tones: [0, 4, 7],     bass: 5 },
+        { root: 7,  tones: [0, 4, 7],     bass: 7 },
+        { root: 0,  tones: [0, 4, 7],     bass: 0 },
+        { root: 9,  tones: [0, 3, 7],     bass: 9 },
+        { root: 5,  tones: [0, 4, 7, 9],  bass: 5 },
+        { root: 0,  tones: [0, 4, 7],     bass: 0 },
+        { root: 7,  tones: [0, 4, 7, 10], bass: 7 }
+      ],
+      arp: [0, 2, 4, 2, 0, 2, 4, 7, 4, 7, 9, 7, 4, 2, 4, 2],
+      perc: { kick: [0, 8], hat: [3, 5, 11, 13], snare: [], accents: [0, 8], accentSnare: false }
+    },
+    southeast: {
+      id: 'southeast', name: 'Canyon', root: 110, scale: SCALES.minor,
+      bpm: [70, 200],
+      chords: [
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 4, 7],     bass: 10 },
+        { root: 0,  tones: [0, 3, 7, 10], bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 4, 7],     bass: 10 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 }
+      ],
+      arp: [0, 0, 3, 0, 2, 3, 5, 3, 0, 0, 3, 5, 7, 8, 7, 5],
+      perc: { kick: [0, 8], hat: [1, 3, 5, 7, 9, 11, 13, 15], snare: [6, 14], accents: [0, 8] }
+    },
+    south: {
+      id: 'south', name: 'Desert', root: 146.83, scale: SCALES.phrygian,
+      bpm: [88, 224],
+      chords: [
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 5, 7],     bass: 10 },
+        { root: 0,  tones: [0, 3, 7, 10], bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 5, 7],     bass: 10 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 }
+      ],
+      arp: [0, 1, 2, 1, 0, 2, 4, 2, 1, 2, 4, 6, 7, 6, 4, 2],
+      perc: { kick: [0, 6, 8, 14], hat: [2, 4, 10, 12], snare: [8], accents: [0, 8] }
+    },
+    southwest: {
+      id: 'southwest', name: 'Prairie', root: 196, scale: SCALES.dorian,
+      bpm: [76, 200],
+      chords: [
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 3,  tones: [0, 4, 7],     bass: 3 },
+        { root: 10, tones: [0, 4, 7],     bass: 10 },
+        { root: 5,  tones: [0, 4, 7],     bass: 5 },
+        { root: 0,  tones: [0, 3, 7, 10], bass: 0 },
+        { root: 3,  tones: [0, 4, 7],     bass: 3 },
+        { root: 10, tones: [0, 4, 7, 9],  bass: 10 },
+        { root: 5,  tones: [0, 4, 7],     bass: 5 }
+      ],
+      arp: [0, 3, 5, 7, 5, 3, 2, 3, 0, 3, 5, 7, 9, 7, 5, 3],
+      perc: { kick: [0, 8], hat: [3, 5, 11, 13], snare: [8], accents: [0, 8] }
+    },
+    west: {
+      id: 'west', name: 'Forest', root: 110, scale: SCALES.harmonicminor,
+      bpm: [70, 195],
+      chords: [
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 4, 7],     bass: 10 },
+        { root: 7,  tones: [0, 4, 7],     bass: 7 },
+        { root: 0,  tones: [0, 3, 7, 10], bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 10, tones: [0, 4, 7],     bass: 10 },
+        { root: 7,  tones: [0, 4, 7, 10], bass: 7 }
+      ],
+      arp: [0, 6, 7, 6, 0, 6, 7, 11, 2, 4, 5, 4, 7, 5, 4, 2],
+      perc: { kick: [0, 8], hat: [2, 6, 10, 14], snare: [8], accents: [0, 8] }
+    },
+    northwest: {
+      id: 'northwest', name: 'Swamp', root: 123.47, scale: SCALES.minor,
+      bpm: [66, 185],
+      chords: [
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 8,  tones: [0, 4, 7],     bass: 8 },
+        { root: 5,  tones: [0, 3, 7],     bass: 5 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 },
+        { root: 8,  tones: [0, 4, 7, 9],  bass: 8 },
+        { root: 5,  tones: [0, 3, 7, 10], bass: 5 },
+        { root: 0,  tones: [0, 3, 7],     bass: 0 }
+      ],
+      arp: [0, 0, 2, 2, 0, 2, 4, 2, 0, 0, 2, 2, 4, 2, 0, 0],
+      perc: { kick: [0, 8], hat: [1, 5, 9, 13], snare: [4, 12], accents: [0, 8] }
+    }
+  };
+
+  // Stamps a song spec into the scheduler's {bass,pad,arp} chord format.
+  // bpm[0] is the calm tempo, bpm[1] the peak tempo under a swarm.
+  // The core song predates the per-biome system and already ships its chords
+  // in the scheduler format (absolute frequencies), so it passes through.
+  function buildSong(spec) {
+    if (!spec.scale) {
+      return {
+        id: spec.id, name: spec.name, bpm: spec.bpm,
+        chords: spec.chords,
+        perc: spec.perc
+      };
+    }
+    const arpF = spec.arp.map(si => sTone(spec.root, spec.scale[si]));
+    const chords = spec.chords.map(ch => {
+      const root = sTone(spec.root, ch.root);          // chord root frequency
+      return {
+        bass: sTone(spec.root, (ch.bass != null ? ch.bass : ch.root)),
+        pad:  ch.tones.map(t => sTone(root, t + 12)),  // voiced an octave up
+        arp:  arpF                                      // same 16-step melody per chord
+      };
+    });
+    return { id: spec.id, name: spec.name, bpm: spec.bpm, chords, perc: spec.perc };
+  }
+  const songCache = {};
+  function getSong(id) {
+    if (songCache[id]) return songCache[id];
+    const s = buildSong(BIOME_SONGS[id] || BIOME_SONGS.core);
+    songCache[id] = s;
+    return s;
+  }
+  let curSong = getSong('core');
+  let curBiomeId = null;
 
   // --- Music synth helpers (route to musicGain, take absolute ctx time) ---
   function mTone(f0, t0, dur, vol, type) {
@@ -350,6 +535,25 @@ const Sound = (() => {
     src.stop(t0 + 0.08);
   }
 
+  function mSnare(t0, vol) {
+    if (!ctx || !noiseBuf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf;
+    const flt = ctx.createBiquadFilter();
+    flt.type = 'highpass';
+    flt.frequency.setValueAtTime(2200, t0);
+    flt.frequency.exponentialRampToValueAtTime(900, t0 + 0.08);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.10);
+    src.connect(flt);
+    flt.connect(g);
+    g.connect(musicGain);
+    src.start(t0);
+    src.stop(t0 + 0.12);
+  }
+
   // --- Intensity: 0 (calm) → 1 (swarmed) ---
   function getIntensity() {
     if (!game || !game.running || !game.player) return 0;
@@ -367,6 +571,8 @@ const Sound = (() => {
   let chordIntensity = 0;   // intensity locked for the whole 2-bar chord
   let grooveKick = 0;       // smoothed kick level 0..1
   let grooveHat = 0;        // smoothed hi-hat level 0..1
+  let grooveAccent = 0;     // smoothed "drums hit the melody accents" layer
+  let grooveMelHit = 0;     // smoothed "hat mirrors the melody notes" layer
 
   function scheduleBars() {
     const lookAhead = ctx.currentTime + 1.0;
@@ -375,17 +581,29 @@ const Sound = (() => {
       // Tempo and levels are locked to the 2-bar chord: the arpeggio spans
       // both bars on ONE grid, so bass and percussion must use the very same
       // beat or they drift apart whenever intensity (and thus BPM) changes.
-      if (isChordStart) chordIntensity = getIntensity();
+      if (isChordStart) {
+        // Follow the biome the player is currently standing in and swap the
+        // song cleanly on a chord boundary — never mid-phrase.
+        const bm = playerBiome();
+        if (bm && bm !== curBiomeId) {
+          curBiomeId = bm;
+          curSong = getSong(bm);
+        }
+        chordIntensity = getIntensity();
+      }
+      const song = curSong;
       const i = chordIntensity;
-      const beat = CALM_BEAT + (HOT_BEAT - CALM_BEAT) * i;
+      const beat = 60 / (song.bpm[0] + (song.bpm[1] - song.bpm[0]) * i);
       const barDur = beat * 4;
-      const playHop = Math.floor(musicBar / 2);   // one chord per 2 bars
-      const chord = CHORDS[playHop % CHORDS.length];
-      // Each full pass through the 16-bar loop shifts the melodic contour
-      // forward a few steps, so a returning chord never plays identically
-      // — but it always stays on the same diatonic note set.
-      const arpRot = (Math.floor(playHop / CHORDS.length) * 5) % chord.arp.length;
+      const playHop = Math.floor(musicBar / 2);     // one chord per 2 bars
+      const songLen = song.chords.length;
+      const chord = song.chords[playHop % songLen];
+      // Each full pass through the loop shifts the melodic contour forward a
+      // few steps, so a returning chord never plays identically — but it
+      // always stays on the same note set.
+      const arpRot = (Math.floor(playHop / songLen) * 5) % chord.arp.length;
       const t0 = nextBarTime;
+      const perc = song.perc;
 
       // --- Pad (sustains over the 2-bar chord) ---
       if (isChordStart) {
@@ -394,7 +612,7 @@ const Sound = (() => {
         for (const f of chord.pad) mTone(f, t0, chordDur + 1.5, padVol, 'sine');
         // Subtle upper octave layer at high intensity
         if (i > 0.5) {
-          const extra = (i - 0.5) * 2;           // 0 → 1
+          const extra = (i - 0.5) * 2;              // 0 → 1
           for (const f of chord.pad) mTone(f * 2, t0, chordDur + 1.0, padVol * extra * 0.35, 'sine');
         }
       }
@@ -404,9 +622,10 @@ const Sound = (() => {
       mTone(chord.bass, t0, barDur * 0.9, bassVol, 'sine');
       // Sub-bass at high intensity
       if (i > 0.3) mTone(chord.bass * 0.5, t0, barDur * 0.8, bassVol * (i - 0.3) * 0.5, 'sine');
+      // Pulsing third beat once the crowd closes in
+      if (i > 0.6) mTone(chord.bass, t0 + beat * 2, barDur * 0.7, bassVol * (i - 0.6) * 0.6, 'sine');
 
-      // --- Arpeggio / melody: a longer per-chord contour of sixteenth
-      // note values (8 per bar), rotated slightly every loop pass ---
+      // --- Arpeggio / melody: 8 note-values per bar over the 2-bar chord ---
       const arpCount = chord.arp.length;
       const arpStep = (barDur * 2) / arpCount;
       const arpVol = 0.024;
@@ -415,24 +634,53 @@ const Sound = (() => {
         mTone(n, t0 + e * arpStep, arpStep * 1.5, arpVol, 'triangle');
       }
 
-      // --- Percussion (smoothly fades in with intensity, locked to the chord) ---
-      // A small anticipation push (PUSH) keeps the groove slightly AHEAD of the
-      // melodic grid so the drums never sound like they are dragging behind.
-      const PUSH = 0.045;
+      // --- Percussion, every hit sat on the melody's own 8th-note grid ---
+      // The core groove layers fade in with intensity; on top of them two
+      // extra layers make the drums follow the melody as enemies swarm:
+      //   grooveAccent -> a kick+snare lands on the arpeggio's phrase accents
+      //   grooveMelHit  -> the hi-hat clicks whenever the melody changes note
+      const PUSH = 0.045;   // tiny anticipation so the groove never drags
       const targetKick = clamp((i - 0.15) / 0.25, 0, 1);
       const targetHat  = clamp((i - 0.35) / 0.20, 0, 1);
       grooveKick += (targetKick - grooveKick) * 0.5;
       grooveHat  += (targetHat  - grooveHat)  * 0.5;
-      if (grooveKick > 0.02) {
-        const kv = grooveKick * 0.12;
-        mKick(t0, kv);                               // downbeat stays locked
-        mKick(t0 + beat * 2 - PUSH, kv);             // second kick anticipates
+      const targetAcct = clamp((i - 0.40) / 0.40, 0, 1);
+      const targetMel  = clamp((i - 0.55) / 0.45, 0, 1);
+      grooveAccent += (targetAcct - grooveAccent) * 0.5;
+      grooveMelHit += (targetMel - grooveMelHit) * 0.5;
+
+      const kickSlots  = perc.kick  || [0, 8];
+      const snareSlots = perc.snare || [];
+      const hatSlots   = perc.hat   || [1, 3, 5, 7, 9, 11, 13, 15];
+      for (const s of kickSlots) {
+        if (grooveKick > 0.02) mKick(t0 + s * arpStep, grooveKick * 0.12);
       }
-      if (grooveHat > 0.02) {
-        const hv = grooveHat * 0.10;
-        for (let h = 1; h < 8; h += 2) {
-          mHat(t0 + beat * 0.5 * h - PUSH, hv);      // 8th off-beats anticipate
+      for (const s of snareSlots) {
+        if (grooveKick > 0.05) mSnare(t0 + s * arpStep, grooveKick * 0.10);
+      }
+      for (const s of hatSlots) {
+        if (grooveHat > 0.02) mHat(t0 + s * arpStep + PUSH, grooveHat * 0.10);
+      }
+
+      // Drums latch onto the melody: kick + snare land on the exact grid slot
+      // where the arpeggio phrase begins, so drums and lead hit together.
+      if (grooveAccent > 0.02) {
+        const accentSlots = perc.accents || [0, 8];
+        for (const s of accentSlots) {
+          const mT = t0 + s * arpStep;
+          mKick(mT, grooveAccent * 0.09);
+          mSnare(mT, grooveAccent * ((perc.accentSnare === false) ? 0.05 : 0.12));
         }
+      }
+      // The hi-hat literally mirrors the melody: it fires whenever the
+      // arpeggio steps to a new note, so drums and lead become one groove.
+      if (grooveMelHit > 0.02) {
+        for (let e = 0; e < arpCount; e++) {
+          const cur  = chord.arp[(e + arpRot) % arpCount];
+          const prev = chord.arp[(e - 1 + arpRot) % arpCount];
+          if (cur !== prev) mHat(t0 + e * arpStep, grooveMelHit * 0.08);
+        }
+        mHat(t0, grooveMelHit * 0.10);
       }
 
       nextBarTime += barDur;
@@ -454,6 +702,10 @@ const Sound = (() => {
     chordIntensity = 0;
     grooveKick = 0;
     grooveHat = 0;
+    grooveAccent = 0;
+    grooveMelHit = 0;
+    curBiomeId = null;           // re-lock to the starting biome on the 1st bar
+    curSong = getSong('core');
     nextBarTime = ctx.currentTime + 0.1;
     musicTimer = setInterval(musicTick, 200);
     musicTick();

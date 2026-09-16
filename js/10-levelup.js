@@ -37,7 +37,7 @@ function checkRecipes() {
   for (const r of RECIPES) {
     if (g.recipesTriggered[r.id]) continue;
     const hasW = !!p.weapons.some(w => w.id === r.weapon);
-    const hasP = !!p.passives.includes(r.passive);
+    const hasP = !!PASSIVE_DEFS[r.passive] && p.passives.includes(PASSIVE_DEFS[r.passive].name);
     if (hasW && hasP) {
       g.recipesTriggered[r.id] = true;
       r.apply(p);

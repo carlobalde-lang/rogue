@@ -27,7 +27,7 @@ function runScore(r) {
 function recordRun() {
   const g = game; if (!g) return null;
   const entry = {
-    timeSec: g.time,
+    timeSec: Math.round(g.time / 1000),
     time: formatTime(g.time),
     level: g.player.level,
     kills: g.kills,
@@ -178,6 +178,20 @@ function togglePause() {
     Sound.play('pause');
   } else {
     document.getElementById('pause-screen').style.display = 'none';
+    // Re-link the joystick to a finger still holding the screen from before the
+    // pause, so movement resumes immediately instead of going dead.
+    if (typeof heldTouches !== 'undefined' && heldTouches.size > 0) {
+      const first = heldTouches.entries().next().value;
+      if (first) {
+        const [tid, pt] = first;
+        game.joystick.active = true;
+        game.joystick.id = tid;
+        game.joystick.baseX = pt.x;
+        game.joystick.baseY = pt.y;
+        game.joystick.dx = 0;
+        game.joystick.dy = 0;
+      }
+    }
     Sound.play('unpause');
   }
 }
@@ -194,6 +208,7 @@ function clearRunRuntime() {
   game.leavingHub = false;
   game.input = { up: false, down: false, left: false, right: false };
   if (game.joystick) { game.joystick.active = false; game.joystick.dx = 0; game.joystick.dy = 0; }
+  if (typeof heldTouches !== 'undefined' && heldTouches) heldTouches.clear();
   // Drop all runtime entities so nothing lingers after the run ends.
   for (const key of ['enemies', 'projectiles', 'castProjectiles', 'pickups',
                      'particles', 'clouds', 'turrets', 'rifts',
@@ -237,6 +252,7 @@ function returnToMenu() {
 }
 
 function endGame() {
+  if (!game || game.gameOver) return;
   game.gameOver = true;
   game.running = false;
   game.manualPause = false;
