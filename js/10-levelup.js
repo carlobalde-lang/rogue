@@ -49,6 +49,27 @@ function checkRecipes() {
   }
 }
 
+// ============================================================
+// PASSIVE-EFFECT GATING
+// Some passives only do something when the right weapons are present:
+//   - Haste / Rush / Overload need weapons with a reload time (baseRate > 0).
+//   - Duplicator needs a weapon that actually fires projectiles.
+// On a loadout that has neither (e.g. Holy Shield only), offering a card like
+// Duplicator would give a level-up that does literally nothing, so it is
+// skipped. The gate only looks at the CURRENT weapons — grabbing a compatible
+// weapon later in the run brings the passive back into the pool.
+const RATE_WEAPONS = Object.keys(WEAPON_DEFS).filter(id => (WEAPON_DEFS[id].baseRate || 0) > 0);
+const PROJECTILE_WEAPONS = new Set(['magicBolt', 'holyCross', 'boomerang', 'familiar', 'mirrorShard', 'turret']);
+
+function passiveHasEffect(key, weapons) {
+  const ids = weapons.map(w => w.id);
+  const hasRate = ids.some(id => RATE_WEAPONS.indexOf(id) !== -1);
+  const hasProjectile = ids.some(id => PROJECTILE_WEAPONS.has(id));
+  if (key === 'cooldown' || key === 'cdrKill' || key === 'overload') return hasRate;
+  if (key === 'duplicator') return hasProjectile;
+  return true;
+}
+
 function gainXp(amount) {
   const p = game.player;
   p.xp += amount * (game.dev?.xpMult || 1);
@@ -246,6 +267,9 @@ function generateChoices() {
   for (const key of passiveKeys) {
     const def = PASSIVE_DEFS[key];
     if (bannedP.has(key)) continue;
+    // Skip passives that can't do anything with the weapons currently owned
+    // (e.g. no Duplicator while rocking a Holy Shield only).
+    if (!passiveHasEffect(key, p.weapons)) continue;
     if (def.max !== undefined) {
       const ownedCount = p.passives.filter(n => n === def.name).length;
       if (ownedCount >= def.max) continue;

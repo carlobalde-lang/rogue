@@ -33,7 +33,7 @@ function recordRun() {
     kills: g.kills,
     difficulty: Math.round(g.difficultyMult),
     diffScale: (typeof difficultyScale === 'function') ? difficultyScale() : 1,
-    diffLabel: (typeof difficultyDef === 'function') ? difficultyDef().label : 'Normale',
+    diffLabel: (typeof difficultyDef === 'function') ? difficultyDef().label : 'Normal',
     date: new Date().toLocaleDateString('it-IT')
   };
   entry.score = runScore(entry);
@@ -156,6 +156,19 @@ function populatePausePanel() {
   document.getElementById('pause-weapons').innerHTML =
     `<h3>WEAPONS</h3>${wHtml.join('')}<h3>PASSIVES</h3>${pHtml.join('')}`;
   document.getElementById('pause-stats').innerHTML = `<h3>STATS</h3>${sHtml}`;
+
+  // --- Recipes: synergies already unlocked this run (weapon + passive pair) ---
+  const trig = game.recipesTriggered || {};
+  const rHtml = [];
+  for (const r of RECIPES) {
+    if (!trig[r.id]) continue;
+    rHtml.push(
+      `<div class="pause-entry"><span class="pe-name">${pixelIconHTML('w', r.weapon, 18)} ${pixelIconHTML('p', r.passive, 18)} ${escapeHtml(r.name)}</span>` +
+      `<span class="pe-value" style="color:#ffd24d;font-size:11px;">${escapeHtml(r.desc)}</span></div>`
+    );
+  }
+  if (rHtml.length === 0) rHtml.push('<div class="pause-entry"><span class="pe-name">No active recipes</span></div>');
+  document.getElementById('pause-recipes').innerHTML = `<h3>RECIPES</h3>${rHtml.join('')}`;
 }
 
 function togglePause() {

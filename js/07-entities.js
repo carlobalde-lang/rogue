@@ -175,25 +175,26 @@ function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEf
     bounceRange: (opts && opts.bounceRange) || 120
   });
 
-  // Duplicator: chance the same projectile fires a second, slightly offset copy
+  // Duplicator: the same projectile fires a second copy in a quick follow-up
+  // burst (~90ms later) instead of two simultaneous shots, straight ahead in
+  // the exact same direction.
   const pl = game.player;
   if (pl && pl.duplicate && Math.random() < pl.duplicate) {
-    const baseA = Math.atan2(vy, vx) + (Math.random() < 0.5 ? -1 : 1) * 0.09;
-    const spd = Math.hypot(vx, vy);
     game.projectiles.push({
-      x, y, vx: Math.cos(baseA) * spd, vy: Math.sin(baseA) * spd,
+      x, y, vx, vy,
       dmg, radius: (radius || 4) * 0.9, color: color || '#ff0',
       prevX: x, prevY: y,
       life: life || 1500, maxLife: life || 1500,
       pierce: pierce || 0, areaEffect: areaEffect || 0,
       shape: shape || 'circle', trail: trail || false,
-      rot: baseA, trailTimer: 0,
+      rot: Math.atan2(vy, vx), trailTimer: 0,
       hitEnemies: new Set(),
       boomerang: !!(opts && opts.boomerang),
       maxOut: (opts && opts.maxOut) || 0,
       outDist: 0, returning: false,
       bounces: (opts && opts.bounces) || 0,
-      bounceRange: (opts && opts.bounceRange) || 120
+      bounceRange: (opts && opts.bounceRange) || 120,
+      delay: 90
     });
   }
 }

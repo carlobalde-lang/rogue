@@ -761,6 +761,10 @@ function updateProjectiles(dt, dtSec) {
     pr.prevX = pr.x;
     pr.prevY = pr.y;
 
+    // Duplicator follow-up copy: it sits still for a beat, then fires in quick
+    // sequence behind the first projectile (no collisions while delayed).
+    if (pr.delay > 0) { pr.delay -= dt; continue; }
+
     // Boomerangs fly out straight, then home back to the player
     if (pr.boomerang) {
       pr.outDist += Math.hypot(pr.vx, pr.vy) * dtSec * 60;
