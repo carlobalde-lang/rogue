@@ -225,7 +225,7 @@ input[type="range"].vol-slider::-moz-range-thumb {
 #pause-title { color: #fff; font-size: 44px; font-weight: bold; margin-bottom: 10px; text-shadow: 2px 2px 6px #000; }
 #pause-subtitle { color: #888; font-size: 16px; margin-bottom: 24px; }
 #pause-panel {
-  display: flex; gap: 24px; width: min(560px, 90vw); max-height: 55vh;
+  display: flex; gap: 24px; width: min(800px, 94vw); max-height: 55vh;
   margin-bottom: 28px; padding: 16px 20px; justify-content: center;
   background: rgba(15,15,25,0.85); border: 1px solid #333; border-radius: 12px;
   overflow-y: auto;
@@ -327,6 +327,12 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   font-size: 18px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s;
 }
 #hub-btn:hover { transform: scale(1.06); box-shadow: 0 0 24px rgba(100,120,255,0.35); }
+#guide-btn {
+  padding: 13px 30px; margin-top: 14px; background: linear-gradient(135deg,#3a3f7a,#20244e);
+  color: #e8dcff; border: 2px solid #7a55c8; border-radius: 10px;
+  font-size: 18px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s;
+}
+#guide-btn:hover { transform: scale(1.06); box-shadow: 0 0 24px rgba(160,100,255,0.4); }
 #essence-pill {
   margin-top: 12px; padding: 6px 14px; background: rgba(15,15,25,0.85);
   border: 1px solid #7a5fd0; border-radius: 20px; color: #d9c9ff;
@@ -377,11 +383,42 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 .wpn-divider { width: 100%; text-align: center; color: #ffd24d; font-size: 13px; letter-spacing: 2px; margin: 4px 0 -6px; font-weight: bold; }
 .wpn-tools { display: flex; justify-content: center; margin-top: 20px; }
 #hub-actions { display: flex; gap: 12px; margin-top: 24px; }
-#hub-close, #hub-play { padding: 12px 30px; border-radius: 9px; font-size: 16px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s; }
+#hub-close, #hub-play, #hub-guide { padding: 12px 30px; border-radius: 9px; font-size: 16px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s; }
 #hub-close { background: #22244a; color: #9aa2d9; border: 1px solid #3a4077; }
 #hub-close:hover { color: #fff; border-color: #7a86e8; }
+#hub-guide { background: #2a3160; color: #cdb6ff; border: 1px solid #4a3a88; }
+#hub-guide:hover { color: #fff; border-color: #a98aff; }
 #hub-play { background: linear-gradient(135deg,#d44,#a22); color: #fff; border: 2px solid #f66; }
 #hub-play:hover { transform: scale(1.06); box-shadow: 0 0 24px rgba(255,50,50,0.4); }
+/* --- Guide --- */
+#guide-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(4,4,12,0.94); display: none; flex-direction: column; align-items: center;
+  justify-content: flex-start; z-index: 500; pointer-events: all; overflow-y: auto;
+  padding: 26px 14px 30px;
+}
+#guide-title { color: #e8dcff; font-size: 32px; font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 20px rgba(190,120,255,0.5); margin-bottom: 6px; }
+#guide-sub { color: #8a8aa0; font-size: 13px; margin-bottom: 16px; }
+#guide-tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 18px; max-width: 760px; }
+#guide-view { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 920px; width: 100%; }
+#guide-view .hub-card { width: 230px; }
+#guide-view .hub-card.wide { width: 280px; }
+#guide-view .hub-card.full { width: 100%; max-width: 880px; text-align: left; }
+.gd-name { color: #fff; font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+.gd-icon { font-size: 30px; margin-bottom: 6px; }
+.gd-note { color: #99a; font-size: 11px; line-height: 1.5; }
+.gd-note b { color: #ccd; }
+.gd-tag { display: inline-block; padding: 2px 9px; border-radius: 5px; font-size: 10px; font-weight: bold; letter-spacing: 1px; color: #fff; margin-bottom: 6px; }
+.gd-swatch { width: 16px; height: 16px; border-radius: 4px; display: inline-block; vertical-align: middle; margin-right: 6px; border: 1px solid rgba(255,255,255,0.3); }
+.gd-stat { color: #7f9bd9; font-size: 11px; margin: 8px 0 10px; }
+.gd-recipe { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 6px 0 8px; flex-wrap: wrap; color: #fff; }
+.gd-recipe .plus, .gd-recipe .eq { color: white; font-weight: bold; }
+.plus { color: white; font-weight: bold; }
+.gd-howto { color: #aab; font-size: 13px; line-height: 1.9; }
+.gd-howto li { margin-left: 18px; }
+#guide-actions { display: flex; gap: 12px; margin-top: 24px; }
+#guide-close { padding: 12px 36px; border-radius: 9px; font-size: 16px; font-weight: bold; cursor: pointer; pointer-events: all; background: #22244a; color: #cdd6ff; border: 1px solid #6a74cf; transition: all 0.2s; }
+#guide-close:hover { color: #fff; border-color: #97a3ff; }
 /* --- Ban list (pre-run loadout filters) --- */
 .ban-box {
   width: min(720px, 100%); padding: 14px;
@@ -456,8 +493,17 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   #hub-tabs { margin-bottom: 12px; }
   #hub-view { max-height: 60vh; overflow-y: auto; }
   .hub-card { width: 150px; padding: 12px 10px; }
-  #hub-close, #hub-play { padding: 11px 24px; font-size: 15px; }
+  #hub-close, #hub-play, #hub-guide { padding: 11px 24px; font-size: 15px; }
   #hub-btn { margin-top: 20px; font-size: 16px; }
+  #guide-btn { margin-top: 12px; font-size: 16px; }
+  #guide-screen { padding: 16px 10px 22px; }
+  #guide-title { font-size: 24px; }
+  #guide-sub { margin-bottom: 12px; }
+  #guide-tabs { margin-bottom: 12px; }
+  #guide-view .hub-card { width: 150px; }
+  #guide-view .hub-card.wide { width: 200px; max-width: 90vw; }
+  #guide-view .hub-card.full { max-width: 100%; }
+  #guide-close { padding: 11px 26px; font-size: 15px; }
   #pause-panel { flex-direction: column; gap: 12px; max-height: 40vh; }
   #dev-panel { width: calc(100vw - 20px); left: 10px; }
   #dev-btn { width: 32px; height: 32px; }
@@ -506,6 +552,15 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   #hub-view { max-height: 46vh; overflow-y: auto; }
   .hub-card { width: 150px; padding: 10px; }
   #hub-actions { margin-top: 12px; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  #guide-screen { padding: 10px 10px 16px; justify-content: flex-start; }
+  #guide-title { font-size: 20px; margin-bottom: 2px; }
+  #guide-sub { margin-bottom: 8px; }
+  #guide-tabs { margin-bottom: 10px; }
+  #guide-view { max-height: 46vh; overflow-y: auto; }
+  #guide-view .hub-card { width: 150px; padding: 10px; }
+  #guide-actions { margin-top: 12px; }
 }
 </style>
 </head>
@@ -572,6 +627,7 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   <div id="pause-panel">
     <div class="pause-col" id="pause-weapons"></div>
     <div class="pause-col" id="pause-stats"></div>
+    <div class="pause-col" id="pause-recipes"></div>
   </div>
   <div id="pause-settings" class="settings-box">
     <div class="settings-title">VOLUME</div>
@@ -625,6 +681,7 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   <div id="hub-view"></div>
   <div id="hub-actions">
     <button id="hub-close">CLOSE</button>
+    <button id="hub-guide">📖 GUIDE</button>
     <button id="hub-play">PLAY</button>
   </div>
 </div>
@@ -634,6 +691,7 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   <div id="start-subtitle">How long can you survive?</div>
   <button id="start-btn">START</button>
   <button id="hub-btn">🏛 HUB</button>
+  <button id="guide-btn">📖 GUIDE</button>
   <div id="essence-pill">💠 Umbra Shards: 0</div>
   <div id="hub-summary"></div>
   <div id="difficulty-select" class="settings-box">
@@ -656,6 +714,16 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
     </div>
   </div>
   <div id="start-controls">WASD / Arrow Keys to move<br>Touch &amp; drag on mobile to move<br>Weapons fire automatically<br>P or Esc to pause &bull; M to mute sound</div>
+</div>
+
+<div id="guide-screen">
+  <div id="guide-title">📖 GUIDE</div>
+  <div id="guide-sub">Everything you need to survive the shadowlands</div>
+  <div id="guide-tabs"></div>
+  <div id="guide-view"></div>
+  <div id="guide-actions">
+    <button id="guide-close">BACK</button>
+  </div>
 </div>
 
 <!-- Core -->
@@ -694,6 +762,8 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 <script src="js/17-meta.js"></script>
 <!-- Procedural pixel-art icons (survivors-style diamond frames) -->
 <script src="js/18-icons.js"></script>
+<!-- Guide screen -->
+<script src="js/19-guide.js"></script>
 <!-- Main loop, input, startup -->
 <script src="js/14-main.js"></script>
 <!-- Dev menu & FPS (builds panel on load) -->
