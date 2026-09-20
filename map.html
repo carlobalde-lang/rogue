@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Satellite — mondo di gioco</title>
+<style>
+  body { margin:0; background:#0b0b10; color:#d8d8e0; font:14px/1.4 system-ui, sans-serif; overflow:hidden; }
+  #wrap { position:fixed; inset:0; }
+  #map { width:100%; height:100%; display:block; cursor:grab; background:#050508; }
+  #map.dragging { cursor:grabbing; }
+  #bar { position:fixed; top:10px; left:0; right:0; display:flex; align-items:center; gap:8px;
+         justify-content:center; z-index:5; pointer-events:none; }
+  .btn { pointer-events:auto; background:#20222e; color:#e6e6f0; border:1px solid #3c3f52;
+         border-radius:8px; padding:7px 13px; cursor:pointer; font-size:13px; }
+  .btn:hover { background:#2c2f40; }
+  #stat { flex:1; text-align:center; color:#8a8ca0; font-size:12px; text-shadow:0 1px 2px #000; }
+  #legend { position:fixed; right:10px; bottom:10px; z-index:5; background:rgba(16,17,24,.86);
+            border:1px solid #33364a; border-radius:10px; padding:10px 12px; font-size:11px;
+            max-height:60vh; overflow:auto; pointer-events:auto; }
+  #legend b { display:block; margin-bottom:6px; }
+  .lg { display:flex; align-items:center; gap:6px; margin:2px 0; }
+  .sw { width:12px; height:12px; border-radius:3px; flex:none; }
+  #hint { position:fixed; left:10px; bottom:10px; color:#6a6c80; font-size:12px; z-index:4; }
+  #prog { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:8;
+          background:rgba(16,17,24,.95); border:1px solid #33364a; border-radius:12px;
+          padding:20px 30px; text-align:center; display:block; }
+  #prog .p { width:230px; height:8px; border-radius:6px; background:#262835; overflow:hidden; margin:12px auto 2px; }
+  #prog .p i { display:block; height:100%; background:#7fb3ff; width:0%; }
+  #prog small { color:#7a7c90; font-size:11px; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="map"></canvas></div>
+<canvas id="game" width="1" height="1" style="display:none"></canvas>
+<div id="bar">
+  <button class="btn" id="full">Vista completa</button>
+  <button class="btn" id="zoomin">+</button>
+  <button class="btn" id="zoomout">−</button>
+  <div id="stat"></div>
+</div>
+<div id="hint">Trascina per muovere &middot; rotella per zoom</div>
+<div id="legend"></div>
+<div id="prog">Generazione mappa<small id="progTxt"></small><div class="p"><i id="progBar"></i></div></div>
+
+<script src="js/00-utils.js"></script>
+<script src="js/01-defs.js"></script>
+<script src="js/02-world.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---- world extent: the whole climate ring plus a margin of deep space ----
+  var VIEW_EDGE = BIOME_RADIUS_FULL + 1200;
+  var SIDE = Math.ceil((VIEW_EDGE * 2) / TILE);       // 1 px per tile
+  var R1 = BIOME_RADIUS_CORE;
+  var R2 = BIOME_RADIUS_FULL;
+
+  function wxOf(tx) { return (tx - SIDE / 2) * TILE + TILE / 2; }
+  function wyOf(ty) { return (ty - SIDE / 2) * TILE + TILE / 2; }
+
+  // ---- per-tile colour: biome floor, hazards, then (dark) walls ----
+  var WALL_K = 0.30;
+  function colorOf(wx, wy) {
+    var fs = floorStyle(wx, wy);
+    var r = fs[0], g = fs[1], b = fs[2];
+
+    var tx = Math.floor(wx / TILE), ty = Math.floor(wy / TILE);
+    var cx = Math.floor(tx / CHUNK), cy = Math.floor(ty / CHUNK);
+    var hm = chunkHazardMap(cx, cy);
+    var hz = hm[(ty - cy * CHUNK) * CHUNK + (tx - cx * CHUNK)];
+    if (hz === HAZARD_LAVA)       { r = 255; g = 96;  b = 28; }
+    else if (hz === HAZARD_SNOW)  { r = 236; g = 246; b = 252; }
+    else if (hz === HAZARD_ICE)   { r = 130; g = 195; b = 255; }
+    else if (hz === HAZARD_SWAMP) { r = 112; g = 150; b = 48; }
+    else if (hz === HAZARD_WATER) { r = 72;  g = 152; b = 172; }
+
+    if (getTile(wx, wy) === T_WALL) { r = (r * WALL_K) | 0; g = (g * WALL_K) | 0; b = (b * WALL_K) | 0; }
+    return [r, g, b];
+  }
+
+  // ---- base 1px/tile bitmap, painted progressively so the UI never blocks ----
+  var world = document.createElement('canvas');
+  world.width = SIDE; world.height = SIDE;
+  var wctx = world.getContext('2d');
+  var img = wctx.createImageData(SIDE, SIDE);
+  var dta = new Uint32Array(img.data.buffer);
+  var row = 0, built = false;
+
+  function paintStep() {
+    var t0 = performance.now();
+    while (row < SIDE && performance.now() - t0 < 36) {
+      for (var x = 0; x < SIDE; x++) {
+        var c = colorOf(wxOf(x), wyOf(row));
+        dta[row * SIDE + x] = (255 << 24) | (c[2] << 16) | (c[1] << 8) | c[0];
+      }
+      row++;
+    }
+    wctx.putImageData(img, 0, 0);
+    var p = row / SIDE;
+    document.getElementById('progBar').style.width = (p * 100) + '%';
+    document.getElementById('progTxt').textContent = '  ' + Math.round(p * 100) + '%';
+    if (row < SIDE) { requestAnimationFrame(paintStep); }
+    else {
+      document.getElementById('prog').style.display = 'none';
+      built = true;
+      render();
+    }
+  }
+
+  // ---- viewer state ----
+  var mapCanvas = document.getElementById('map');
+  var ctx = mapCanvas.getContext('2d');
+  var C_W = 0, C_H = 0;
+  var wcX = 0, wcY = 0, Z = 1;
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+  function sizeCanvas() {
+    C_W = innerWidth; C_H = innerHeight;
+    var dpr = Math.min(devicePixelRatio || 1, 2);
+    mapCanvas.width = Math.floor(C_W * dpr);
+    mapCanvas.height = Math.floor(C_H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  addEventListener('resize', function () { sizeCanvas(); render(); });
+
+  function overlay() {
+    // crosshair at the origin + the two biome rings, in CSS px
+    var vsp = Z / TILE;                          // tiles per css px
+    function spx(xW) { return C_W / 2 + (xW - wcX) * vsp; }
+    function spy(yW) { return C_H / 2 + (yW - wcY) * vsp; }
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(spx(0) - 6, spy(0)); ctx.lineTo(spx(0) + 6, spy(0));
+    ctx.moveTo(spx(0), spy(0) - 6); ctx.lineTo(spx(0), spy(0) + 6);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.arc(spx(0), spy(0), R1 / TILE * Z, 0, PI2);
+    ctx.moveTo(spx(0) + R2 / TILE * Z, spy(0)); ctx.arc(spx(0), spy(0), R2 / TILE * Z, 0, PI2);
+    ctx.stroke();
+  }
+
+  function render() {
+    if (!built && Z <= 1.01) return;
+    ctx.fillStyle = '#050508';
+    ctx.fillRect(0, 0, C_W, C_H);
+    var w = C_W, h = C_H;
+    if (Z <= 1.01) {
+      var fit = Math.min(w / SIDE, h / SIDE);
+      var dw = Math.floor(SIDE * fit), dh = Math.floor(SIDE * fit);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(world, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    } else {
+      var tilePx = Z;
+      var halfTx = (w / 2) / tilePx, halfTy = (h / 2) / tilePx;
+      var tx0 = Math.floor(wcX / TILE - halfTx), ty0 = Math.floor(wcY / TILE - halfTy);
+      var txN = Math.ceil(halfTx * 2) + 2, tyN = Math.ceil(halfTy * 2) + 2;
+      var left = wcX - halfTx * TILE, topW = wcY - halfTy * TILE;
+      for (var ty = ty0; ty <= ty0 + tyN; ty++) {
+        for (var tx = tx0; tx <= tx0 + txN; tx++) {
+          var wx2 = tx * TILE + TILE * 0.5, wy2 = ty * TILE + TILE * 0.5;
+          var c = colorOf(wx2, wy2);
+          ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+          ctx.fillRect((wx2 - TILE * 0.5 - left) / TILE * tilePx, (wy2 - TILE * 0.5 - topW) / TILE * tilePx, tilePx + 0.5, tilePx + 0.5);
+        }
+      }
+    }
+    overlay();
+    document.getElementById('stat').textContent =
+      (wcX / TILE).toFixed(1) + ',' + (wcY / TILE).toFixed(1) +
+      '  tile  ·  zoom ' + Z.toFixed(Z < 10 ? 1 : 0) + 'x';
+  }
+
+  // ---- controls ----
+  function setZoom(nz, anchorX, anchorY) {
+    nz = clamp(nz, 1, 16);
+    if (anchorX !== undefined) {
+      // keep the world point under the cursor fixed while zooming
+      var owx = wcX + (anchorX - C_W / 2) * (TILE / Z);
+      var owy = wcY + (anchorY - C_H / 2) * (TILE / Z);
+      wcX = owx - (anchorX - C_W / 2) * (TILE / nz);
+      wcY = owy - (anchorY - C_H / 2) * (TILE / nz);
+    }
+    Z = nz;
+    render();
+  }
+
+  var dragging = false, lx = 0, ly = 0;
+  mapCanvas.addEventListener('pointerdown', function (e) {
+    dragging = true; lx = e.clientX; ly = e.clientY;
+    mapCanvas.classList.add('dragging');
+    mapCanvas.setPointerCapture(e.pointerId);
+  });
+  mapCanvas.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    wcX -= (e.clientX - lx) * (TILE / Z);
+    wcY -= (e.clientY - ly) * (TILE / Z);
+    lx = e.clientX; ly = e.clientY;
+    render();
+  });
+  mapCanvas.addEventListener('pointerup', function () {
+    dragging = false; mapCanvas.classList.remove('dragging');
+  });
+  mapCanvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var rect = mapCanvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    setZoom(Z * (e.deltaY < 0 ? 1.6 : 1 / 1.6), mx, my);
+  }, { passive: false });
+
+  document.getElementById('full').onclick = function () { wcX = 0; wcY = 0; setZoom(1); };
+  document.getElementById('zoomin').onclick = function () { setZoom(Z * 2, C_W / 2, C_H / 2); };
+  document.getElementById('zoomout').onclick = function () { setZoom(Z / 2, C_W / 2, C_H / 2); };
+
+  // ---- legend ----
+  var LE = document.getElementById('legend');
+  var html = '<b>Legenda</b>';
+  BIOME_IDS.forEach(function (id) {
+    var d = BIOME_DEFS[id];
+    html += '<div class="lg"><span class="sw" style="background:rgb(' +
+      d.floor[0] + ',' + d.floor[1] + ',' + d.floor[2] + ')"></span>' + d.name + '</div>';
+  });
+  var extras = [
+    ['#ff601c', 'Lava (deserto)'],
+    ['#82c3ff', 'Ghiaccio'],
+    ['#ecf6fc', 'Neve'],
+    ['#709632', 'Palude'],
+    ['#4898ac', 'Acqua'],
+    ['#101218', 'Muri / edifici'],
+    ['#050508', 'Fuori dal mondo']
+  ];
+  extras.forEach(function (x) {
+    html += '<div class="lg"><span class="sw" style="background:' + x[0] + '"></span>' + x[1] + '</div>';
+  });
+  LE.innerHTML = html;
+
+  sizeCanvas();
+  requestAnimationFrame(paintStep);
+})();
+</script>
+</body>
+</html>

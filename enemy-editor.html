@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Survivors — Enemy Editor</title>
+<style>
+  :root {
+    --bg: #14161c;
+    --panel: #1b1e26;
+    --panel2: #22262f;
+    --line: #2e3340;
+    --text: #c9cede;
+    --dim: #8a90a0;
+    --accent: #8a5cff;
+    --accent2: #43a6f5;
+    --good: #4cc76e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(1200px 600px at 30% -10%, #1d2130, var(--bg) 60%);
+    color: var(--text);
+    font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(20,22,28,.9);
+    position: sticky; top: 0; z-index: 5;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: .5px; }
+  header h1 .sep { color: var(--dim); font-weight: 400; margin: 0 6px; }
+  header h1 em { font-style: normal; color: var(--accent); }
+  .grow { flex: 1; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 14px; padding: 14px 18px; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .panel h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--dim); margin: 0 0 10px; font-weight: 600;
+  }
+  .panel h2 b { color: var(--accent2); }
+  .col-left { display: flex; flex-direction: column; gap: 14px; }
+  label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
+  select, input[type=text], input[type=number] {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; font-size: 13px; outline: none;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  select { min-width: 0; flex: 1; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  button {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 7px;
+    padding: 7px 12px; font-size: 13px; cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  button:hover { border-color: var(--accent); background: #292e3a; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.primary:hover { filter: brightness(1.12); }
+  button.small { padding: 4px 9px; font-size: 12px; }
+  .color-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .color-row .swatch { flex: 0 0 auto; }
+  .color-row .hex { width: 86px; font-family: Consolas, monospace; text-transform: uppercase; }
+  .color-row .name { width: 64px; flex: 0 0 auto; font-size: 12px; color: var(--dim); }
+  input[type=color] {
+    width: 40px; height: 28px; border: 1px solid var(--line); border-radius: 6px;
+    background: transparent; padding: 0; cursor: pointer;
+  }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+  input[type=color]::-webkit-color-swatch { border: none; border-radius: 4px; }
+  .slider-row { margin-bottom: 10px; }
+  .slider-row .top { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); margin-bottom: 3px; }
+  .slider-row .top .val { color: var(--accent2); font-family: Consolas, monospace; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .row .label { min-width: 96px; font-size: 12px; color: var(--dim); }
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--line); border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  #preview { border-radius: 8px; max-width: 100%; touch-action: none; }
+  .stage-info { font-size: 12px; color: var(--dim); padding-bottom: 10px; }
+  .stage-info b { color: var(--text); }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+  .gcell {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 9px;
+    padding: 8px; text-align: center; cursor: pointer; transition: border-color .15s;
+  }
+  .gcell:hover { border-color: var(--accent); }
+  .gcell.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .gcell canvas { border-radius: 6px; width: 104px; height: 104px; }
+  .gcell .nm { font-size: 11px; margin-top: 6px; color: var(--text); }
+  .gcell .kt { font-size: 10px; color: var(--dim); }
+  textarea.code {
+    width: 100%; min-height: 220px; resize: vertical;
+    background: #101217; color: #cdd6e4;
+    border: 1px solid var(--line); border-radius: 8px;
+    font: 12px/1.5 Consolas, "Cascadia Mono", monospace; padding: 10px;
+  }
+  textarea.code.big { min-height: 420px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tabs button { border-radius: 20px; }
+  .tabs button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .hint { font-size: 12px; color: var(--dim); margin: 6px 0 10px; }
+  .hint code { color: var(--accent2); background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+  .divider { height: 1px; background: var(--line); margin: 12px 0; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--panel2); border: 1px solid var(--line); color: var(--dim); }
+  .badge.on { color: #fff; background: var(--accent); border-color: var(--accent); }
+  .set { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+  .checks { display: flex; gap: 16px; margin: 6px 0; }
+  .checks label { font-size: 12px; }
+  .tools { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tools button { border-radius: 18px; padding: 5px 11px; font-size: 12px; }
+  .tools button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #phaseBtn { font-family: Consolas, monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Shadow Survivors <span class="sep">·</span> <em>Enemy Editor</em></h1>
+  <span class="badge">modulo: nemici</span>
+  <span class="grow"></span>
+  <span class="hint" style="margin:0">editor procedurale → esporta codice per <code>01-defs.js</code> / <code>13-render.js</code></span>
+</header>
+
+<main>
+  <!-- ============ LEFT: CONTROLS ============ -->
+  <div class="col-left">
+
+    <div class="panel">
+      <h2>Carica nemico</h2>
+      <div class="row">
+        <span class="label">Tipo</span>
+        <select id="enemySel"></select>
+      </div>
+      <div class="row">
+        <span class="label">Forma</span>
+        <select id="formSel">
+          <option value="blob">Blob / Shadowling</option>
+          <option value="fast">Velocista (Stalker)</option>
+          <option value="tank">Tank / Warden</option>
+          <option value="ranged">Caster (Shade)</option>
+          <option value="boss">Boss (Shadow Lord)</option>
+          <option value="custom">Disegno libero (punti + cerchi)</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="label">Raggio prev.</span>
+        <input id="radiusRange" type="range" min="24" max="130" step="1" value="80" style="flex:1">
+        <span class="val" id="radiusVal" style="color:var(--accent2);font-family:Consolas,monospace;width:44px"></span>
+      </div>
+      <div class="row">
+        <span class="label">Animazione</span>
+        <button id="pauseBtn" class="small" style="flex:1">PAUSA</button>
+        <button id="phaseBtn" class="small">nuova fase</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Paletta <b>(già nel gioco)</b></h2>
+      <div class="color-row">
+        <span class="name">Corpo</span>
+        <input type="color" id="cBody"><input type="text" class="hex" id="hBody" maxlength="9">
+      </div>
+      <div class="color-row">
+        <span class="name">Nucleo</span>
+        <input type="color" id="cCore"><input type="text" class="hex" id="hCore" maxlength="9">
+      </div>
+      <div class="color-row">
+        <span class="name">Occhi</span>
+        <input type="color" id="cGlint"><input type="text" class="hex" id="hGlint" maxlength="9">
+      </div>
+
+      <div class="divider"></div>
+      <h2>Aura</h2>
+      <div class="row">
+        <span class="label">R</span>
+        <input id="aR" type="range" min="0" max="255" step="1" style="flex:1"><span class="val" id="aRV" style="font-family:Consolas,monospace;color:var(--accent2);width:34px"></span>
+      </div>
+      <div class="row">
+        <span class="label">G</span>
+        <input id="aG" type="range" min="0" max="255" step="1" style="flex:1"><span class="val" id="aGV" style="font-family:Consolas,monospace;color:var(--accent2);width:34px"></span>
+      </div>
+      <div class="row">
+        <span class="label">B</span>
+        <input id="aB" type="range" min="0" max="255" step="1" style="flex:1"><span class="val" id="aBV" style="font-family:Consolas,monospace;color:var(--accent2);width:34px"></span>
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Opacità aura</span><span class="val" id="aAlphaV"></span></div>
+        <input id="aAlpha" type="range" min="0" max="0.5" step="0.01" value="0.18">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Scala aura</span><span class="val" id="aScaleV"></span></div>
+        <input id="aScale" type="range" min="1" max="4" step="0.1" value="2.2">
+      </div>
+    </div>
+
+    <div class="panel" id="shapePanel">
+      <h2>Forma <b>(nuovo: funziona solo con export)</b></h2>
+      <div id="shapeCtrls"></div>
+      <div class="set">
+        <button id="resetFormBtn" class="small">Ripristina forma</button>
+        <button id="randPalBtn" class="small">Paletta casuale</button>
+      </div>
+    </div>
+
+    <div class="panel" id="designPanel" style="display:none">
+      <h2>Disegno libero <b>(punti + forme)</b></h2>
+      <div class="tools">
+        <button data-tool="select" class="tool on">Sposta</button>
+        <button data-tool="poly" class="tool">Aggiungi punto</button>
+        <button data-tool="circle" class="tool">Cerchio</button>
+        <button data-tool="ellipse" class="tool">Ellisse</button>
+        <button data-tool="erase" class="tool">Cancella</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <span class="label">Snap griglia</span>
+        <select id="snapSel" style="flex:1">
+          <option value="0">No</option>
+          <option value="0.1">0.1</option>
+          <option value="0.25" selected>0.25</option>
+          <option value="0.5">0.5</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="label">Liscio</span>
+        <select id="smoothSel" style="flex:1">
+          <option value="0">Spigoloso</option>
+          <option value="1" selected>Morbido</option>
+          <option value="2">Molto morbido</option>
+        </select>
+      </div>
+      <div class="set">
+        <button id="undoBtn" class="small">Annulla (Ctrl+Z)</button>
+        <button id="dupBtn" class="small">Duplica</button>
+        <button id="flipHBtn" class="small">Flip H</button>
+        <button id="flipVBtn" class="small">Flip V</button>
+        <button id="rotBtn" class="small">Ruota 15°</button>
+      </div>
+
+      <hr style="margin:12px 0;border:none;border-top:1px solid var(--line)">
+
+      <div class="row">
+        <span class="label">Stile di</span>
+        <b id="selInfo" style="flex:1;color:var(--accent2);text-transform:capitalize">—</b>
+      </div>
+      <div class="row">
+        <span class="label">Riempimento</span>
+        <select id="fillSel" style="flex:1" disabled>
+          <option value="body">Corpo</option>
+          <option value="core">Nucleo</option>
+          <option value="glint">Occhi</option>
+          <option value="none">Nessuno</option>
+          <option value="hex">Esadecimale…</option>
+        </select>
+        <input type="color" id="fillHex" value="#7a4cff" style="display:none;width:34px;height:26px;padding:0">
+      </div>
+      <div class="row">
+        <span class="label">Opacità</span>
+        <input id="fillARange" type="range" min="5" max="100" step="5" value="100" style="flex:1" disabled>
+        <span class="val" id="fillAVal" style="font-family:Consolas,monospace">100%</span>
+      </div>
+      <div class="row">
+        <span class="label">Bordo</span>
+        <select id="strokeSel" style="flex:1" disabled>
+          <option value="none">Nessuno</option>
+          <option value="body">Corpo</option>
+          <option value="core">Nucleo</option>
+          <option value="glint">Occhi</option>
+          <option value="hex">Esadecimale…</option>
+        </select>
+        <input type="color" id="strokeHex" value="#ffffff" style="display:none;width:34px;height:26px;padding:0">
+      </div>
+      <div class="row">
+        <span class="label">Spessore</span>
+        <input id="strokeWRange" type="range" min="1" max="10" step="0.5" value="2" style="flex:1" disabled>
+        <span class="val" id="strokeWVal" style="font-family:Consolas,monospace">2</span>
+      </div>
+      <div class="row" id="rotRow" style="display:none">
+        <span class="label">Rotazione</span>
+        <input id="rotRange" type="range" min="0" max="360" step="5" value="0" style="flex:1" disabled>
+        <span class="val" id="rotVal" style="font-family:Consolas,monospace">0°</span>
+      </div>
+      <div class="row">
+        <span class="label">Ordine</span>
+        <button id="backBtn" class="small" disabled>Dietro</button>
+        <button id="frontBtn" class="small" disabled>Davanti</button>
+        <button id="behindBtn" class="small" disabled>Dietro corpo</button>
+      </div>
+      <div class="set">
+        <button id="clearBtn" class="small">Svuota disegno</button>
+        <button id="sampleBtn" class="primary small">Carica esempio</button>
+      </div>
+      <p class="hint" style="margin:10px 0 0">
+        Trascina punti e forme. Sul <b>bordo</b> di una forma lo ridimensioni; per le
+        ellissi c'è la <b>maniglia di rotazione</b> in alto. <b>Frecce</b>: sposta di
+        poco, <b>Ctrl+Z</b>: annulla. Clicca dentro il poligono per stilizzarlo.
+        Coordinate in <code>unità di raggio</code> del nemico.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2>Identità export</h2>
+      <div class="row"><span class="label">Key</span><input id="outKey" type="text" value="myenemy" placeholder="es. myenemy"></div>
+      <div class="row"><span class="label">Nome</span><input id="outName" type="text" value="My Enemy" style="flex:1"></div>
+      <div class="row"><span class="label">Categoria</span>
+        <select id="outCat">
+          <option>normal</option><option>elite</option><option>warden</option><option>boss</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RIGHT: STAGE + EXPORT ============ -->
+  <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+    <div class="stage">
+      <canvas id="preview" width="480" height="480" style="width:100%;max-width:560px;aspect-ratio:1"></canvas>
+      <div class="stage-info">
+        Anteprima animata del nemico <b id="stageName"></b>
+        <span id="stageForm" class="badge" style="margin-left:6px">blob</span>
+        <span id="stageKey" class="badge" style="margin-left:6px"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Galleria nemici del gioco</h2>
+      <div class="gallery" id="gallery"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Export codice</h2>
+      <div class="tabs">
+        <button data-tab="def" class="on">01-defs.js</button>
+        <button data-tab="func">13-render.js</button>
+        <button data-tab="how">Come integrare</button>
+      </div>
+      <div class="set" style="margin-bottom:8px">
+        <button id="regenBtn" class="primary">Rigenera codice</button>
+        <button id="copyBtn">Copia</button>
+        <button id="pngBtn">Scarica PNG</button>
+      </div>
+      <div data-pane="def">
+        <p class="hint">Sostituisce i campi visuali del nemico scelto in <code>js/01-defs.js</code>. La chiave <code>shape:</code> applica la forma personalizzata (attiva in gioco seguendo la tab "Come integrare").</p>
+        <textarea id="codeDef" class="code" readonly spellcheck="false"></textarea>
+      </div>
+      <div data-pane="func" style="display:none">
+        <p class="hint">Funzione completa <code>drawEnemy</code> + default per ogni forma: da incollare a livello top in <code>js/13-render.js</code>.</p>
+        <textarea id="codeFunc" class="code big" readonly spellcheck="false"></textarea>
+      </div>
+      <div data-pane="how" style="display:none">
+        <p class="hint">Passi di integrazione per avere la forma personalizzata <b>dentro il gioco</b> (la paletta da sola non basta se cambi la forma).</p>
+        <textarea id="codeHow" class="code big" readonly spellcheck="false"></textarea>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+/* ==========================================================================
+   SHADOW SURVIVORS — ENEMY EDITOR
+   Replica il rendering procedural dei nemici di js/13-render.js in un editor
+   stand-alone. Carica le palette reali da js/01-defs.js e permette di
+   modificarle + modificare le proporzioni della forma, esportando il codice.
+   ========================================================================== */
+
+/* ---------- dati reali dei nemici (da js/01-defs.js) ---------- */
+const ENEMY_ROSTER = [
+  { key:'normal',     name:'Shadowling',  type:'normal', cat:'normal',
+    body:'#ff4d4d', core:'#7a1a1a', glint:'#ff9e9e', aura:[120,0,30],   aa:0.15, as:2.2 },
+  { key:'swarmling',  name:'Swarmling',   type:'normal', cat:'normal',
+    body:'#ff6666', core:'#771717', glint:'#ffc1c1', aura:[200,60,60],  aa:0.18, as:2.6 },
+  { key:'runner',     name:'Runner',      type:'normal', cat:'normal',
+    body:'#ffb85e', core:'#8a4a12', glint:'#ffe3c0', aura:[220,140,40], aa:0.18, as:2.3 },
+  { key:'brute',      name:'Brute',       type:'normal', cat:'normal',
+    body:'#4cc76e', core:'#1c4a2a', glint:'#b8ffc9', aura:[60,190,90],  aa:0.18, as:2.2 },
+  { key:'shielded',   name:'Shielded',    type:'normal', cat:'normal',
+    body:'#7777ff', core:'#2a2a7a', glint:'#c9c9ff', aura:[90,90,220],  aa:0.18, as:2.4 },
+  { key:'splitter',   name:'Splitter',    type:'normal', cat:'normal',
+    body:'#66ee66', core:'#1c5c1c', glint:'#c8ffc8', aura:[60,200,60],  aa:0.16, as:2.4 },
+  { key:'caster',     name:'Caster',      type:'normal', cat:'normal',
+    body:'#ff9a6e', core:'#7a2a14', glint:'#ffd1b8', aura:[220,120,40], aa:0.18, as:2.4 },
+  { key:'leecher',    name:'Leecher',     type:'normal', cat:'normal',
+    body:'#b76bb7', core:'#4a1c4a', glint:'#eec1ee', aura:[160,40,160], aa:0.18, as:2.4 },
+  { key:'frostling',  name:'Frostling',   type:'normal', cat:'normal',
+    body:'#5fd8ff', core:'#1d5a7a', glint:'#d6f4ff', aura:[80,170,255], aa:0.18, as:2.3 },
+  { key:'pinewraith', name:'Pine Wraith', type:'normal', cat:'normal',
+    body:'#4fd0b8', core:'#1c5a4e', glint:'#c7fff0', aura:[70,190,150], aa:0.18, as:2.6 },
+  { key:'dunerunner', name:'Dune Runner', type:'normal', cat:'normal',
+    body:'#e8b46a', core:'#7a4a12', glint:'#ffe6c0', aura:[220,150,70], aa:0.18, as:2.3 },
+  { key:'canyongolem',name:'Canyon Golem',type:'normal', cat:'normal',
+    body:'#c1784a', core:'#5c2c16', glint:'#ffd1a8', aura:[180,100,50], aa:0.18, as:2.2 },
+  { key:'scorcher',   name:'Scorcher',    type:'normal', cat:'normal',
+    body:'#ff8a3c', core:'#7a2208', glint:'#ffd7a8', aura:[240,110,30], aa:0.18, as:2.4 },
+  { key:'riverwisp',  name:'River Wisp',  type:'normal', cat:'normal',
+    body:'#5fc8de', core:'#175c6a', glint:'#c9f4ff', aura:[70,180,200], aa:0.18, as:2.4 },
+  { key:'dryadseer',  name:'Dryad Seer',  type:'normal', cat:'normal',
+    body:'#5fe06a', core:'#1c5c24', glint:'#c8ffce', aura:[80,210,80],  aa:0.18, as:2.4 },
+  { key:'boghaunt',   name:'Bog Haunt',   type:'normal', cat:'normal',
+    body:'#a8a64e', core:'#4a5411', glint:'#eef2b8', aura:[150,160,50], aa:0.18, as:2.4 },
+  { key:'elite',      name:'Elite',       type:'elite', cat:'elite',
+    body:'#ff8c1a', core:'#a35205', glint:'#ffc37a', aura:[200,100,0],  aa:0.20, as:2.2 },
+  { key:'warden',     name:'Warden',      type:'warden', cat:'warden',
+    body:'#ff8c1a', core:'#a35205', glint:'#ffe0ae', aura:[255,120,20], aa:0.22, as:2.6 },
+  { key:'boss',       name:'Boss',        type:'boss', cat:'boss',
+    body:'#c030ff', core:'#7a149f', glint:'#e78aff', aura:[140,0,200],  aa:0.25, as:2.2 }
+];
+
+/* Le liste di "kind" che definiscono la forma in js/13-render.js */
+const FORM_KINDS = {
+  fast:   ['runner','dunerunner','swarmling','pinewraith','riverwisp','frostling'],
+  tank:   ['brute','canyongolem','shielded','leecher','boghaunt'],
+  ranged: ['caster','scorcher','dryadseer']
+};
+function defaultForm(kind, type) {
+  if (type === 'boss') return 'boss';
+  if (type === 'warden') return 'tank';
+  if (FORM_KINDS.fast.indexOf(kind) >= 0) return 'fast';
+  if (FORM_KINDS.tank.indexOf(kind) >= 0) return 'tank';
+  if (FORM_KINDS.ranged.indexOf(kind) >= 0) return 'ranged';
+  return 'blob';
+}
+
+/* ---------- default per forma (stessi vincoli del render del gioco) ---------- */
+const FORM_DEFAULTS = {
+  blob:   { lumps:0.09, segments:10, tendrils:2, tendrilLen:1.15, eyes:2, eyeSize:1 },
+  fast:   { nose:1.8, tail:1.55, width:0.48, tailW:0.26, spine:1, eyeSize:1, angle:0.785 },
+  tank:   { spikes:5, studs:1, coreSize:0.38, crownLen:7, crownColor:'#ffd778' },
+  ranged: { tendrils:5, tendrilLen:1.2, halo:1, eyeSize:1, blink:1 },
+  boss:   { horns:3, hornLen:1.28, hornCurl:0.25, hornW:0.14, coreSize:0.52, shards:6, eyes:2, lumps:0.10, lumps2:0.05 },
+  custom: {}
+};
+const FORM_RADIUS = { blob:80, fast:82, tank:95, ranged:84, boss:100, custom:90 };
+
+/* ---------- slider configurabili per forma ---------- */
+const SHAPE_SLIDERS = {
+  blob: [
+    ['lumps','Ondulazione corpo',0,0.2,0.01,2],
+    ['segments','Frammenti',6,18,1,0],
+    ['tendrils','Tentacoli',0,6,1,0],
+    ['tendrilLen','Lungh. tentacoli',0.3,2,0.05,2],
+    ['eyes','Numero occhi',0,4,1,0],
+    ['eyeSize','Dimensione occhi',0.2,3,0.1,1]
+  ],
+  fast: [
+    ['nose','Naso (punta)',1,3,0.1,1],
+    ['tail','Lunghezza coda',0.4,3,0.1,1],
+    ['width','Larghezza',0.2,1,0.01,2],
+    ['tailW','Apertura coda',0.1,0.7,0.01,2],
+    ['spine','Spina dorsale',0,1,1,0],
+    ['eyeSize','Dimensione occhi',0.2,3,0.1,1],
+    ['angle','Angolo (in editor)',0,6.283,0.01,2]
+  ],
+  tank: [
+    ['spikes','Picchi corona',0,9,1,0],
+    ['crownLen','Lungh. picchi',3,24,1,0],
+    ['coreSize','Nucleo petto',0.1,0.8,0.01,2],
+    ['studs','Stud spallacci',0,1,1,0]
+  ],
+  ranged: [
+    ['tendrils','Tentacoli',0,10,1,0],
+    ['tendrilLen','Lungh. tentacoli',0.5,2.5,0.05,2],
+    ['halo','Alone',0,1,1,0],
+    ['eyeSize','Dimensione occhio',0.2,3,0.1,1],
+    ['blink','Battito occhio',0,1,1,0]
+  ],
+  boss: [
+    ['horns','Corni',0,7,1,0],
+    ['hornLen','Lungh. corni',0.6,2.2,0.05,2],
+    ['hornCurl','Curvatura corni',0,0.8,0.01,2],
+    ['hornW','Spessore corni',0.05,0.4,0.01,2],
+    ['coreSize','Nucleo cuore',0.2,1,0.01,2],
+    ['lumps','Ondulazione',0,0.25,0.01,2],
+    ['shards','Schegge orbitali',0,12,1,0],
+    ['eyes','Numero occhi',0,4,1,0]
+  ]
+};
+
+/* ==========================================================================
+   drawEnemy — identica alla logica di js/13-render.js ma parametrizzata.
+   Viene esportata via toString(): restare autocontenuta (nessuna variabile
+   esterna, niente template literal).
+   ========================================================================== */
+function drawEnemy(ctx, sx, sy, R, t, eph, P) {
+  var PI2 = Math.PI * 2;
+
+  /* -- aurea soffusa (copre sempre: in gioco è gated da GFX.enemyFx) -- */
+  if (P.auraAlpha > 0 && P.auraScale > 0) {
+    var pulse = 1 + 0.08 * Math.sin(t * 0.003 + eph);
+    ctx.globalAlpha = P.auraAlpha * pulse;
+    ctx.fillStyle = 'rgb(' + P.aura[0] + ',' + P.aura[1] + ',' + P.aura[2] + ')';
+    ctx.beginPath();
+    ctx.arc(sx, sy, R * P.auraScale * pulse, 0, PI2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  var body = P.body, core = P.core, glint = P.glint;
+
+  /* occhi simmetrici: es = size, gap = distanza in R, xoff in R */
+  function drawEyes(n, yoff, es, gap, xoff) {
+    var count = Math.max(0, Math.round(n || 0));
+    if (!count) return;
+    ctx.fillStyle = glint;
+    var w = R * 0.14 * (es || 1);
+    var h = R * 0.11 * (es || 1);
+    for (var i = 0; i < count; i++) {
+      var off = count === 1 ? 0 : (i - (count - 1) / 2);
+      var ex = sx + off * R * (gap || 0.46) + (xoff || 0) * R;
+      ctx.fillRect(ex - w / 2, sy + yoff * R, w, h);
+    }
+  }
+
+  /* arrotondamento Chaikin: smussa il poligono, resta in unità di raggio R */
+  function chaikin(pts, iter) {
+    var p = pts, k, i, a, b, out;
+    for (k = 0; k < iter; k++) {
+      if (p.length < 3) break;
+      out = [];
+      for (i = 0; i < p.length; i++) {
+        a = p[i]; b = p[(i + 1) % p.length];
+        out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+        out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+      }
+      p = out;
+    }
+    return p;
+  }
+
+  /* disegno libero: poligono + forme (cerchi/ellissi), unità di R.
+     Ogni forma: {t:'c'|'e', x,y, r | rx,ry,rot, fill,fillA,stroke,strokeW,strokeA,behind}
+     polyStyle del poligono: {fill,fillA,stroke,strokeW,strokeA} */
+  function colResolve(src, bC, cC, gC) {
+    if (!src || src === 'none') return null;
+    if (src === 'body') return bC;
+    if (src === 'core') return cC;
+    if (src === 'glint') return gC;
+    return src;
+  }
+
+  function drawGeom() {
+    var poly = P.geom.poly || [];
+    var shp = P.geom.shapes || [];
+    var sm = Math.max(0, Math.min(3, Math.round(P.geom.smooth || 1)));
+    var ps = P.geom.polyStyle || {};
+    var pFill = colResolve(ps.fill, body, core, glint);
+    var pStk = colResolve(ps.stroke, body, core, glint);
+
+    function drawShape(sh) {
+      var fl = colResolve(sh.fill, body, core, glint);
+      var st = colResolve(sh.stroke, body, core, glint);
+      var alphaF = sh.fillA != null ? sh.fillA : 1;
+      var alphaS = sh.strokeA != null ? sh.strokeA : 1;
+      var rot = sh.rot ? sh.rot * Math.PI / 180 : 0;
+      if (sh.t === 'e') {
+        ctx.save();
+        ctx.translate(sx + sh.x * R, sy + sh.y * R);
+        ctx.rotate(rot);
+        if (fl) { ctx.globalAlpha = alphaF; ctx.fillStyle = fl;
+          ctx.beginPath(); ctx.ellipse(0, 0, Math.max(0.04, sh.rx) * R, Math.max(0.04, sh.ry) * R, 0, 0, PI2); ctx.fill(); }
+        ctx.globalAlpha = 1;
+        if (st) { ctx.globalAlpha = alphaS; ctx.strokeStyle = st; ctx.lineWidth = (sh.strokeW || 1.5);
+          ctx.beginPath(); ctx.ellipse(0, 0, Math.max(0.04, sh.rx) * R, Math.max(0.04, sh.ry) * R, 0, 0, PI2); ctx.stroke(); }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      } else {
+        var rr = Math.max(0.04, sh.r || 0.1);
+        if (fl) { ctx.globalAlpha = alphaF; ctx.fillStyle = fl;
+          ctx.beginPath(); ctx.arc(sx + sh.x * R, sy + sh.y * R, rr * R, 0, PI2); ctx.fill(); }
+        ctx.globalAlpha = 1;
+        if (st) { ctx.globalAlpha = alphaS; ctx.strokeStyle = st; ctx.lineWidth = (sh.strokeW || 1.5);
+          ctx.beginPath(); ctx.arc(sx + sh.x * R, sy + sh.y * R, rr * R, 0, PI2); ctx.stroke(); }
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    for (var b = 0; b < shp.length; b++) if (shp[b].behind) drawShape(shp[b]);
+    if (poly.length >= 2) {
+      var pp = chaikin(poly, sm);
+      ctx.beginPath();
+      ctx.moveTo(sx + pp[0][0] * R, sy + pp[0][1] * R);
+      for (var i = 1; i < pp.length; i++) ctx.lineTo(sx + pp[i][0] * R, sy + pp[i][1] * R);
+      ctx.closePath();
+      if (pFill) { ctx.globalAlpha = ps.fillA != null ? ps.fillA : 1; ctx.fillStyle = pFill; ctx.fill(); }
+      ctx.globalAlpha = 1;
+      if (pStk) { ctx.globalAlpha = ps.strokeA != null ? ps.strokeA : 1; ctx.strokeStyle = pStk;
+        ctx.lineWidth = ps.strokeW || 2; ctx.stroke(); }
+      ctx.globalAlpha = 1;
+    }
+    for (var f = 0; f < shp.length; f++) if (!shp[f].behind) drawShape(shp[f]);
+  }
+
+  if (P.geom && ((P.geom.poly && P.geom.poly.length > 0) || (P.geom.shapes && P.geom.shapes.length > 0))) {
+    drawGeom();
+  } else if (P.form === 'boss') {
+    /* SHADOW LORD: massa irregolare con corni alti e schegge orbitali */
+    var bp = 1 + 0.06 * Math.sin(t * 0.003 + eph);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    for (var bi = 0; bi <= 14; bi++) {
+      var ba = PI2 / 14 * bi;
+      var bl = R * ((P.lumps || 0.10) * Math.sin(ba * 3 + eph * 1.7) + (P.lumps2 || 0.05) * Math.sin(ba * 5 - t * 0.002 + eph));
+      var br2 = R * 1.0 + bl;
+      var bxx = sx + Math.cos(ba) * br2 * bp;
+      var byy = sy + Math.sin(ba) * br2 * bp;
+      if (bi === 0) ctx.moveTo(bxx, byy); else ctx.lineTo(bxx, byy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(sx, sy + R * 0.10, R * (P.coreSize || 0.52), 0, PI2);
+    ctx.fill();
+    var nH = Math.max(0, Math.round(P.horns || 3));
+    for (var hi = 0; hi < nH; hi++) {
+      var ux = nH === 1 ? 0 : -0.55 + (1.1 * hi) / (nH - 1);
+      var hx = sx + ux * R;
+      var lean = ux * (P.hornCurl || 0.25);
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.moveTo(hx - R * (P.hornW || 0.14), sy - R * 0.52);
+      ctx.quadraticCurveTo(hx + lean * R, sy - R * 1.0, hx + ux * R * 0.45, sy - R * (P.hornLen || 1.28));
+      ctx.lineTo(hx + R * (P.hornW || 0.14) * 0.43, sy - R * 0.6);
+      ctx.closePath();
+      ctx.fill();
+    }
+    drawEyes(P.eyes, -0.08, 1, 0, 0);
+    var nS = Math.max(0, Math.round(P.shards || 6));
+    if (nS > 0) {
+      ctx.fillStyle = body;
+      for (var si = 0; si < nS; si++) {
+        var sa = eph + t * 0.0005 + si * (PI2 / nS);
+        var sf = R * (1.3 + 0.12 * Math.sin(t * 0.002 + si));
+        var sxx = sx + Math.cos(sa) * sf;
+        var syy = sy + Math.sin(sa) * sf;
+        var ss = 3 + R * 0.06;
+        ctx.fillRect(sxx - ss * 0.5, syy - ss * 0.5, ss, ss);
+      }
+    }
+  } else if (P.form === 'tank') {
+    /* WARDEN / tank pesante: spalle larghe, stud, corona di picchi */
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - R * 1.1);
+    ctx.quadraticCurveTo(sx + R * 0.75, sy - R * 1.2, sx + R * 1.12, sy - R * 0.30);
+    ctx.quadraticCurveTo(sx + R * 1.05, sy + R * 0.80, sx + R * 0.30, sy + R * 1.08);
+    ctx.quadraticCurveTo(sx, sy + R * 1.14, sx - R * 0.30, sy + R * 1.08);
+    ctx.quadraticCurveTo(sx - R * 1.05, sy + R * 0.80, sx - R * 1.12, sy - R * 0.30);
+    ctx.quadraticCurveTo(sx - R * 0.75, sy - R * 1.2, sx, sy - R * 1.1);
+    ctx.closePath();
+    ctx.fill();
+    if (P.studs) {
+      ctx.fillStyle = core;
+      ctx.beginPath();
+      ctx.arc(sx - R * 0.72, sy - R * 0.32, R * 0.22, 0, PI2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(sx + R * 0.72, sy - R * 0.32, R * 0.22, 0, PI2);
+      ctx.fill();
+    }
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(sx, sy + R * 0.14, R * (P.coreSize || 0.38), 0, PI2);
+    ctx.fill();
+    var nP = Math.max(0, Math.round(P.spikes || 5));
+    if (nP > 0) {
+      ctx.strokeStyle = P.crownColor || '#ffd778';
+      ctx.lineWidth = 2;
+      for (var pi = 0; pi < nP; pi++) {
+        var pa = -Math.PI * 0.85 + pi * (Math.PI * 1.45 / Math.max(1, nP - 1));
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(pa) * (R + 1), sy + Math.sin(pa) * (R + 1));
+        ctx.lineTo(sx + Math.cos(pa) * (R + (P.crownLen || 7)), sy + Math.sin(pa) * (R + (P.crownLen || 7)));
+        ctx.stroke();
+      }
+    }
+  } else if (P.form === 'fast') {
+    /* STALKER: lama affusolata direzionale */
+    var bob = Math.sin(t * 0.009 + eph) * R * 0.05;
+    var ang = P.faceA != null ? P.faceA : P.angle;
+    ctx.save();
+    ctx.translate(sx, sy + bob);
+    ctx.rotate(ang);
+    var ns = R * (P.nose || 1.8);
+    var tl = R * (P.tail || 1.55);
+    var hw = R * (P.width || 0.48);
+    var tw = R * (P.tailW || 0.26);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(ns, 0);
+    ctx.quadraticCurveTo(R * 0.3, -hw, -tl * 0.74, -tw);
+    ctx.quadraticCurveTo(-tl, 0, -tl * 0.74, tw);
+    ctx.quadraticCurveTo(R * 0.3, hw, ns, 0);
+    ctx.closePath();
+    ctx.fill();
+    if (P.spine) {
+      ctx.strokeStyle = core;
+      ctx.lineWidth = R * 0.24;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(R * 0.85, 0);
+      ctx.lineTo(-R * 0.95, 0);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
+    drawEyes(1, -0.07, P.eyeSize, 0, 0.8);
+    ctx.restore();
+  } else if (P.form === 'ranged') {
+    /* SHADE: guardiano fluttuante con alone, tentacoli, occhio che sbatte */
+    var rp = 1 + Math.sin(t * 0.004 + eph) * 0.07;
+    if (P.halo) {
+      ctx.strokeStyle = 'rgba(' + P.aura[0] + ',' + P.aura[1] + ',' + P.aura[2] + ',0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, R * 1.5 * rp, 0, PI2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.arc(sx, sy, R * rp, 0, PI2);
+    ctx.fill();
+    var nT = Math.max(0, Math.round(P.tendrils || 5));
+    if (nT > 0) {
+      ctx.strokeStyle = body;
+      ctx.lineWidth = Math.max(1.5, R * 0.14);
+      ctx.lineCap = 'round';
+      for (var ti = 0; ti < nT; ti++) {
+        var ta = eph + ti * (PI2 / nT) + t * 0.0004;
+        var sw = Math.sin(t * 0.004 + ti * 2.1) * R * 0.22;
+        var tR = R * (P.tendrilLen || 1.2) * (1 + 0.08 * Math.sin(t * 0.003 + ti));
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(ta) * R * 0.5, sy + Math.sin(ta) * R * 0.5);
+        ctx.quadraticCurveTo(
+          sx + Math.cos(ta) * R * 0.85 + Math.cos(ta + 1.4) * sw,
+          sy + Math.sin(ta) * R * 0.85 + Math.sin(ta + 1.4) * sw,
+          sx + Math.cos(ta) * tR, sy + Math.sin(ta) * tR
+        );
+        ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    }
+    ctx.fillStyle = glint;
+    ctx.beginPath();
+    ctx.arc(sx, sy, R * 0.26 * (P.eyeSize || 1), 0, PI2);
+    ctx.fill();
+    if (P.blink) {
+      var bl = Math.max(0.12, Math.abs(Math.sin(t * 0.002 + eph)));
+      ctx.fillStyle = '#140b18';
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, R * 0.11, Math.max(1, R * 0.11 * bl), 0, 0, PI2);
+      ctx.fill();
+    }
+  } else {
+    /* SHADOWLING: blob organico con tentacoli e paio di occhi */
+    var sway = Math.sin(t * 0.006 + eph);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    var seg = Math.max(3, Math.round(P.segments || 10));
+    for (var gi = 0; gi <= seg; gi++) {
+      var ga = PI2 / seg * gi;
+      var lump = R * ((P.lumps || 0.09) * Math.sin(ga * 2 + eph) + 0.05 * Math.sin(ga * 4 - t * 0.004));
+      var gr = R * (0.92 + 0.04 * Math.sin(ga + sway)) + lump;
+      var gxx = sx + Math.cos(ga) * gr;
+      var gyy = sy + Math.sin(ga) * gr;
+      if (gi === 0) ctx.moveTo(gxx, gyy); else ctx.lineTo(gxx, gyy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    var nTe = Math.max(0, Math.round(P.tendrils || 2));
+    if (nTe > 0) {
+      ctx.strokeStyle = core;
+      ctx.lineWidth = Math.max(2, R * 0.18);
+      ctx.lineCap = 'round';
+      for (var tei = 0; tei < nTe; tei++) {
+        var frac = nTe === 1 ? 0.5 : tei / (nTe - 1);
+        var tba = (0.25 + 1.7 * frac) + sway * 0.18;
+        var tlen = R * (P.tendrilLen || 1.15);
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(tba) * R * 0.5, sy + Math.sin(tba) * R * 0.5);
+        ctx.quadraticCurveTo(
+          sx + Math.cos(tba) * R * 0.85, sy + Math.sin(tba) * R * 0.85,
+          sx + Math.cos(tba) * tlen, sy + Math.sin(tba) * tlen
+        );
+        ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    }
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(sx + sway * R * 0.05, sy + R * 0.10, R * 0.5, 0, PI2);
+    ctx.fill();
+    drawEyes(P.eyes, -0.20, P.eyeSize, 0.46, 0);
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ==========================================================================
+   enemyShapeParams — la versione "in gioco": palette dal def dell'entità
+   (fields copiati alla spawn in 07-entities.js) + forma da e.shape.
+   ========================================================================== */
+var ENEMY_SHAPE_DEFAULTS = { blob: {}, fast: {}, tank: {}, ranged: {}, boss: {}, custom: {} };
+((function () {
+  var forms = Object.keys(FORM_DEFAULTS);
+  for (var i = 0; i < forms.length; i++) {
+    ENEMY_SHAPE_DEFAULTS[forms[i]] = Object.assign({}, FORM_DEFAULTS[forms[i]]);
+  }
+})());
+
+function enemyShapeParams(e) {
+  var kind = e.kind || e.type;
+  var form = e.shape && e.shape.form ? e.shape.form : defaultForm(kind, e.type);
+  if (!ENEMY_SHAPE_DEFAULTS[form] && form !== 'custom') form = 'blob';
+  var P = Object.assign({}, ENEMY_SHAPE_DEFAULTS[form]);
+  P.form = form;
+  if (e.shape) Object.assign(P, e.shape);
+  P.body = e.body || P.body || '#ff4d4d';
+  P.core = e.core || P.core || '#7a1a1a';
+  P.glint = e.glint || P.glint || '#ff9e9e';
+  P.aura = e.aura || P.aura || [120, 0, 30];
+  P.auraAlpha = e.auraAlpha != null ? e.auraAlpha : (P.auraAlpha != null ? P.auraAlpha : 0.15);
+  P.auraScale = e.auraScale != null ? e.auraScale : (P.auraScale != null ? P.auraScale : 2.2);
+  P.faceA = e.faceA;
+  return P;
+}
+
+/* ==========================================================================
+   EDITOR STATE
+   ========================================================================== */
+var S = {
+  key: 'normal', name: 'Shadowling', cat: 'normal',
+  form: 'blob', radius: 80,
+  body: '#ff4d4d', core: '#7a1a1a', glint: '#ff9e9e',
+  aura: [120, 0, 30], auraAlpha: 0.15, auraScale: 2.2,
+  geom: {
+    smooth: 1,
+    poly: [],
+    polyStyle: { fill: 'body', fillA: 1, stroke: 'none', strokeW: 2, strokeA: 1 },
+    shapes: []
+  },
+  snap: 0,
+  tool: 'select',
+  sel: null,
+  hist: []
+};
+
+function defaultGeom() {
+  return {
+    smooth: 1,
+    poly: [],
+    polyStyle: { fill: 'body', fillA: 1, stroke: 'none', strokeW: 2, strokeA: 1 },
+    shapes: []
+  };
+}
+
+function setDefaultShape(form) {
+  if (form === 'custom') {
+    S.radius = FORM_RADIUS.custom;
+    return;
+  }
+  var d = FORM_DEFAULTS[form];
+  var sliders = SHAPE_SLIDERS[form];
+  for (var i = 0; i < sliders.length; i++) S[form + '_' + sliders[i][0]] = d[sliders[i][0]];
+  S.radius = FORM_RADIUS[form];
+}
+
+/* ---------- UI refs ---------- */
+var $ = function (id) { return document.getElementById(id); };
+
+/* ---------- paletta ---------- */
+function hexToRgb(hex) {
+  var m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  var n = parseInt(m[1], 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+}
+function clamp255(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+
+/* ---------- synth tra color picker e campo hex ---------- */
+function bindColor(colorId, hexId) {
+  var c = $(colorId), h = $(hexId);
+  function syncFromPicker() { var v = c.value; h.value = v.toUpperCase(); }
+  function syncFromHex() {
+    var v = h.value.trim();
+    var rgb = hexToRgb(v);
+    if (rgb) c.value = v;
+  }
+  c.addEventListener('input', syncFromPicker);
+  h.addEventListener('input', syncFromHex);
+  h.addEventListener('change', function () {
+    var v = h.value.trim();
+    var rgb = hexToRgb(v);
+    if (rgb) { c.value = v; commitColor(colorId, rgb); }
+  });
+  return {
+    set: function (hex) { c.value = hex; h.value = hex.toUpperCase(); },
+    get: function () { return c.value; }
+  };
+}
+var colorUI = {
+  body: bindColor('cBody', 'hBody'),
+  core: bindColor('cCore', 'hCore'),
+  glint: bindColor('cGlint', 'hGlint')
+};
+['cBody', 'cCore', 'cGlint'].forEach(function (id) {
+  $(id).addEventListener('input', function () { commitAll(); });
+});
+function commitColor(key, rgb) {
+  S[key] = '#' + rgb.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('').toUpperCase();
+  refreshStageBadges();
+  scheduleRegen();
+}
+function commitAll() {
+  var rgb;
+  rgb = hexToRgb(colorUI.body.get()); if (rgb) S.body = '#' + rgb.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('').toUpperCase();
+  rgb = hexToRgb(colorUI.core.get()); if (rgb) S.core = '#' + rgb.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('').toUpperCase();
+  rgb = hexToRgb(colorUI.glint.get()); if (rgb) S.glint = '#' + rgb.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('').toUpperCase();
+  scheduleRegen();
+}
+
+/* ---------- aura sliders ---------- */
+function bindSlider(id, valId, cb, fmt) {
+  var el = $(id), vl = $(valId);
+  function upd() {
+    var v = parseFloat(el.value);
+    if (vl) vl.textContent = fmt ? fmt(v) : v;
+    cb(v);
+    scheduleRegen();
+  }
+  el.addEventListener('input', upd);
+  return upd;
+}
+function bindAura() {
+  bindSlider('aR', 'aRV', function (v) { S.aura[0] = v; }, function (v) { return v; }).call();
+  bindSlider('aG', 'aGV', function (v) { S.aura[1] = v; }, function (v) { return v; }).call();
+  bindSlider('aB', 'aBV', function (v) { S.aura[2] = v; }, function (v) { return v; }).call();
+  bindSlider('aAlpha', 'aAlphaV', function (v) { S.auraAlpha = v; }, function (v) { return v.toFixed(2); }).call();
+  bindSlider('aScale', 'aScaleV', function (v) { S.auraScale = v; }, function (v) { return v.toFixed(1); }).call();
+}
+
+/* ---------- radius ---------- */
+bindSlider('radiusRange', 'radiusVal', function (v) { S.radius = v; }, function (v) { return v; }).call();
+
+/* ---------- slider di forma (dinamici) ---------- */
+function buildShapeControls(form) {
+  var wrap = $('shapeCtrls');
+  if (form === 'custom') {
+    $('shapePanel').style.display = 'none';
+    $('designPanel').style.display = '';
+    wrap.innerHTML = '';
+    if (typeof updateStyleUI === 'function') updateStyleUI();
+    return;
+  }
+  $('shapePanel').style.display = '';
+  $('designPanel').style.display = 'none';
+  wrap.innerHTML = '';
+  var sliders = SHAPE_SLIDERS[form];
+  for (var i = 0; i < sliders.length; i++) {
+    var spec = sliders[i]; // key, label, min, max, step, decimals
+    var key = form + '_' + spec[0];
+    var dec = spec[5];
+    var row = document.createElement('div');
+    row.className = 'slider-row';
+    var top = document.createElement('div');
+    top.className = 'top';
+    var spanL = document.createElement('span');
+    spanL.textContent = spec[1];
+    var spanV = document.createElement('span');
+    spanV.className = 'val';
+    spanV.id = 'v_' + key;
+    top.appendChild(spanL); top.appendChild(spanV);
+    var inp = document.createElement('input');
+    inp.type = 'range'; inp.id = 'i_' + key;
+    inp.min = spec[2]; inp.max = spec[3]; inp.step = spec[4]; inp.value = S[key];
+    row.appendChild(top); row.appendChild(inp);
+    wrap.appendChild(row);
+    inp.addEventListener('input', (function (k, d, el, vl) {
+      return function () {
+        S[k] = parseFloat(el.value);
+        vl.textContent = d === 0 ? Math.round(S[k]) : S[k].toFixed(d);
+        if (k.indexOf('angle') >= 0) refreshStageBadges();
+        scheduleRegen();
+      };
+    })(key, dec, inp, spanV));
+    spanV.textContent = dec === 0 ? Math.round(inp.value) : parseFloat(inp.value).toFixed(dec);
+  }
+}
+
+/* ---------- caricamento nemico ---------- */
+function loadEnemy(entry) {
+  S.key = entry.key; S.name = entry.name; S.cat = entry.cat;
+  S.body = entry.body; S.core = entry.core; S.glint = entry.glint;
+  S.aura = entry.aura.slice(); S.auraAlpha = entry.aa; S.auraScale = entry.as;
+  S.form = defaultForm(entry.key, entry.type);
+  setDefaultShape(S.form);
+  applyEditor();
+  refreshStageBadges();
+}
+
+function applyEditor() {
+  colorUI.body.set(S.body);
+  colorUI.core.set(S.core);
+  colorUI.glint.set(S.glint);
+  $('aR').value = S.aura[0]; $('aG').value = S.aura[1]; $('aB').value = S.aura[2];
+  $('aAlpha').value = S.auraAlpha; $('aScale').value = S.auraScale;
+  $('radiusRange').value = S.radius;
+  $('radiusVal').textContent = S.radius;
+  $('aAlphaV').textContent = S.auraAlpha.toFixed(2);
+  $('aScaleV').textContent = S.auraScale.toFixed(1);
+  $('aRV').textContent = S.aura[0]; $('aGV').textContent = S.aura[1]; $('aBV').textContent = S.aura[2];
+  $('formSel').value = S.form;
+  $('outKey').value = S.key;
+  $('outName').value = S.name;
+  $('outCat').value = S.cat;
+  buildShapeControls(S.form);
+  refreshStageBadges();
+}
+
+function refreshStageBadges() {
+  $('stageName').textContent = S.name;
+  $('stageKey').textContent = S.key;
+  $('stageForm').textContent = S.form;
+}
+
+/* ---------- galleria ---------- */
+function renderInto(canvas, P, sizePx, t, eph, overlayFn) {
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var px = Math.round(sizePx * dpr);
+  if (canvas.width !== px) { canvas.width = px; canvas.height = px; }
+  var disp = Math.min(sizePx, canvas.parentElement.clientWidth || sizePx);
+  canvas.style.width = disp + 'px';
+  canvas.style.height = disp + 'px';
+  var ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, sizePx, sizePx);
+  var cell = sizePx / 12;
+  for (var yy = 0; yy < 12; yy++) {
+    for (var xx = 0; xx < 12; xx++) {
+      ctx.fillStyle = (xx + yy) % 2 ? '#23262e' : '#1b1d23';
+      ctx.fillRect(xx * cell, yy * cell, cell, cell);
+    }
+  }
+  var R = P.radius * (sizePx / 480);
+  drawEnemy(ctx, sizePx / 2, sizePx / 2, R, t, eph, P);
+  if (overlayFn) overlayFn(ctx, sizePx, R);
+}
+
+function buildGallery() {
+  var g = $('gallery');
+  g.innerHTML = '';
+  var selKey = S.key;
+  ENEMY_ROSTER.forEach(function (entry, idx) {
+    var cell = document.createElement('div');
+    cell.className = 'gcell' + (entry.key === selKey ? ' sel' : '');
+    var cv = document.createElement('canvas');
+    cv.width = 0; cv.height = 0;
+    var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = entry.name;
+    var kt = document.createElement('div'); kt.className = 'kt'; kt.textContent = entry.key;
+    cell.appendChild(cv); cell.appendChild(nm); cell.appendChild(kt);
+    cell.addEventListener('click', function () {
+      loadEnemy(entry);
+      refreshGallery();
+    });
+    cell._cv = cv;
+    g.appendChild(cell);
+  });
+}
+
+function refreshGallery() {
+  var g = $('gallery'), cells = g.children;
+  for (var i = 0; i < cells.length; i++) {
+    var entry = ENEMY_ROSTER[i];
+    if (!entry) break;
+    cells[i].className = 'gcell' + (entry.key === S.key ? ' sel' : '');
+  }
+}
+
+/* ---------- export ---------- */
+function geomForExport() {
+  function pt(p) { return [r2u(p.x), r2u(p.y)]; }
+  function styleOut(s, defs) {
+    var o = {};
+    if (s.fill !== defs.fill) o.fill = s.fill;
+    if (Math.abs((s.fillA || 1) - defs.fillA) > 0.01) o.fillA = Math.round((s.fillA || 1) * 100) / 100;
+    if (s.stroke !== defs.stroke) o.stroke = s.stroke;
+    if (Math.abs((s.strokeW || defs.strokeW) - defs.strokeW) > 0.01) o.strokeW = Math.round((s.strokeW || defs.strokeW) * 10) / 10;
+    if (Math.abs((s.strokeA || 1) - (defs.strokeA || 1)) > 0.01) o.strokeA = Math.round((s.strokeA || 1) * 100) / 100;
+    return o;
+  }
+  function polyStyleOut() {
+    var ps = S.geom.polyStyle || {};
+    return styleOut(ps, { fill: 'body', fillA: 1, stroke: 'none', strokeW: 2, strokeA: 1 });
+  }
+  function shapeOut(sh) {
+    var o = { x: r2u(sh.x), y: r2u(sh.y) };
+    if (sh.t === 'e') {
+      o.t = 'e';
+      o.rx = r2u(sh.rx); o.ry = r2u(sh.ry);
+      if (sh.rot) o.rot = Math.round(sh.rot * 10) / 10;
+    } else {
+      o.r = r2u(sh.r);
+    }
+    var st = styleOut(sh, { fill: 'body', fillA: 1, stroke: 'none', strokeW: 1.5, strokeA: 1 });
+    Object.keys(st).forEach(function (k) { o[k] = st[k]; });
+    if (sh.behind) o.behind = true;
+    return o;
+  }
+  return {
+    form: 'custom',
+    geom: {
+      smooth: Math.max(0, Math.min(3, Math.round(S.geom.smooth || 0))),
+      poly: S.geom.poly.map(pt),
+      polyStyle: polyStyleOut(),
+      shapes: (S.geom.shapes || []).map(shapeOut)
+    }
+  };
+}
+
+function shapeForExport() {
+  if (S.form === 'custom') return geomForExport();
+  var d = FORM_DEFAULTS[S.form];
+  var out = { form: S.form };
+  var sliders = SHAPE_SLIDERS[S.form];
+  for (var i = 0; i < sliders.length; i++) {
+    var spec = sliders[i];
+    var key = spec[0];
+    if (key === 'angle') continue; // solo preview: in gioco è faceA
+    var val = S[S.form + '_' + key];
+    var def = d[key];
+    if (typeof def === 'number') {
+      if (Math.abs(val - def) > 1e-4) out[key] = Math.round(val * 1e4) / 1e4;
+    } else if (val !== def) {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+function defSnippet() {
+  var sh = shapeForExport();
+  var keys = Object.keys(sh);
+  var L = [];
+  L.push("  " + S.key + ": {");
+  L.push("    name: '" + S.name + "', category: '" + S.cat + "',");
+  L.push("    // ...stat (radius/hp/speed/damage/xp) invariate...");
+  L.push("    body: '" + S.body + "', core: '" + S.core + "', glint: '" + S.glint + "',");
+  L.push("    aura: [" + S.aura.join(', ') + "], auraAlpha: " + S.auraAlpha + ", auraScale: " + S.auraScale + ",");
+  L.push("    // forma personalizzata (usata da drawEnemy in 13-render.js)");
+  L.push("    shape: {");
+  for (var i = 0; i < keys.length; i++) {
+    var v = sh[keys[i]];
+    var vs = typeof v === 'string' ? "'" + v + "'"
+      : typeof v === 'number' || typeof v === 'boolean' ? v
+      : JSON.stringify(v).replace(/"([\w$]+)":/g, '$1:');
+    L.push("      " + keys[i] + ": " + vs + (i < keys.length - 1 ? "," : ""));
+  }
+  L.push("    }");
+  L.push("  },");
+  return L.join('\n');
+}
+
+function funcSnippet() {
+  var header =
+"/* --------------------------------------------------------------------------\n" +
+"  SHADOW SURVIVORS — drawEnemy: render procedurale dei nemici (esportato dal\n" +
+"  tuo Enemy Editor). Incolla questo blocco a livello top-level in js/13-render.js\n" +
+"  (prima della funzione render()). Vedi la tab 'Come integrare' per attivarlo.\n" +
+"--------------------------------------------------------------------------- */\n\n";
+  header += "var ENEMY_SHAPE_DEFAULTS = {\n";
+  var forms = ['blob', 'fast', 'tank', 'ranged', 'boss', 'custom'];
+  for (var i = 0; i < forms.length; i++) {
+    var f = forms[i];
+    header += "  " + f + ": " + JSON.stringify(FORM_DEFAULTS[f]) + (i === forms.length - 1 ? "" : ",") + "\n";
+  }
+  header += "};\n\n";
+  header += "var ENEMY_FORM_KINDS = {\n";
+  header += "  fast: [" + FORM_KINDS.fast.map(function (s) { return "'" + s + "'"; }).join(', ') + "],\n";
+  header += "  tank: [" + FORM_KINDS.tank.map(function (s) { return "'" + s + "'"; }).join(', ') + "],\n";
+  header += "  ranged: [" + FORM_KINDS.ranged.map(function (s) { return "'" + s + "'"; }).join(', ') + "]\n";
+  header += "};\n\n";
+  header += "function enemyDefaultForm(kind, type) {\n";
+  header += "  if (type === 'boss') return 'boss';\n";
+  header += "  if (type === 'warden') return 'tank';\n";
+  header += "  if (ENEMY_FORM_KINDS.fast.indexOf(kind) >= 0) return 'fast';\n";
+  header += "  if (ENEMY_FORM_KINDS.tank.indexOf(kind) >= 0) return 'tank';\n";
+  header += "  if (ENEMY_FORM_KINDS.ranged.indexOf(kind) >= 0) return 'ranged';\n";
+  header += "  return 'blob';\n";
+  header += "}\n\n";
+  header += "function enemyShapeParams(e) {\n";
+  header += "  var kind = e.kind || e.type;\n";
+  header += "  var form = e.shape && e.shape.form ? e.shape.form : enemyDefaultForm(kind, e.type);\n";
+  header += "  if (!ENEMY_SHAPE_DEFAULTS[form] && form !== 'custom') form = 'blob';\n";
+  header += "  var P = Object.assign({}, ENEMY_SHAPE_DEFAULTS[form]);\n";
+  header += "  P.form = form;\n";
+  header += "  if (e.shape) Object.assign(P, e.shape);\n";
+  header += "  P.body = e.body || P.body || '#ff4d4d';\n";
+  header += "  P.core = e.core || P.core || '#7a1a1a';\n";
+  header += "  P.glint = e.glint || P.glint || '#ff9e9e';\n";
+  header += "  P.aura = e.aura || P.aura || [120, 0, 30];\n";
+  header += "  P.auraAlpha = e.auraAlpha != null ? e.auraAlpha : (P.auraAlpha != null ? P.auraAlpha : 0.15);\n";
+  header += "  P.auraScale = e.auraScale != null ? e.auraScale : (P.auraScale != null ? P.auraScale : 2.2);\n";
+  header += "  P.faceA = e.faceA;\n";
+  header += "  return P;\n";
+  header += "}\n\n";
+  header += "/* In gioco, la forma 'fast' ruota verso il player (come nel render originale). */\n";
+  header += "function enemyFace(e, P) {\n";
+  header += "  if (P.form !== 'fast') return P;\n";
+  header += "  var ang = e.faceA != null ? e.faceA :\n";
+  header += "    (window.g && g.player ? Math.atan2(g.player.y - e.y || 0, g.player.x - e.x || 1) : P.angle);\n";
+  header += "  P.faceA = ang;\n";
+  header += "  return P;\n";
+  header += "}\n\n";
+  return header + drawEnemy.toString();
+}
+
+function howSnippet() {
+  return [
+    "/* ====== COME INTEGRARE LA FORMA PERSONALIZZATA NEL GIOCO ====== */",
+    "",
+    "1) Apri js/01-defs.js e aggiungi la chiave `shape:` al def del nemico",
+    "   (viene generata nella tab '01-defs.js'):",
+    "",
+    "     " + S.key + ": {",
+    "       ...",
+    "       shape: { form: '" + S.form + "', ... }",
+    "     },",
+    "",
+    "2) Aggiungi `shape: def.shape` all'oggetto di spawn in js/07-entities.js",
+    "   (quando il nemico nasce, così e.shape è disponibile al render):",
+    "",
+    "     const base = {",
+    "       ...",
+    "       body: def.body, core: def.core, glint: def.glint,",
+    "       shape: def.shape,          // <-- aggiungi questa riga",
+    "     };",
+    "",
+    "3) Incolla il blocco della tab '13-render.js' a livello top-level in",
+    "   js/13-render.js (prima della funzione render()).",
+    "",
+    "4) Nel loop dei nemici (intorno a riga ~3147), trasforma il dispatch delle",
+    "   forme in un if personalizzato. CERCA:",
+    "",
+    "       if (form === 'boss') {",
+    "",
+    "   e SOSTITUISCI con:",
+    "",
+    "       if (e.shape) {",
+    "         drawEnemy(ctx, sx, sy, R, t, eph, enemyFace(e, enemyShapeParams(e)));",
+    "       }",
+    "       else if (form === 'boss') {",
+    "",
+    "   (il resto della catena if/else rimane com'è come ramo di fallback).",
+    "   `R`, `t`, `eph`, `sx`, `sy`, `ctx` sono già nello scope del loop.",
+    "",
+    "5) Nota: un nemico senza chiave shape continua a usare il render originale,",
+    "   quindi aggiungendola solo ai nemici che modifichi non rompi nulla.",
+    "",
+    "6) Suggerimenti:",
+    "   - La palette (body/core/glint/aura...) si può cambiare DENTRO il def,",
+    "     funziona già da subito senza passi 2-4 (è il vecchio sistema).",
+    "   - La forma 'fast' è disegnata 'di profilo': usa enemyFace() così punta",
+    "     sempre verso il player nel gioco, mentre qui nell'editor c'è lo",
+    "     slider 'Angolo (in editor)' solo per l'anteprima.",
+    "",
+    "7) MODALITÀ 'Disegno libero' (forma custom):",
+    "   - Seleziona 'Disegno libero (punti + cerchi)' nel selettore Forma e",
+    "     disegna: 'Aggiungi punto' per il contorno, 'Cerchio' / 'Ellisse' per",
+    "     gli occhi/decorazioni, 'Sposta' per trascinare, 'Cancella' per rimuovere.",
+    "   - Tieni premuto per adattare il raggio durante la creazione.",
+    "   - Clicca DENTRO il poligono in modalità 'Sposta' per selezionarlo",
+    "     e modificare il suo riempimento e bordo nel pannello Stile.",
+    "   - Seleziona una forma (cerchio/ellisse) e usa il pannello Stile per",
+    "     cambiare colore riempimento, opacità, colore/spessore bordo e rotazione.",
+    "   - Bottoni: 'Duplica' / 'Flip H / V' / 'Ruota 15°' + 'Dietro/Davanti' /",
+    "     'Dietro corpo' per l'ordine di disegno. Le forme dietro il corpo sono",
+    "     disegnate prima del poligono (utile per occhi nascosti sotto un cappuccio).",
+    "   - Le coordinate sono salvate in UNITÀ DI RAGGIO (1 = raggio di",
+    "     collisione), quindi il disegno si adatta alla grandezza del nemico",
+    "     in gioco (cambiata dal def.radius).",
+    "   - Griglia di snap opzionale (0.1 / 0.25 / 0.5).",
+    "   - La forma custom usa la stessa paletta del def (body/core/glint) e",
+    "     l'aura, quindi i colori li gestisci come sempre.",
+    "   - Nel def esportato la voce sarà:",
+    "",
+    "       shape: {",
+    "         form: 'custom',",
+    "         geom: {",
+    "           smooth: 1,",
+    "           poly: [[0,-1.3], ...],",
+    "           polyStyle: { fill:'body', stroke:'none', strokeW:2 },",
+    "           shapes: [",
+    "             {x:0.55,y:-0.3,r:0.28,fill:'glint'},",
+    "             {x:0,y:0.6,rx:0.66,ry:0.26,t:'e',fill:'core'},",
+    "             {x:0.9,y:0.1,r:0.13,fill:'glint',behind:true}",
+    "           ]",
+    "         }",
+    "       },",
+    ""
+  ].join('\n');
+}
+
+function regen() {
+  $('codeDef').value = defSnippet();
+  $('codeFunc').value = funcSnippet();
+  $('codeHow').value = howSnippet();
+}
+var regenPending = false;
+function scheduleRegen() {
+  if (!regenPending) {
+    regenPending = true;
+    requestAnimationFrame(function () { regen(); regenPending = false; });
+  }
+}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('.tabs button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    var pane = b.getAttribute('data-tab');
+    document.querySelectorAll('[data-pane]').forEach(function (p) { p.style.display = 'none'; });
+    var target = document.querySelector('[data-pane="' + pane + '"]');
+    if (target) target.style.display = '';
+  });
+});
+
+/* ---------- copy / png ---------- */
+$('copyBtn').addEventListener('click', function () {
+  var on = document.querySelector('.tabs button.on');
+  var pane = on ? on.getAttribute('data-tab') : 'def';
+  var ta = pane === 'def' ? $('codeDef') : pane === 'func' ? $('codeFunc') : $('codeHow');
+  ta.select();
+  document.execCommand('copy');
+  this.textContent = 'COPIATO';
+  var btn = this;
+  setTimeout(function () { btn.textContent = 'Copia'; }, 1400);
+});
+
+$('pngBtn').addEventListener('click', function () {
+  var cv = $('preview');
+  var a = document.createElement('a');
+  a.download = 'enemy-' + S.key + '.png';
+  a.href = cv.toDataURL('image/png');
+  a.click();
+});
+
+$('regenBtn').addEventListener('click', function () { regen(); });
+
+/* ---------- form select ---------- */
+$('formSel').addEventListener('change', function () {
+  S.form = this.value;
+  drag = null; DPr.inside = false; S.sel = null;
+  setDefaultShape(S.form);
+  buildShapeControls(S.form);
+  refreshStageBadges();
+  updateStyleUI();
+  scheduleRegen();
+});
+
+$('enemySel').addEventListener('change', function () {
+  var key = this.value;
+  var entry = ENEMY_ROSTER.filter(function (e) { return e.key === key; })[0];
+  if (entry) loadEnemy(entry);
+  refreshGallery();
+  scheduleRegen();
+});
+
+/* ---------- pause / phase ---------- */
+var paused = false;
+$('pauseBtn').addEventListener('click', function () {
+  paused = !paused;
+  this.textContent = paused ? 'RIPRENDI' : 'PAUSA';
+});
+$('phaseBtn').addEventListener('click', function () {
+  numPhase = Math.random() * Math.PI * 2;
+});
+
+$('resetFormBtn').addEventListener('click', function () {
+  setDefaultShape(S.form);
+  if (S.form === 'custom') { pushHistory(); S.geom = defaultGeom(); }
+  buildShapeControls(S.form);
+  scheduleRegen();
+});
+$('randPalBtn').addEventListener('click', function () {
+  function rnd() {
+    var h = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0');
+    return '#' + h.toUpperCase();
+  }
+  S.body = rnd();
+  S.core = rnd();
+  S.glint = rnd();
+  var base = hexToRgb(S.body) || [120, 0, 30];
+  S.aura = [clamp255(base[0] * 0.6), clamp255(base[1] * 0.6), clamp255(base[2] * 0.6)];
+  applyEditor();
+  scheduleRegen();
+});
+
+/* ---------- identity export inputs ---------- */
+$('outKey').addEventListener('input', function () {
+  var v = this.value.trim().replace(/[^a-zA-Z0-9_$/]/g, '');
+  if (!/^[a-zA-Z_$]/.test(v)) v = 'myenemy';
+  this.value = v;
+  S.key = v;
+  refreshStageBadges();
+  scheduleRegen();
+});
+$('outName').addEventListener('input', function () { S.name = this.value; refreshStageBadges(); scheduleRegen(); });
+$('outCat').addEventListener('change', function () { S.cat = this.value; scheduleRegen(); });
+
+/* ==========================================================================
+   DISEGNO LIBERO — strumenti interattivi (forma 'custom')
+   Coordinate salvate in unità di raggio (1 = collision radius del nemico).
+   ========================================================================== */
+var DPr = { x: 0, y: 0, inside: false };
+var drag = null;
+var POLY_DEFS = { fill: 'body', fillA: 1, stroke: 'none', strokeW: 2, strokeA: 1 };
+var SH_DEFS   = { fill: 'body', fillA: 1, stroke: 'none', strokeW: 1.5, strokeA: 1 };
+
+function r2u(v) { return Math.round(v * 100) / 100; }
+function clampU(v) { return Math.max(-3.5, Math.min(3.5, r2u(v))); }
+function snapV(v) { return S.snap ? Math.round(v / S.snap) * S.snap : v; }
+function canvasLogicalPos(e, sz) {
+  var rect = $('preview').getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (sz / rect.width),
+    y: (e.clientY - rect.top) * (sz / rect.height)
+  };
+}
+function s2u(p, sz) {
+  var Rpx = S.radius * (sz / 480);
+  return { x: (p.x - sz / 2) / Rpx, y: (p.y - sz / 2) / Rpx };
+}
+function dist2(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
+function styleColor(src) {
+  if (src === 'body') return S.body;
+  if (src === 'core') return S.core;
+  if (src === 'glint') return S.glint;
+  return src && src.charAt(0) === '#' ? src : null;
+}
+function selShape() {
+  return (S.sel && S.sel.kind === 'shape') ? S.geom.shapes[S.sel.i] : null;
+}
+function selTarget() {
+  if (!S.sel) return null;
+  if (S.sel.kind === 'shape') return S.geom.shapes[S.sel.i];
+  return S.geom.polyStyle;
+}
+function newShape(t) {
+  var sh = { t: t, x: 0, y: 0, fill: 'body', fillA: 1, stroke: 'none', strokeW: 1.5, strokeA: 1 };
+  if (t === 'e') { sh.rx = 0.18; sh.ry = 0.12; sh.rot = 0; } else sh.r = 0.12;
+  return sh;
+}
+
+function pushHistory() {
+  S.hist.push(JSON.stringify(S.geom));
+  if (S.hist.length > 60) S.hist.shift();
+}
+function undo() {
+  if (!S.hist.length) return;
+  S.geom = JSON.parse(S.hist.pop());
+  S.sel = null;
+  drag = null;
+  if ($('smoothSel')) $('smoothSel').value = S.geom.smooth;
+  updateStyleUI();
+  scheduleRegen();
+}
+function removeElem(hit) {
+  if (hit.kind === 'point') S.geom.poly.splice(hit.i, 1);
+  else if (hit.kind === 'shape') S.geom.shapes.splice(hit.i, 1);
+  S.sel = null;
+}
+
+function inPoly(u, poly) {
+  var inside = false;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    var a = poly[i], b = poly[j];
+    if (((a.y > u.y) !== (b.y > u.y)) &&
+        u.x < (b.x - a.x) * (u.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+function rotHandle(sh, Rpx) {
+  var rad = ((sh.rot || 0) * Math.PI) / 180;
+  var ly = -(Math.max(Math.abs(sh.rx || 0), Math.abs(sh.ry || 0)) + 16 / Rpx);
+  return { x: sh.x - ly * Math.sin(rad), y: sh.y + ly * Math.cos(rad) };
+}
+
+function findHit(u) {
+  var thr = 9 / S.radius;
+  var best = null;
+  for (var i = 0; i < S.geom.poly.length; i++) {
+    if (dist2(u, S.geom.poly[i]) < thr) { best = { kind: 'point', i: i, mode: 'move' }; break; }
+  }
+  var shp = S.geom.shapes || [];
+  if (!best) {
+    for (var m = shp.length - 1; m >= 0; m--) {
+      var sh = shp[m], d = dist2(u, sh);
+      if (sh.t === 'e') {
+        var wr = Math.max(Math.abs(sh.rx || 0), Math.abs(sh.ry || 0));
+        if (dist2(u, rotHandle(sh, S.radius)) < thr * 1.2) {
+          best = { kind: 'shape', i: m, mode: 'rot' }; break;
+        }
+        if (d < Math.max(0.05, wr) * 1.05) { best = { kind: 'shape', i: m, mode: 'move' }; break; }
+        if (Math.abs(d - Math.max(0.05, wr)) < thr) { best = { kind: 'shape', i: m, mode: 'resize' }; break; }
+      } else {
+        var rr = Math.max(0.05, sh.r || 0.1);
+        if (d < rr + thr * 0.4) { best = { kind: 'shape', i: m, mode: 'move' }; break; }
+        if (Math.abs(d - rr) < thr) { best = { kind: 'shape', i: m, mode: 'resize' }; break; }
+      }
+    }
+  }
+  if (!best && S.tool === 'select' && S.geom.poly.length >= 3 && inPoly(u, S.geom.poly)) {
+    best = { kind: 'poly', mode: 'move' };
+  }
+  return best;
+}
+
+function setDesignCursor() {
+  var c = $('preview');
+  if (S.form !== 'custom') { c.style.cursor = 'default'; return; }
+  if (drag) { c.style.cursor = 'grabbing'; return; }
+  if (S.tool === 'erase') { c.style.cursor = 'not-allowed'; return; }
+  if (S.tool === 'select' && DPr.inside) {
+    var h = findHit(s2u(DPr, 480));
+    if (h && h.mode === 'resize') { c.style.cursor = 'nesw-resize'; return; }
+    if (h && h.mode === 'rot') { c.style.cursor = 'ew-resize'; return; }
+    if (h) { c.style.cursor = 'grab'; return; }
+  }
+  c.style.cursor = (S.tool === 'poly' || S.tool === 'circle' || S.tool === 'ellipse') ? 'crosshair' : 'default';
+}
+
+function startDrag(hit, u) {
+  if (hit.kind === 'point') {
+    var p = S.geom.poly[hit.i];
+    drag = { kind: 'point', i: hit.i, ox: p.x, oy: p.y, ux: u.x, uy: u.y };
+  } else if (hit.kind === 'shape') {
+    var sh = S.geom.shapes[hit.i];
+    drag = {
+      kind: hit.mode === 'move' ? 'smove' : hit.mode === 'rot' ? 'srot' : 'sres',
+      i: hit.i, ox: sh.x, oy: sh.y, ux: u.x, uy: u.y,
+      r0: sh.r, rx0: sh.rx, ry0: sh.ry, d0: Math.max(0.1, dist2(u, sh)),
+      a0: Math.atan2(u.y - sh.y, u.x - sh.x), rot0: sh.rot || 0
+    };
+  }
+}
+
+function designPointerDown(e) {
+  if (S.form !== 'custom') return;
+  DPr.inside = true;
+  e.preventDefault();
+  var p = canvasLogicalPos(e, 480), u = s2u(p, 480);
+  if (S.tool === 'poly') {
+    pushHistory();
+    S.geom.poly.push({ x: clampU(snapV(u.x)), y: clampU(snapV(u.y)) });
+    S.sel = { kind: 'point', i: S.geom.poly.length - 1 };
+  } else if (S.tool === 'circle' || S.tool === 'ellipse') {
+    pushHistory();
+    var sh = newShape(S.tool === 'circle' ? 'c' : 'e');
+    sh.x = clampU(snapV(u.x)); sh.y = clampU(snapV(u.y));
+    S.geom.shapes.push(sh);
+    var ci = S.geom.shapes.length - 1;
+    drag = { kind: 'sres', i: ci, ox: sh.x, oy: sh.y, ux: u.x, uy: u.y, r0: sh.r, rx0: sh.rx, ry0: sh.ry, d0: 0.1, a0: 0, rot0: 0 };
+    S.sel = { kind: 'shape', i: ci };
+  } else if (S.tool === 'erase') {
+    var hitE = findHit(u);
+    if (hitE) { pushHistory(); removeElem(hitE); }
+  } else {
+    var hit = findHit(u);
+    if (hit) {
+      pushHistory();
+      S.sel = hit.kind === 'poly' ? { kind: 'poly' } : hit;
+      if (hit.kind !== 'poly') startDrag(hit, u);
+    } else S.sel = null;
+  }
+  updateStyleUI();
+  scheduleRegen();
+}
+
+function designPointerMove(e) {
+  if (S.form !== 'custom') return;
+  var rect = $('preview').getBoundingClientRect();
+  DPr.inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                e.clientY >= rect.top && e.clientY <= rect.bottom;
+  var p = canvasLogicalPos(e, 480);
+  DPr.x = p.x; DPr.y = p.y;
+  if (!drag) return;
+  var u = s2u(p, 480);
+  if (drag.kind === 'point') {
+    S.geom.poly[drag.i] = { x: clampU(snapV(drag.ox + (u.x - drag.ux))), y: clampU(snapV(drag.oy + (u.y - drag.uy))) };
+  } else if (drag.kind === 'smove') {
+    var sh = S.geom.shapes[drag.i];
+    sh.x = clampU(snapV(drag.ox + (u.x - drag.ux)));
+    sh.y = clampU(snapV(drag.oy + (u.y - drag.uy)));
+  } else if (drag.kind === 'sres') {
+    var s2 = S.geom.shapes[drag.i];
+    if (!s2) return;
+    if (s2.t === 'e') {
+      var sc = Math.max(0.08, dist2(u, s2) / drag.d0);
+      s2.rx = clampU(drag.rx0 * sc); s2.ry = clampU(drag.ry0 * sc);
+    } else {
+      s2.r = r2u(Math.max(0.05, Math.min(3, snapV(dist2(u, s2)))));
+    }
+  } else if (drag.kind === 'srot') {
+    var s3 = S.geom.shapes[drag.i];
+    if (!s3) return;
+    var a = Math.atan2(u.y - s3.y, u.x - s3.x);
+    var rot = drag.rot0 + (a - drag.a0) * 180 / Math.PI;
+    s3.rot = Math.round(((rot % 360) + 360) % 360);
+  }
+  scheduleRegen();
+}
+
+function designPointerUp() {
+  if (S.form !== 'custom') return;
+  drag = null;
+  DPr.inside = false;
+  setDesignCursor();
+}
+
+function drawDesignOverlay(ctx, sz, Rpx) {
+  var cx = sz / 2, cy = sz / 2;
+  function U(p) { return { x: cx + p.x * Rpx, y: cy + p.y * Rpx }; }
+  var hover = DPr.inside && !drag ? findHit(s2u(DPr, sz)) : null;
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.arc(cx, cy, Rpx, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.beginPath();
+  ctx.moveTo(cx - Rpx * 1.25, cy); ctx.lineTo(cx + Rpx * 1.25, cy);
+  ctx.moveTo(cx, cy - Rpx * 1.25); ctx.lineTo(cx, cy + Rpx * 1.25);
+  ctx.stroke();
+
+  var poly = S.geom.poly, shp = S.geom.shapes || [], i;
+
+  /* poligono */
+  if (poly.length >= 2) {
+    var selp = S.sel && S.sel.kind === 'poly';
+    ctx.strokeStyle = selp ? '#8a5cff' : 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = selp ? 2 : 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    for (i = 0; i < poly.length; i++) {
+      var sp = U(poly[i]);
+      if (i === 0) ctx.moveTo(sp.x, sp.y); else ctx.lineTo(sp.x, sp.y);
+    }
+    ctx.closePath();
+    if (selp) { ctx.fillStyle = 'rgba(138,92,255,0.07)'; ctx.fill(); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /* forme (cerchi ed ellissi) */
+  for (i = 0; i < shp.length; i++) {
+    var sh = shp[i], s = U(sh);
+    var selc = S.sel && S.sel.kind === 'shape' && S.sel.i === i;
+    var hovc = hover && hover.kind === 'shape' && hover.i === i;
+    var fl = styleColor(sh.fill), wr, rr;
+    if (sh.t === 'e') {
+      wr = Math.max(4, Math.abs(sh.rx) * Rpx); rr = Math.max(4, Math.abs(sh.ry) * Rpx);
+    } else {
+      rr = Math.max(4, Math.abs(sh.r || 0.1) * Rpx); wr = rr;
+    }
+    if (fl) {
+      ctx.globalAlpha = 0.18 * (sh.fillA != null ? sh.fillA : 1);
+      ctx.fillStyle = fl;
+      ctx.beginPath();
+      if (sh.t === 'e') ctx.ellipse(s.x, s.y, wr, rr, (sh.rot || 0) * Math.PI / 180, 0, Math.PI * 2);
+      else ctx.arc(s.x, s.y, wr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.lineWidth = selc ? 2 : 1;
+    ctx.strokeStyle = selc ? '#8a5cff' : (hovc ? '#43a6f5' : 'rgba(255,255,255,0.55)');
+    if (sh.behind) ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    if (sh.t === 'e') ctx.ellipse(s.x, s.y, wr, rr, (sh.rot || 0) * Math.PI / 180, 0, Math.PI * 2);
+    else ctx.arc(s.x, s.y, wr, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(s.x - 3, s.y); ctx.lineTo(s.x + 3, s.y);
+    ctx.moveTo(s.x, s.y - 3); ctx.lineTo(s.x, s.y + 3);
+    ctx.stroke();
+    if (sh.t === 'e') {
+      var hs = U(rotHandle(sh, Rpx));
+      ctx.strokeStyle = selc ? '#8a5cff' : 'rgba(255,255,255,0.45)';
+      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(hs.x, hs.y); ctx.stroke();
+      ctx.beginPath(); ctx.arc(hs.x, hs.y, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = selc ? '#8a5cff' : 'rgba(255,255,255,0.8)'; ctx.fill();
+    } else if (selc) {
+      ctx.fillStyle = '#43a6f5';
+      ctx.beginPath(); ctx.arc(s.x + wr, s.y, 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(s.x + wr, s.y, 4.5, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+  }
+
+  /* punti del poligono */
+  for (i = 0; i < poly.length; i++) {
+    var pt = U(poly[i]);
+    var selp2 = S.sel && S.sel.kind === 'point' && S.sel.i === i;
+    var hovp = hover && hover.kind === 'point' && hover.i === i;
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, selp2 ? 6 : 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = selp2 ? '#8a5cff' : (hovp ? '#43a6f5' : 'rgba(255,255,255,0.85)');
+    ctx.fill();
+    if (selp2) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.lineWidth = 1; }
+  }
+}
+
+/* ---------- operazioni sulle forme selezionate ---------- */
+function reorderShape(dir) {
+  if (!S.sel || S.sel.kind !== 'shape') return;
+  pushHistory();
+  var shp = S.geom.shapes, i = S.sel.i;
+  if (dir === 'back' && i > 0) { var el = shp.splice(i, 1)[0]; shp.splice(i - 1, 0, el); S.sel.i = i - 1; }
+  else if (dir === 'front' && i < shp.length - 1) { var e2 = shp.splice(i, 1)[0]; shp.splice(i + 1, 0, e2); S.sel.i = i + 1; }
+  scheduleRegen();
+}
+function toggleBehind() {
+  if (!S.sel || S.sel.kind !== 'shape') return;
+  pushHistory();
+  var sh = S.geom.shapes[S.sel.i];
+  sh.behind = !sh.behind;
+  updateStyleUI();
+  scheduleRegen();
+}
+function duplicateSel() {
+  if (!S.sel || S.sel.kind !== 'shape') return;
+  pushHistory();
+  var sh0 = S.geom.shapes[S.sel.i];
+  var sh = JSON.parse(JSON.stringify(sh0));
+  sh.x = clampU(sh.x + 0.25); sh.y = clampU(sh.y - 0.25);
+  S.geom.shapes.push(sh);
+  S.sel = { kind: 'shape', i: S.geom.shapes.length - 1 };
+  updateStyleUI();
+  scheduleRegen();
+}
+function flipAxis(axis) {
+  pushHistory();
+  var shp = S.geom.shapes || [], i;
+  for (i = 0; i < shp.length; i++) {
+    if (axis === 'x') shp[i].x = -shp[i].x; else shp[i].y = -shp[i].y;
+    if (shp[i].t === 'e' && axis === 'x') shp[i].rot = Math.round((360 - (shp[i].rot || 0)) % 360);
+  }
+  for (i = 0; i < S.geom.poly.length; i++) {
+    if (axis === 'x') S.geom.poly[i].x = -S.geom.poly[i].x; else S.geom.poly[i].y = -S.geom.poly[i].y;
+  }
+  scheduleRegen();
+}
+function rotateAll(deg) {
+  pushHistory();
+  var a = deg * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a), i;
+  function rt(p) {
+    return { x: clampU(p.x * cos - p.y * sin), y: clampU(p.x * sin + p.y * cos) };
+  }
+  for (i = 0; i < S.geom.shapes.length; i++) {
+    var r1 = rt(S.geom.shapes[i]);
+    S.geom.shapes[i].x = r1.x; S.geom.shapes[i].y = r1.y;
+  }
+  for (i = 0; i < S.geom.poly.length; i++) {
+    var r2 = rt(S.geom.poly[i]);
+    S.geom.poly[i].x = r2.x; S.geom.poly[i].y = r2.y;
+  }
+  scheduleRegen();
+}
+
+/* ---------- pannello stile ---------- */
+function setStyleControl(val, ssel, shex) {
+  if (val === 'body' || val === 'core' || val === 'glint' || val === 'none') {
+    ssel.value = val || 'body';
+    shex.style.display = 'none';
+  } else {
+    ssel.value = 'hex';
+    shex.value = val && val.charAt(0) === '#' ? val : '#ffffff';
+    shex.style.display = '';
+  }
+}
+function updateStyleUI() {
+  var t = selTarget();
+  var has = !!t;
+  var sh = selShape();
+  var isE = sh && sh.t === 'e';
+  ['fillSel', 'fillARange', 'strokeSel', 'strokeWRange'].forEach(function (id) { $(id).disabled = !has; });
+  $('rotRange').disabled = !isE;
+  $('rotRow').style.display = isE ? '' : 'none';
+  $('backBtn').disabled = !sh; $('frontBtn').disabled = !sh; $('behindBtn').disabled = !sh;
+  $('selInfo').textContent = !S.sel ? '—'
+    : sh ? (isE ? 'Ellisse' : 'Cerchio')
+    : 'Poligono';
+  if (!t) return;
+  setStyleControl(t.fill, $('fillSel'), $('fillHex'));
+  $('fillARange').value = Math.round((t.fillA != null ? t.fillA : 1) * 100);
+  $('fillAVal').textContent = Math.round((t.fillA != null ? t.fillA : 1) * 100) + '%';
+  setStyleControl(t.stroke, $('strokeSel'), $('strokeHex'));
+  var sw = t.strokeW != null ? t.strokeW : 1.5;
+  $('strokeWRange').value = sw;
+  $('strokeWVal').textContent = sw;
+  if (isE) {
+    $('rotRange').value = Math.round(sh.rot || 0);
+    $('rotVal').textContent = Math.round(sh.rot || 0) + '°';
+  }
+  $('behindBtn').textContent = sh && sh.behind ? 'Davanti corpo' : 'Dietro corpo';
+}
+function applyStyleFromUI() {
+  var t = selTarget();
+  if (!t) return;
+  pushHistory();
+  var f = $('fillSel').value;
+  t.fill = f === 'hex' ? $('fillHex').value : f;
+  t.fillA = parseInt($('fillARange').value, 10) / 100;
+  var s = $('strokeSel').value;
+  t.stroke = s === 'hex' ? $('strokeHex').value : s;
+  t.strokeW = parseFloat($('strokeWRange').value);
+  updateStyleUI();
+  scheduleRegen();
+}
+function setEllipseRotUI() {
+  var sh = selShape();
+  if (!sh || sh.t !== 'e') return;
+  pushHistory();
+  sh.rot = parseInt($('rotRange').value, 10);
+  scheduleRegen();
+}
+function nudgeBy(dx, dy) {
+  if (!S.sel) return;
+  pushHistory();
+  if (S.sel.kind === 'shape') {
+    var sh = S.geom.shapes[S.sel.i];
+    sh.x = clampU(sh.x + dx); sh.y = clampU(sh.y + dy);
+  } else if (S.sel.kind === 'point') {
+    var q = S.geom.poly[S.sel.i];
+    q.x = clampU(q.x + dx); q.y = clampU(q.y + dy);
+  } else {
+    for (var i = 0; i < S.geom.poly.length; i++) {
+      S.geom.poly[i].x = clampU(S.geom.poly[i].x + dx);
+      S.geom.poly[i].y = clampU(S.geom.poly[i].y + dy);
+    }
+  }
+  scheduleRegen();
+}
+
+function setTool(tool) {
+  S.tool = tool;
+  document.querySelectorAll('#designPanel .tool').forEach(function (b) {
+    b.classList.toggle('on', b.getAttribute('data-tool') === tool);
+  });
+  setDesignCursor();
+}
+
+function loadSample() {
+  pushHistory();
+  S.geom = {
+    smooth: 1,
+    polyStyle: { fill: 'body', fillA: 1, stroke: 'none', strokeW: 2, strokeA: 1 },
+    poly: [
+      { x: 0.0, y: -1.3 }, { x: 0.55, y: -1.05 }, { x: 1.1, y: -0.7 },
+      { x: 1.45, y: -0.2 }, { x: 1.2, y: 0.7 }, { x: 0.7, y: 1.1 },
+      { x: 0.1, y: 1.3 }, { x: -0.55, y: 1.2 }, { x: -1.05, y: 0.75 },
+      { x: -1.35, y: 0.15 }, { x: -1.3, y: -0.5 }, { x: -0.9, y: -1.05 }
+    ],
+    shapes: [
+      { t: 'c', x: 0.55, y: -0.28, r: 0.28, fill: 'glint', fillA: 1, stroke: 'none', strokeW: 1.5, strokeA: 1, behind: false },
+      { t: 'c', x: -0.55, y: -0.28, r: 0.28, fill: 'glint', fillA: 1, stroke: 'none', strokeW: 1.5, strokeA: 1, behind: false },
+      { t: 'e', x: 0, y: 0.55, rx: 0.66, ry: 0.26, rot: 0, fill: 'core', fillA: 1, stroke: '#ffffff', strokeW: 1.5, strokeA: 1, behind: false },
+      { t: 'c', x: 0.92, y: 0.14, r: 0.13, fill: 'glint', fillA: 1, stroke: 'none', strokeW: 1.5, strokeA: 1, behind: true }
+    ]
+  };
+  S.sel = null;
+  if ($('smoothSel')) $('smoothSel').value = S.geom.smooth;
+  updateStyleUI();
+  scheduleRegen();
+}
+
+/* ---------- anim loop ---------- */
+var lastT = performance.now();
+var timeMs = 0;
+var numPhase = Math.random() * Math.PI * 2;
+
+function frame(now) {
+  var dt = now - lastT;
+  lastT = now;
+  if (!paused && dt > 0 && dt < 200) timeMs += dt;
+
+  var eph = numPhase;
+  var ov = S.form === 'custom' ? drawDesignOverlay : null;
+  renderInto($('preview'), paramsForPreview(), 480, timeMs, eph, ov);
+
+  var g = $('gallery'); if (g.children.length) {
+    for (var i = 0; i < g.children.length; i++) {
+      var entry = ENEMY_ROSTER[i];
+      if (!entry) break;
+      var P = paramsForEntry(entry);
+      renderInto(g.children[i]._cv, P, 104, timeMs, (i * 2.39) % 6.283);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function paramsForPreview() {
+  if (S.form === 'custom') {
+    return {
+      form: 'custom', radius: S.radius,
+      body: S.body, core: S.core, glint: S.glint,
+      aura: S.aura, auraAlpha: S.auraAlpha, auraScale: S.auraScale,
+      geom: S.geom
+    };
+  }
+  var P = Object.assign({}, ENEMY_SHAPE_DEFAULTS[S.form]);
+  var d = FORM_DEFAULTS[S.form];
+  var sliders = SHAPE_SLIDERS[S.form];
+  for (var i = 0; i < sliders.length; i++) {
+    var spec = sliders[i];
+    P[spec[0]] = S[S.form + '_' + spec[0]];
+    if (spec[0] === 'angle') P.angle = S[S.form + '_angle'];
+  }
+  P.form = S.form;
+  P.body = S.body; P.core = S.core; P.glint = S.glint;
+  P.aura = S.aura; P.auraAlpha = S.auraAlpha; P.auraScale = S.auraScale;
+  P.radius = S.radius;
+  return P;
+}
+function paramsForEntry(entry) {
+  var form = defaultForm(entry.key, entry.type);
+  var P = Object.assign({}, ENEMY_SHAPE_DEFAULTS[form]);
+  P.form = form;
+  P.body = entry.body; P.core = entry.core; P.glint = entry.glint;
+  P.aura = entry.aura; P.auraAlpha = entry.aa; P.auraScale = entry.as;
+  P.radius = FORM_RADIUS[form];
+  return P;
+}
+
+/* ---------- init ---------- */
+function init() {
+  var sel = $('enemySel');
+  ENEMY_ROSTER.forEach(function (e) {
+    var o = document.createElement('option');
+    o.value = e.key;
+    o.textContent = e.name + ' (' + e.key + ')';
+    sel.appendChild(o);
+  });
+  setDefaultShape('blob');
+  loadEnemy(ENEMY_ROSTER[0]);
+  bindAura();
+  buildGallery();
+  refreshGallery();
+  regen();
+
+  /* --- disegno libero: strumenti --- */
+  document.querySelectorAll('#designPanel .tool').forEach(function (b) {
+    b.addEventListener('click', function () { setTool(this.getAttribute('data-tool')); });
+  });
+  $('snapSel').addEventListener('change', function () { S.snap = parseFloat(this.value); });
+  $('smoothSel').addEventListener('change', function () {
+    pushHistory(); S.geom.smooth = parseInt(this.value); scheduleRegen();
+  });
+  $('undoBtn').addEventListener('click', undo);
+  $('clearBtn').addEventListener('click', function () {
+    pushHistory(); S.geom = defaultGeom(); S.sel = null; drag = null; updateStyleUI(); scheduleRegen();
+  });
+  $('sampleBtn').addEventListener('click', function () { loadSample(); });
+
+  /* --- pannello stile (riempimento / bordo / rotazione) --- */
+  ['fillSel', 'fillHex', 'fillARange', 'strokeSel', 'strokeHex', 'strokeWRange'].forEach(function (id) {
+    $(id).addEventListener('change', applyStyleFromUI);
+  });
+  $('rotRange').addEventListener('change', setEllipseRotUI);
+
+  /* --- ordine e azioni sulle forme --- */
+  $('backBtn').addEventListener('click', function () { reorderShape('back'); });
+  $('frontBtn').addEventListener('click', function () { reorderShape('front'); });
+  $('behindBtn').addEventListener('click', toggleBehind);
+  $('dupBtn').addEventListener('click', duplicateSel);
+  $('flipHBtn').addEventListener('click', function () { flipAxis('x'); });
+  $('flipVBtn').addEventListener('click', function () { flipAxis('y'); });
+  $('rotBtn').addEventListener('click', function () { rotateAll(15); });
+
+  /* --- pointer events sulla tela preview --- */
+  var cv = $('preview');
+  cv.addEventListener('pointerdown', function (e) { designPointerDown(e); setDesignCursor(); });
+  window.addEventListener('pointermove', function (e) {
+    designPointerMove(e);
+    if (S.form === 'custom') setDesignCursor();
+  });
+  window.addEventListener('pointerup', designPointerUp);
+  cv.addEventListener('pointerleave', function () { DPr.inside = false; });
+
+  /* --- undo / cancella / frecce --- */
+  document.addEventListener('keydown', function (e) {
+    if (S.form !== 'custom') return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && S.sel) {
+      pushHistory(); removeElem(S.sel); updateStyleUI(); scheduleRegen();
+    } else if (S.sel && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      var d = e.shiftKey ? 0.25 : 0.05;
+      var dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
+      var dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
+      nudgeBy(dx, dy);
+    }
+  });
+
+  requestAnimationFrame(frame);
+}
+init();
+</script>
+</body>
+</html>

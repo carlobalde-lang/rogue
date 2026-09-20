@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Shadow Survivors - Roguelike</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; user-select: none; }
+canvas { display: block; touch-action: none; }
+
+#ui-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; pointer-events: none; z-index: 10;
+  padding: calc(10px + env(safe-area-inset-top)) calc(15px + env(safe-area-inset-right)) 10px calc(15px + env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 6px;
+  box-sizing: border-box;
+}
+#top-bar { display: flex; justify-content: space-between; align-items: center; }
+#timer { color: #fff; font-size: 22px; font-weight: bold; text-shadow: 2px 2px 4px #000; }
+#kills { color: #ccc; font-size: 16px; text-shadow: 1px 1px 3px #000; }
+#biome-label { color: #9fd8ff; font-size: 13px; text-shadow: 1px 1px 3px #000; flex-shrink: 0; text-transform: uppercase; letter-spacing: 1px; }
+#level-display { color: #ffd700; font-size: 16px; font-weight: bold; text-shadow: 1px 1px 3px #000; }
+.bar-container {
+  width: 280px; height: 18px; background: #333; border-radius: 9px; overflow: hidden;
+  border: 2px solid #555; position: relative;
+}
+.bar-fill { height: 100%; border-radius: 7px; transition: width 0.15s; }
+#hp-bar-bg { border-color: #a00; }
+#hp-bar { background: linear-gradient(90deg, #f44, #d22); }
+#xp-bar-bg { border-color: #55a; width: 360px; }
+#xp-bar { background: linear-gradient(90deg, #44f, #88f); }
+.bar-text {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: #fff; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 2px #000;
+  white-space: nowrap;
+}
+#weapon-icons { display: flex; gap: 5px; margin-top: 4px; }
+.weapon-icon {
+  width: 60px; height: 60px; background: #222; border: 2px solid #666;
+  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: #fff; position: relative;
+}
+.weapon-level {
+  position: absolute; bottom: -4px; right: -4px; background: #d44;
+  color: #fff; font-size: 9px; font-weight: bold; border-radius: 50%;
+  width: 16px; height: 16px; display: flex; align-items: center;
+  justify-content: center; border: 1px solid #fff;
+}
+#levelup-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.85); display: none; flex-direction: column;
+  align-items: center; justify-content: center; z-index: 100; pointer-events: all;
+}
+#levelup-title { color: #ffd700; font-size: 36px; font-weight: bold; margin-bottom: 10px; text-shadow: 2px 2px 6px #000; }
+#levelup-subtitle { color: #aaa; font-size: 16px; margin-bottom: 30px; }
+#auto-lvl-row { margin-top: -18px; margin-bottom: 10px; }
+#auto-lvl-toggle {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; pointer-events: all;
+  color: #b9c2ff; font-size: 14px; font-weight: bold;
+  padding: 8px 16px; background: rgba(20,22,44,0.9); border: 1px solid #3a4077;
+  border-radius: 8px; transition: all 0.2s;
+}
+#auto-lvl-toggle:hover { border-color: #97a3ff; }
+#auto-lvl-toggle.checked { border-color: #ffd700; color: #ffd700; }
+#auto-lvl-toggle input { transform: scale(1.25); accent-color: #ffd700; cursor: pointer; }
+.pause-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; pointer-events: all; }
+.pause-toggle input { transform: scale(1.3); accent-color: #ffd700; cursor: pointer; }
+.toggle-pill {
+  font-size: 11px; font-weight: bold; letter-spacing: 1px; color: #8a93b8;
+  border: 1px solid #3a4077; padding: 2px 8px; border-radius: 6px; transition: all 0.2s;
+}
+.pause-toggle.checked .toggle-pill { color: #ffd700; border-color: #ffd700; }
+#choices { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.choice-card {
+  width: 220px; padding: 20px; background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border: 2px solid #444; border-radius: 12px; cursor: pointer; text-align: center;
+  transition: all 0.2s; pointer-events: all; position: relative;
+}
+.choice-card:hover { filter: brightness(1.18); transform: scale(1.05); box-shadow: 0 0 20px rgba(255,215,0,0.25); }
+.choice-card.selected { filter: brightness(1.32); transform: scale(1.07); box-shadow: 0 0 28px rgba(255,215,0,0.5); }
+.choice-weapon { border-color: #b3403a; }
+.choice-passive { border-color: #3a5fb3; }
+/* --- Rarity tints (override the plain borders above) --- */
+.choice-card.rarity-common {
+  border-color: #9aa0b6;
+  box-shadow: inset 0 -34px 44px -34px rgba(154,160,182,0.18);
+}
+.choice-card.rarity-rare {
+  border-color: #43a6f5;
+  box-shadow: 0 0 12px rgba(67,166,245,0.25), inset 0 -34px 44px -30px rgba(67,166,245,0.30);
+}
+.choice-card.rarity-epic {
+  border-color: #c25bff;
+  box-shadow: 0 0 14px rgba(194,91,255,0.35), inset 0 -34px 44px -28px rgba(194,91,255,0.35);
+}
+.choice-card.rarity-legendary {
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#161126, #161126) padding-box,
+    linear-gradient(135deg, #8a6a00, #ffd24d, #fff6d0, #b8860b, #ffd24d) border-box;
+  background-size: 100% 100%, 300% 300%;
+  box-shadow: 0 0 18px rgba(255,210,77,0.4), inset 0 -34px 44px -28px rgba(255,210,77,0.22);
+  animation: rarityShine 3s linear infinite;
+}
+@keyframes rarityShine {
+  0%   { background-position: 0 0, 0% 50%; }
+  100% { background-position: 0 0, 300% 50%; }
+}
+.choice-badge {
+  position: absolute; top: -10px; right: 10px; padding: 2px 9px;
+  font-size: 10px; font-weight: bold; letter-spacing: 1px; border-radius: 5px;
+  color: #fff; border: 1px solid rgba(255,255,255,0.25);
+}
+.choice-icon { font-size: 40px; margin-bottom: 10px; }
+.choice-name { color: #fff; font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+.choice-tier { font-size: 10px; font-weight: bold; letter-spacing: 2px; margin: 0 0 6px; text-shadow: 0 0 8px currentColor; }
+.choice-desc { color: #aaa; font-size: 12px; line-height: 1.4; }
+.choice-level { color: #ffd700; font-size: 11px; margin-top: 8px; }
+#rarity-legend {
+  display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+  margin: -6px 0 22px; font-size: 11px; font-weight: bold; letter-spacing: 1px;
+}
+#rarity-legend .rl-item { text-shadow: 0 0 6px currentColor; }
+#game-over-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9); display: none; flex-direction: column;
+  align-items: center; justify-content: center; z-index: 200; pointer-events: all;
+}
+#gameover-title { color: #f44; font-size: 48px; font-weight: bold; margin-bottom: 20px; text-shadow: 2px 2px 8px #000; }
+#gameover-stats { color: #ccc; font-size: 20px; line-height: 2; margin-bottom: 30px; text-align: center; }
+#restart-btn {
+  padding: 15px 40px; background: #d44; color: #fff; border: none; border-radius: 8px;
+  font-size: 20px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s;
+}
+#restart-btn:hover { background: #f55; transform: scale(1.05); }
+#start-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: radial-gradient(ellipse at center, #1a0a2e, #000);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  overflow-y: auto; padding-top: 30px; padding-bottom: 30px; z-index: 300; pointer-events: all;
+}
+/* Auto margins keep the column centered when it fits and fully scrollable
+   (top to bottom) when it overflows, instead of clipping the title. */
+#start-screen > :first-child { margin-top: auto; }
+#start-screen > :last-child { margin-bottom: auto; }
+#start-title { margin-bottom: 10px; }
+.pix-title {
+  display: block; margin: 0 auto; width: min(92vw, 640px); height: auto;
+  image-rendering: pixelated;
+  animation: pixBannerFloat 3.2s ease-in-out infinite;
+}
+@keyframes pixBannerFloat {
+  0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 10px rgba(255,215,0,0.25)); }
+  50%      { transform: translateY(-6px); filter: drop-shadow(0 0 22px rgba(255,215,0,0.65)); }
+}
+#start-subtitle { color: #888; font-size: 18px; margin-bottom: 40px; }
+#start-btn {
+  padding: 18px 50px; background: linear-gradient(135deg, #d44, #a22); color: #fff;
+  border: 2px solid #f66; border-radius: 10px; font-size: 22px; font-weight: bold;
+  cursor: pointer; pointer-events: all; transition: all 0.2s; text-shadow: 1px 1px 3px #000;
+}
+#start-btn:hover { transform: scale(1.08); box-shadow: 0 0 30px rgba(255,50,50,0.4); }
+/* --- Best runs leaderboard --- */
+#best-runs {
+  width: min(420px, 88vw); margin-top: 26px; padding: 14px 16px;
+  background: rgba(15,15,25,0.85); border: 1px solid #333; border-radius: 12px;
+  text-align: left;
+}
+.br-title { color: #ffd700; font-size: 15px; letter-spacing: 2px; text-align: center; margin-bottom: 10px; }
+.br-empty { color: #777; font-size: 13px; text-align: center; padding: 8px 0; }
+.br-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-radius: 8px;
+}
+.br-row:nth-child(odd):not(.br-top) { background: rgba(255,255,255,0.04); }
+.br-top { background: rgba(255,215,0,0.10); border: 1px solid rgba(255,215,0,0.35); }
+.br-rank { width: 28px; text-align: center; font-size: 17px; flex-shrink: 0; color: #fff; font-weight: bold; }
+.br-info { flex: 1; min-width: 0; }
+.br-time { display: block; color: #fff; font-size: 15px; font-weight: bold; }
+.br-sub { display: block; color: #888; font-size: 11px; }
+.br-score { color: #8cf; font-weight: bold; font-size: 16px; flex-shrink: 0; }
+#start-controls { color: #666; font-size: 14px; margin-top: 30px; line-height: 1.8; text-align: center; }
+/* --- Volume settings panel (shared by start & pause screens) --- */
+.settings-box {
+  width: 260px; margin-top: 24px; padding: 16px 18px;
+  background: rgba(15,15,25,0.85); border: 1px solid #333; border-radius: 12px;
+  text-align: left;
+}
+.settings-title { color: #ffd700; font-size: 14px; letter-spacing: 1px; margin-bottom: 12px; text-align: center; }
+/* --- Difficulty selector --- */
+#difficulty-select { text-align: center; }
+#diff-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.diff-btn {
+  padding: 9px 14px; border-radius: 8px; border: 2px solid #3a3f7a;
+  background: #141a33; color: #aab3e0; font-size: 14px; font-weight: bold;
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s, transform .15s;
+}
+.diff-btn:hover { border-color: #6a74cf; transform: scale(1.05); }
+.diff-btn.active {
+  background: linear-gradient(135deg, #6a3f8a, #3a3f7a); border-color: #a25aed; color: #fff;
+}
+#diff-desc {
+  color: #858bb0; font-size: 12px; line-height: 1.4; margin-top: 8px;
+  min-height: 32px; max-width: 420px; margin-left: auto; margin-right: auto;
+}
+.settings-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.settings-row:last-child { margin-bottom: 0; }
+.settings-label { color: #ccc; font-size: 14px; width: 60px; flex-shrink: 0; }
+input[type="range"].vol-slider {
+  flex: 1; min-width: 0; height: 4px; -webkit-appearance: none; appearance: none;
+  background: #444; border-radius: 2px; outline: none; cursor: pointer;
+}
+input[type="range"].vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+  background: #ffd700; border-radius: 50%; border: none; cursor: pointer;
+}
+input[type="range"].vol-slider::-moz-range-thumb {
+  width: 14px; height: 14px; background: #ffd700; border: none; border-radius: 50%; cursor: pointer;
+}
+.vol-value { color: #8cf; font-size: 12px; width: 32px; text-align: right; flex-shrink: 0; }
+#pause-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.75); display: none; flex-direction: column;
+  align-items: center; justify-content: center; z-index: 150; pointer-events: all;
+}
+#pause-title { color: #fff; font-size: 44px; font-weight: bold; margin-bottom: 10px; text-shadow: 2px 2px 6px #000; }
+#pause-subtitle { color: #888; font-size: 16px; margin-bottom: 24px; }
+#pause-panel {
+  display: flex; gap: 24px; width: min(800px, 94vw); max-height: 55vh;
+  margin-bottom: 28px; padding: 16px 20px; justify-content: center;
+  background: rgba(15,15,25,0.85); border: 1px solid #333; border-radius: 12px;
+  overflow-y: auto;
+}
+.pause-col { flex: 1; min-width: 0; font-size: 14px; color: #ccc; }
+.pause-col h3 {
+  color: #ffd700; font-size: 15px; letter-spacing: 1px; margin: 0 0 8px;
+  padding-bottom: 4px; border-bottom: 1px solid #444;
+}
+.pause-entry {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 6px; border-radius: 6px; gap: 8px;
+}
+.pause-entry:nth-child(odd) { background: rgba(255,255,255,0.04); }
+.pause-entry .pe-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.pause-entry .pe-value { color: #8cf; font-weight: bold; flex-shrink: 0; }
+#resume-btn {
+  padding: 15px 40px; background: #4caf50; color: #fff; border: 2px solid #8ff58b;
+  border-radius: 8px; font-size: 20px; font-weight: bold; cursor: pointer;
+  pointer-events: all; transition: all 0.2s;
+}
+#resume-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(76,175,80,0.4); }
+#leave-hub-btn {
+  margin-top: 14px; padding: 13px 36px; background: linear-gradient(135deg,#3a3f7a,#20244e);
+  color: #cdd6ff; border: 2px solid #6a74cf; border-radius: 8px;
+  font-size: 17px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s;
+}
+#leave-hub-btn:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(100,120,255,0.4); }
+#leave-hub-btn.armed { background: linear-gradient(135deg,#b03030,#701818); color: #fff; border-color: #ff6a6a; }
+#warp-menu {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(10,6,20,0.82); display: none; flex-direction: column;
+  align-items: center; justify-content: center; z-index: 160; pointer-events: all;
+}
+#warp-title { color: #d9a7ff; font-size: 40px; font-weight: bold; margin-bottom: 8px; text-shadow: 2px 2px 10px #48159a; }
+#warp-hint { color: #9a9; font-size: 14px; margin-bottom: 24px; }
+#warp-list { display: flex; flex-direction: column; gap: 12px; min-width: min(320px, 80vw); }
+.warp-btn {
+  padding: 13px 20px; font-size: 17px; font-weight: bold; cursor: pointer; border-radius: 8px;
+  background: rgba(40,25,70,0.8); color: #cdb6ff; border: 2px solid #7a55c8; transition: all 0.2s;
+}
+.warp-btn:hover { transform: scale(1.05); box-shadow: 0 0 18px rgba(160,100,255,0.5); color: #e8dcff; }
+.warp-none { color: #887; font-size: 14px; text-align: center; padding: 18px; }
+#warp-cancel {
+  margin-top: 26px; padding: 12px 34px; background: rgba(30,30,45,0.8);
+  color: #ccc; border: 2px solid #555; border-radius: 8px; font-size: 15px;
+  font-weight: bold; cursor: pointer;
+}
+#warp-cancel:hover { color: #fff; border-color: #888; }
+#pause-btn {
+  position: fixed; right: 12px; bottom: 170px; z-index: 20;
+  width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
+  background: rgba(0,0,0,0.45); color: #fff; font-size: 20px; font-weight: bold;
+  cursor: pointer; pointer-events: all; display: none;
+}
+#pause-btn:hover { border-color: #fff; background: rgba(0,0,0,0.6); }
+#fps { color: #888; font-size: 12px; text-shadow: 1px 1px 3px #000; flex-shrink: 0; }
+/* --- Dev panel --- */
+#dev-btn {
+  position: fixed; left: 10px; bottom: 10px; z-index: 30;
+  width: 36px; height: 36px; border-radius: 8px; border: 1px solid #0cc;
+  background: rgba(0,0,0,0.6); color: #0cc; font-size: 13px; font-weight: bold;
+  cursor: pointer; pointer-events: all;
+}
+#dev-btn:hover { background: rgba(0,180,180,0.15); }
+#dev-panel {
+  position: fixed; left: 10px; bottom: 54px; z-index: 400;
+  width: 320px; max-height: 72vh; overflow-y: auto;
+  background: rgba(8,10,18,0.95); border: 1px solid #0cc;
+  border-radius: 10px; padding: 10px 12px; display: none; color: #ccc;
+  font-family: monospace; font-size: 12px; pointer-events: all;
+}
+#dev-panel.open { display: block; }
+.dev-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.dev-header span { color: #0cc; font-weight: bold; font-size: 14px; letter-spacing: 1px; }
+#dev-close { background:none; border:none; color:#888; font-size:18px; cursor:pointer; padding:0 4px; }
+#dev-close:hover { color:#fff; }
+.dev-section { color: #0cc; font-weight: bold; font-size: 12px; margin: 8px 0 4px; border-bottom: 1px solid #0cc3; padding-bottom: 3px; }
+.dev-row { display:flex; align-items:center; gap: 6px; margin: 3px 0; }
+.dev-row label { width: 100px; flex-shrink: 0; color: #aaa; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dev-row input[type=range] { flex: 1; min-width: 0; height: 3px; -webkit-appearance: none; appearance: none; background: #333; border-radius: 2px; outline: none; cursor: pointer; }
+.dev-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; background: #0cc; border-radius: 50%; }
+.dev-row input[type=range]::-moz-range-thumb { width: 10px; height: 10px; background: #0cc; border: none; border-radius: 50%; }
+.dev-val { width: 40px; text-align: right; color: #0ff; flex-shrink: 0; }
+.dev-check label { display:flex; align-items:center; gap:5px; cursor:pointer; }
+.dev-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.dev-actions button {
+  font-size: 11px; padding: 4px 8px; background: rgba(0,180,180,0.12);
+  border: 1px solid #0cc6; border-radius: 5px; color: #0cc; cursor: pointer;
+}
+.dev-actions button:hover { background: rgba(0,180,180,0.3); }
+canvas { touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; }
+body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
+
+/* --- Meta hub --- */
+#hub-btn {
+  padding: 13px 30px; margin-top: 26px; background: linear-gradient(135deg,#3a3f7a,#20244e);
+  color: #cdd6ff; border: 2px solid #6a74cf; border-radius: 10px;
+  font-size: 18px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s;
+}
+#hub-btn:hover { transform: scale(1.06); box-shadow: 0 0 24px rgba(100,120,255,0.35); }
+#guide-btn {
+  padding: 13px 30px; margin-top: 14px; background: linear-gradient(135deg,#3a3f7a,#20244e);
+  color: #e8dcff; border: 2px solid #7a55c8; border-radius: 10px;
+  font-size: 18px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s;
+}
+#guide-btn:hover { transform: scale(1.06); box-shadow: 0 0 24px rgba(160,100,255,0.4); }
+#essence-pill {
+  margin-top: 12px; padding: 6px 14px; background: rgba(15,15,25,0.85);
+  border: 1px solid #7a5fd0; border-radius: 20px; color: #d9c9ff;
+  font-size: 14px; font-weight: bold; letter-spacing: 0.5px;
+}
+#hub-summary { margin-top: 8px; color: #8a8aa0; font-size: 13px; text-align: center; }
+#hub-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(4,4,12,0.92); display: none; flex-direction: column; align-items: center;
+  justify-content: flex-start; z-index: 400; pointer-events: all; overflow-y: auto;
+  padding: 26px 14px 30px;
+}
+#hub-title { color: #c9d4ff; font-size: 32px; font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 20px rgba(120,140,255,0.5); margin-bottom: 6px; }
+#hub-wallet { color: #ffd700; font-size: 20px; font-weight: bold; margin-bottom: 16px; text-shadow: 1px 1px 4px #000; }
+#hub-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.hub-tab {
+  padding: 9px 20px; background: rgba(20,22,44,0.9); color: #9aa2d9; border: 1px solid #3a4077;
+  border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.2s; letter-spacing: 1px;
+}
+.hub-tab:hover { color: #fff; border-color: #7a86e8; }
+.hub-tab.active { background: #3a3f8a; color: #fff; border-color: #97a3ff; box-shadow: 0 0 12px rgba(120,140,255,0.35); }
+#hub-view { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 760px; width: 100%; }
+.hub-card {
+  width: 210px; padding: 15px 13px; background: linear-gradient(150deg,#181a30,#14162a);
+  border: 1px solid #333; border-radius: 12px; text-align: center; pointer-events: all;
+}
+.hub-card.locked { opacity: 0.8; border-color: #3a2a4a; }
+.hub-card.selected { border-color: #ffd700; box-shadow: 0 0 16px rgba(255,215,0,0.35); }
+.hub-icon { font-size: 30px; margin-bottom: 6px; }
+.pix-ico { image-rendering: pixelated; vertical-align: middle; display: inline-block; }
+.hub-name { color: #fff; font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+.hub-meta { color: #89c; font-size: 11px; margin: 8px 0 10px; }
+.hub-desc { color: #99a; font-size: 11px; line-height: 1.4; min-height: 30px; }
+.hub-sig { color: #778; font-size: 10px; letter-spacing: 0.3px; }
+.hub-level { color: #ffd700; font-size: 12px; margin: 6px 0 8px; }
+.hub-btn {
+  padding: 7px 14px; background: linear-gradient(135deg,#e9c34a,#c79a26); color: #2a1c00;
+  border: none; border-radius: 7px; font-size: 13px; font-weight: bold; cursor: pointer; transition: all 0.2s; pointer-events: all;
+}
+.hub-btn:hover { transform: scale(1.05); box-shadow: 0 0 12px rgba(255,215,0,0.5); }
+.hub-btn.buy { background: linear-gradient(135deg,#7ad0ff,#3a8fd0); color: #04232f; }
+.hub-btn.maxed { background: #333; color: #888; cursor: default; transform: none; box-shadow: none; }
+.hub-btn.owned { background: #46b46a; color: #fff; }
+.hub-btn.equipped { background: #ffd700; color: #2a1c00; }
+.hub-btn.weps { background: #2a3160; color: #b9c2ff; border: 1px solid #3a4077; }
+.hub-actions-inline { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.wpn-grid { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+.wpn-divider { width: 100%; text-align: center; color: #ffd24d; font-size: 13px; letter-spacing: 2px; margin: 4px 0 -6px; font-weight: bold; }
+.wpn-tools { display: flex; justify-content: center; margin-top: 20px; }
+#hub-actions { display: flex; gap: 12px; margin-top: 24px; }
+#hub-close, #hub-play, #hub-guide { padding: 12px 30px; border-radius: 9px; font-size: 16px; font-weight: bold; cursor: pointer; pointer-events: all; transition: all 0.2s; }
+#hub-close { background: #22244a; color: #9aa2d9; border: 1px solid #3a4077; }
+#hub-close:hover { color: #fff; border-color: #7a86e8; }
+#hub-guide { background: #2a3160; color: #cdb6ff; border: 1px solid #4a3a88; }
+#hub-guide:hover { color: #fff; border-color: #a98aff; }
+#hub-play { background: linear-gradient(135deg,#d44,#a22); color: #fff; border: 2px solid #f66; }
+#hub-play:hover { transform: scale(1.06); box-shadow: 0 0 24px rgba(255,50,50,0.4); }
+/* --- Guide --- */
+#guide-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(4,4,12,0.94); display: none; flex-direction: column; align-items: center;
+  justify-content: flex-start; z-index: 500; pointer-events: all; overflow-y: auto;
+  padding: 26px 14px 30px;
+}
+#guide-title { color: #e8dcff; font-size: 32px; font-weight: bold; letter-spacing: 3px; text-shadow: 0 0 20px rgba(190,120,255,0.5); margin-bottom: 6px; }
+#guide-sub { color: #8a8aa0; font-size: 13px; margin-bottom: 16px; }
+#guide-tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 18px; max-width: 760px; }
+#guide-view { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 920px; width: 100%; }
+#guide-view .hub-card { width: 230px; }
+#guide-view .hub-card.wide { width: 280px; }
+#guide-view .hub-card.full { width: 100%; max-width: 880px; text-align: left; }
+.gd-name { color: #fff; font-size: 15px; font-weight: bold; margin-bottom: 4px; }
+.gd-icon { font-size: 30px; margin-bottom: 6px; }
+.gd-note { color: #99a; font-size: 11px; line-height: 1.5; }
+.gd-note b { color: #ccd; }
+.gd-tag { display: inline-block; padding: 2px 9px; border-radius: 5px; font-size: 10px; font-weight: bold; letter-spacing: 1px; color: #fff; margin-bottom: 6px; }
+.gd-swatch { width: 16px; height: 16px; border-radius: 4px; display: inline-block; vertical-align: middle; margin-right: 6px; border: 1px solid rgba(255,255,255,0.3); }
+.gd-stat { color: #7f9bd9; font-size: 11px; margin: 8px 0 10px; }
+.gd-recipe { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 6px 0 8px; flex-wrap: wrap; color: #fff; }
+.gd-recipe .plus, .gd-recipe .eq { color: white; font-weight: bold; }
+.plus { color: white; font-weight: bold; }
+.gd-howto { color: #aab; font-size: 13px; line-height: 1.9; }
+.gd-howto li { margin-left: 18px; }
+#guide-actions { display: flex; gap: 12px; margin-top: 24px; }
+#guide-close { padding: 12px 36px; border-radius: 9px; font-size: 16px; font-weight: bold; cursor: pointer; pointer-events: all; background: #22244a; color: #cdd6ff; border: 1px solid #6a74cf; transition: all 0.2s; }
+#guide-close:hover { color: #fff; border-color: #97a3ff; }
+/* --- Ban list (pre-run loadout filters) --- */
+.ban-box {
+  width: min(720px, 100%); padding: 14px;
+  background: rgba(15,15,25,0.7); border: 1px solid #333; border-radius: 12px;
+}
+.ban-title { color: #ffd700; font-size: 13px; letter-spacing: 1px; margin-bottom: 10px; text-align: center; }
+.ban-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.ban-chip {
+  padding: 7px 12px; border-radius: 8px; border: 2px solid #3a4077;
+  background: #141a33; color: #aab3e0; font-size: 13px; font-weight: bold;
+  cursor: pointer; pointer-events: all; transition: all 0.15s;
+}
+.ban-chip:hover { border-color: #7a86e8; transform: scale(1.05); }
+.ban-chip.banned {
+  background: linear-gradient(135deg,#5a2030,#3a1420); border-color: #ff6a6a; color: #ffb0b0;
+}
+.ban-chip.banned::after { content: ' — BANNED'; font-size: 10px; letter-spacing: 0.5px; color: #ff8a8a; }
+.ban-chip.locked {
+  cursor: not-allowed; opacity: 0.85; border-color: #ffd700;
+  background: rgba(60,50,10,0.35); color: #ffe9a8;
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.ban-chip.locked:hover { transform: none; }
+.ban-chip.locked .ban-tag {
+  font-size: 9px; letter-spacing: 0.6px; color: #ffd700;
+  border: 1px solid #ffd700; padding: 0 5px; border-radius: 4px;
+}
+.ban-warn {
+  width: min(720px, 100%); padding: 10px 12px; text-align: center;
+  color: #ffb86c; background: rgba(120,60,10,0.25); border: 1px solid #ffa040;
+  border-radius: 10px; font-size: 13px; font-weight: bold;
+}
+.ban-actions { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.ban-hint { color: #777; font-size: 12px; max-width: 500px; text-align: center; line-height: 1.5; }
+
+@media (max-width: 700px) {
+  #top-bar { flex-direction: row; justify-content: space-between; align-items: center; }
+  #timer { font-size: 17px; }
+  #kills { font-size: 13px; }
+  #level-display { font-size: 13px; }
+  #biome-label { font-size: 10px; }
+  .bar-container { height: 14px; border-width: 1px; }
+  #hp-bar-bg { width: 35vw; }
+  #xp-bar-bg { width: 50vw; }
+  .bar-text { font-size: 10px; }
+  #weapon-icons { flex-wrap: wrap; gap: 4px; }
+  .weapon-icon { width: 46px; height: 46px; font-size: 15px; }
+  .weapon-level { width: 14px; height: 14px; font-size: 8px; }
+  #levelup-title { font-size: 26px; margin-bottom: 6px; }
+  #levelup-subtitle { font-size: 14px; margin-bottom: 12px; }
+  #levelup-hint { display: none; }
+  #choices { gap: 12px; }
+  .choice-card { width: 28vw; min-width: 120px; max-width: 180px; padding: 14px 10px; }
+  .choice-icon { font-size: 32px; margin-bottom: 8px; }
+  .choice-name { font-size: 13px; }
+  .choice-desc { font-size: 11px; }
+  .choice-level { font-size: 10px; }
+  #gameover-title { font-size: 32px; }
+  #gameover-stats { font-size: 17px; }
+  #restart-btn { padding: 14px 30px; font-size: 18px; }
+  #start-title { font-size: 34px; }
+  #start-subtitle { font-size: 15px; margin-bottom: 30px; }
+  #start-btn { padding: 16px 40px; font-size: 19px; }
+  #best-runs { margin-top: 18px; padding: 10px 12px; width: min(360px, 92vw); }
+  .br-time { font-size: 13px; }
+  .br-sub { font-size: 10px; }
+  .br-score { font-size: 14px; }
+  #start-controls { font-size: 12px; margin-top: 20px; }
+  #hub-screen { padding: 16px 10px 22px; }
+  #hub-title { font-size: 24px; }
+  #hub-wallet { font-size: 16px; margin-bottom: 10px; }
+  #hub-tabs { margin-bottom: 12px; }
+  #hub-view { max-height: 60vh; overflow-y: auto; }
+  .hub-card { width: 150px; padding: 12px 10px; }
+  #hub-close, #hub-play, #hub-guide { padding: 11px 24px; font-size: 15px; }
+  #hub-btn { margin-top: 20px; font-size: 16px; }
+  #guide-btn { margin-top: 12px; font-size: 16px; }
+  #guide-screen { padding: 16px 10px 22px; }
+  #guide-title { font-size: 24px; }
+  #guide-sub { margin-bottom: 12px; }
+  #guide-tabs { margin-bottom: 12px; }
+  #guide-view .hub-card { width: 150px; }
+  #guide-view .hub-card.wide { width: 200px; max-width: 90vw; }
+  #guide-view .hub-card.full { max-width: 100%; }
+  #guide-close { padding: 11px 26px; font-size: 15px; }
+  #pause-panel { flex-direction: column; gap: 12px; max-height: 40vh; }
+  #dev-panel { width: calc(100vw - 20px); left: 10px; }
+  #dev-btn { width: 32px; height: 32px; }
+  #pause-btn { width: 42px; height: 42px; bottom: 150px; font-size: 17px; }
+}
+
+/* Landscape phones: width usually >700px so the query above doesn't fire,
+   but the viewport is very short — compact the HUD so nothing falls off the
+   sides or below the fold. */
+@media (orientation: landscape) and (max-height: 600px) {
+  #ui-overlay { gap: 2px; padding-top: calc(4px + env(safe-area-inset-top)); }
+  #top-bar { flex-wrap: nowrap; }
+  #timer { font-size: 14px; }
+  #kills { font-size: 11px; }
+  #level-display { font-size: 11px; }
+  #fps { font-size: 10px; }
+  #biome-label { display: none; }
+  .bar-container { height: 12px; border-width: 1px; }
+  #hp-bar-bg { width: 18vw; }
+  #xp-bar-bg { width: 26vw; }
+  .bar-text { font-size: 8px; }
+  #weapon-icons { flex-wrap: nowrap; overflow-x: auto; gap: 3px; scrollbar-width: none; }
+  #weapon-icons::-webkit-scrollbar { display: none; }
+  .weapon-icon { width: 40px; height: 40px; font-size: 13px; flex-shrink: 0; }
+  .weapon-level { width: 13px; height: 13px; font-size: 7px; }
+  #pause-btn { width: 38px; height: 38px; bottom: 12px; right: 12px; font-size: 16px; }
+  #dev-btn { width: 30px; height: 30px; bottom: 8px; left: 8px; }
+  #dev-panel { bottom: 44px; max-height: 60vh; }
+  #pause-panel { flex-direction: column; flex-wrap: wrap; max-height: 50vh; }
+  #levelup-title { font-size: 22px; }
+  #levelup-subtitle { font-size: 12px; margin-bottom: 10px; }
+  #gameover-title { font-size: 26px; }
+  #gameover-stats { font-size: 15px; }
+  #restart-btn { padding: 12px 26px; font-size: 16px; }
+  #start-title { font-size: 26px; }
+  #start-subtitle { font-size: 13px; margin-bottom: 20px; }
+  #start-btn { padding: 13px 34px; font-size: 17px; }
+  #best-runs { margin-top: 14px; padding: 8px 10px; max-height: 26vh; overflow-y: auto; }
+  .br-row { padding: 4px 6px; gap: 8px; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  #hub-screen { padding: 10px 10px 16px; justify-content: flex-start; }
+  #hub-title { font-size: 22px; margin-bottom: 2px; }
+  #hub-wallet { font-size: 15px; margin-bottom: 8px; }
+  #hub-tabs { margin-bottom: 10px; }
+  #hub-view { max-height: 46vh; overflow-y: auto; }
+  .hub-card { width: 150px; padding: 10px; }
+  #hub-actions { margin-top: 12px; }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  #guide-screen { padding: 10px 10px 16px; justify-content: flex-start; }
+  #guide-title { font-size: 20px; margin-bottom: 2px; }
+  #guide-sub { margin-bottom: 8px; }
+  #guide-tabs { margin-bottom: 10px; }
+  #guide-view { max-height: 46vh; overflow-y: auto; }
+  #guide-view .hub-card { width: 150px; padding: 10px; }
+  #guide-actions { margin-top: 12px; }
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="ui-overlay">
+  <div id="top-bar">
+    <div id="timer">00:00</div>
+    <div id="level-display">LVL 1</div>
+    <div id="kills">Kills: 0</div>
+    <div id="biome-label">RUINS</div>
+    <div id="fps">-- FPS</div>
+  </div>
+  <div style="display:flex;gap:20px;align-items:center;">
+    <div>
+      <div style="color:#f66;font-size:11px;margin-bottom:2px;">HP</div>
+      <div class="bar-container" id="hp-bar-bg">
+        <div class="bar-fill" id="hp-bar" style="width:100%"></div>
+        <div class="bar-text" id="hp-text">100/100</div>
+      </div>
+    </div>
+    <div>
+      <div style="color:#66f;font-size:11px;margin-bottom:2px;">EXP</div>
+      <div class="bar-container" id="xp-bar-bg">
+        <div class="bar-fill" id="xp-bar" style="width:0%"></div>
+        <div class="bar-text" id="xp-text">0/10</div>
+      </div>
+    </div>
+  </div>
+  <div id="weapon-icons"></div>
+</div>
+
+<div id="levelup-screen">
+  <div id="levelup-title">LEVEL UP!</div>
+  <div id="levelup-subtitle">Choose an upgrade</div>
+  <div id="auto-lvl-row">
+    <label id="auto-lvl-toggle">
+      <input type="checkbox" id="auto-levelup">
+      <span>Auto power-ups (no pause)</span>
+    </label>
+  </div>
+  <div id="rarity-legend">
+    <span class="rl-item" style="color:#9aa0b6">■ Common</span>
+    <span class="rl-item" style="color:#43a6f5">■ Rare</span>
+    <span class="rl-item" style="color:#c25bff">■ Epic</span>
+    <span class="rl-item" style="color:#ffd24d">■ Legendary</span>
+  </div>
+  <div id="levelup-hint" style="color:#666;font-size:13px;margin-bottom:20px;">A/D or ←/→ to select &bull; Space/Enter to confirm</div>
+  <div id="choices"></div>
+</div>
+
+<div id="game-over-screen">
+  <div id="gameover-title">GAME OVER</div>
+  <div id="gameover-stats"></div>
+  <button id="restart-btn">PLAY AGAIN</button>
+  <button id="menu-btn-go" style="margin-top:16px;padding:14px 32px;background:linear-gradient(135deg,#2a5a3a,#14351f);color:#cdffd6;border:2px solid #6acf8a;border-radius:10px;font-size:17px;font-weight:bold;cursor:pointer;pointer-events:all;">🗺 MENU</button>
+  <button id="hub-btn-go" style="margin-top:16px;padding:14px 32px;background:linear-gradient(135deg,#3a3f7a,#20244e);color:#cdd6ff;border:2px solid #6a74cf;border-radius:10px;font-size:17px;font-weight:bold;cursor:pointer;pointer-events:all;">🏛 HUB</button>
+</div>
+
+<div id="pause-screen">
+  <div id="pause-title">PAUSED</div>
+  <div id="pause-subtitle">Press P or Esc to resume</div>
+  <div id="pause-panel">
+    <div class="pause-col" id="pause-weapons"></div>
+    <div class="pause-col" id="pause-stats"></div>
+    <div class="pause-col" id="pause-recipes"></div>
+  </div>
+  <div id="pause-settings" class="settings-box">
+    <div class="settings-title">VOLUME</div>
+    <div class="settings-row">
+      <span class="settings-label">🎵 Music</span>
+      <input type="range" class="vol-slider" data-vol="music" min="0" max="100" step="1">
+      <span class="vol-value" data-vol-label="music">60%</span>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">🔊 Effects</span>
+      <input type="range" class="vol-slider" data-vol="sfx" min="0" max="100" step="1">
+      <span class="vol-value" data-vol-label="sfx">80%</span>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">⚡ Auto power-ups</span>
+      <label class="pause-toggle" id="pause-auto-lvl">
+        <input type="checkbox" id="pause-auto-levelup">
+        <span class="toggle-pill">AUTO</span>
+      </label>
+    </div>
+  </div>
+  <button id="resume-btn">RESUME</button>
+  <button id="leave-hub-btn">🏠 BACK TO HUB</button>
+</div>
+
+<div id="warp-menu">
+  <div id="warp-title">🌀 WARP</div>
+  <div id="warp-hint">Choose a purified heart to travel to.</div>
+  <div id="warp-list"></div>
+  <button id="warp-cancel">CANCEL</button>
+</div>
+
+<button id="pause-btn" title="Pause (P)">II</button>
+
+<button id="dev-btn" title="Dev Menu (F2)">⚙</button>
+<div id="dev-panel">
+  <div class="dev-header"><span>DEV MENU</span><button id="dev-close">×</button></div>
+  <div id="dev-fields"></div>
+  <div class="dev-section">ACTIONS</div>
+  <div class="dev-actions" id="dev-actions"></div>
+</div>
+
+<div id="hub-screen">
+  <div id="hub-title">CENTRAL HUB</div>
+  <div id="hub-wallet">💠 Umbra Shards: 0</div>
+  <div id="hub-tabs">
+    <button class="hub-tab active" data-tab="char">CHARACTER</button>
+    <button class="hub-tab" data-tab="upg">UPGRADES</button>
+    <button class="hub-tab" data-tab="ban">BANS</button>
+  </div>
+  <div id="hub-view"></div>
+  <div id="hub-actions">
+    <button id="hub-close">CLOSE</button>
+    <button id="hub-guide">📖 GUIDE</button>
+    <button id="hub-play">PLAY</button>
+  </div>
+</div>
+
+<div id="start-screen">
+  <div id="start-title">SHADOW SURVIVORS</div>
+  <div id="start-subtitle">How long can you survive?</div>
+  <button id="start-btn">START</button>
+  <button id="hub-btn">🏛 HUB</button>
+  <button id="guide-btn">📖 GUIDE</button>
+  <div id="essence-pill">💠 Umbra Shards: 0</div>
+  <div id="hub-summary"></div>
+  <div id="difficulty-select" class="settings-box">
+    <div class="settings-title">DIFFICULTY</div>
+    <div id="diff-row"></div>
+    <div id="diff-desc"></div>
+  </div>
+  <div id="best-runs"></div>
+  <div id="start-settings" class="settings-box">
+    <div class="settings-title">VOLUME</div>
+    <div class="settings-row">
+      <span class="settings-label">🎵 Music</span>
+      <input type="range" class="vol-slider" data-vol="music" min="0" max="100" step="1">
+      <span class="vol-value" data-vol-label="music">60%</span>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">🔊 Effects</span>
+      <input type="range" class="vol-slider" data-vol="sfx" min="0" max="100" step="1">
+      <span class="vol-value" data-vol-label="sfx">80%</span>
+    </div>
+  </div>
+  <div id="start-controls">WASD / Arrow Keys to move<br>Touch &amp; drag on mobile to move<br>Weapons fire automatically<br>P or Esc to pause &bull; M to mute sound</div>
+</div>
+
+<div id="guide-screen">
+  <div id="guide-title">📖 GUIDE</div>
+  <div id="guide-sub">Everything you need to survive the shadowlands</div>
+  <div id="guide-tabs"></div>
+  <div id="guide-view"></div>
+  <div id="guide-actions">
+    <button id="guide-close">BACK</button>
+  </div>
+</div>
+
+<!-- Core -->
+<script src="js/00-utils.js"></script>
+<!-- Data (weapons, passives, enemies, spawn pools) -->
+<script src="js/01-defs.js"></script>
+<!-- World / tilemap / chunk rendering -->
+<script src="js/02-world.js"></script>
+<!-- Torches & dynamic lighting -->
+<script src="js/03-lighting.js"></script>
+<!-- Adaptive graphics quality -->
+<script src="js/04-gfx.js"></script>
+<!-- Enemy pathfinding flow field -->
+<script src="js/04-flowfield.js"></script>
+<!-- Collision & spatial grid -->
+<script src="js/05-collision.js"></script>
+<!-- Game state factory -->
+<script src="js/06-state.js"></script>
+<!-- Enemy spawning & projectiles -->
+<script src="js/07-entities.js"></script>
+<!-- Damage, XP gems, particles -->
+<script src="js/08-combat.js"></script>
+<!-- Weapon firing & stats -->
+<script src="js/09-weapons.js"></script>
+<!-- Level-up choices & enemy steering helpers -->
+<script src="js/10-levelup.js"></script>
+<!-- Update subsystems + master update -->
+<script src="js/11-update.js"></script>
+<!-- UI & overlays -->
+<script src="js/12-ui.js"></script>
+<!-- Rendering -->
+<script src="js/13-render.js"></script>
+<!-- Procedural sound engine -->
+<script src="js/15-sound.js"></script>
+<!-- Meta progression hub (unlocks, permanent upgrades) -->
+<script src="js/17-meta.js"></script>
+<!-- Procedural pixel-art icons (survivors-style diamond frames) -->
+<script src="js/18-icons.js"></script>
+<!-- Guide screen -->
+<script src="js/19-guide.js"></script>
+<!-- Main loop, input, startup -->
+<script src="js/14-main.js"></script>
+<!-- Dev menu & FPS (builds panel on load) -->
+<script src="js/16-dev.js"></script>
+</body>
+</html>
