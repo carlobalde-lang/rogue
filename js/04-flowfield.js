@@ -9,6 +9,7 @@ let ffCost = new Int32Array(FF_SIZE);
 let ffDX = new Int8Array(FF_SIZE);
 let ffDY = new Int8Array(FF_SIZE);
 let ffQueue = new Int32Array(FF_SIZE);
+let ffWalkable = new Uint8Array(FF_SIZE);   // per-recompute walkability snapshot
 let ffCX = 0;                      // player tile coords used for the field
 let ffCY = 0;
 let ffReady = false;
@@ -38,6 +39,27 @@ function updateFlowField(px, py) {
         ensureChunk(ccx + dx, ccy + dy);
   }
 
+  // Snapshot tile walkability into a flat buffer once, then read plain array
+  // indices inside the two BFS passes. Reading through isWalkableTile there
+  // re-did a chunk Map lookup per neighbour (~60k Map.gets per recompute) —
+  // that was a 15-30ms stall every ~350ms of walking (BFS fires every 2 tiles).
+  const wMinX = ffCX - FF_RAD, wMinY = ffCY - FF_RAD;
+  for (let ly = 0; ly < FF_DIM; ly++) {
+    const wy = wMinY + ly;
+    const cy = Math.floor(wy / CHUNK);
+    const ry = wy - cy * CHUNK;
+    let cx = Math.floor(wMinX / CHUNK);
+    let tiles = ensureChunk(cx, cy);
+    for (let lx = 0; lx < FF_DIM; lx++) {
+      const wx = wMinX + lx;
+      const ncx = Math.floor(wx / CHUNK);
+      if (ncx !== cx && lx > 0) { cx = ncx; tiles = ensureChunk(cx, cy); }
+      ffWalkable[ly * FF_DIM + lx] =
+        tiles[ry * CHUNK + (wx - cx * CHUNK)] === T_FLOOR ? 1 : 0;
+    }
+  }
+  const alive = ffWalkable;
+
   ffCost.fill(MAX_COST);
   const start = flowIndex(ffCX, ffCY);
   ffCost[start] = 0;
@@ -57,11 +79,12 @@ function updateFlowField(px, py) {
     const cx0 = (idx % FF_DIM) - FF_RAD + ffCX;
     const cy0 = ((idx / FF_DIM) | 0) - FF_RAD + ffCY;
     for (let i = 0; i < 8; i++) {
-      const nx = cx0 + ndx[i], ny = cy0 + ndy[i];
-      if (Math.abs(nx - ffCX) > FF_RAD || Math.abs(ny - ffCY) > FF_RAD) continue;
-      if (i >= 4 && (!isWalkableTile(cx0 + ndx[i], cy0) || !isWalkableTile(cx0, cy0 + ndy[i]))) continue;
-      const ni = idx + ndx[i] + ndy[i] * FF_DIM;
-      if (ffCost[ni] > c + ncost[i] && isWalkableTile(nx, ny)) {
+      const ddx = ndx[i], ddy = ndy[i];
+      if (cx0 + ddx < ffCX - FF_RAD || cx0 + ddx > ffCX + FF_RAD ||
+          cy0 + ddy < ffCY - FF_RAD || cy0 + ddy > ffCY + FF_RAD) continue;
+      if (i >= 4 && (!alive[idx + ddx] || !alive[idx + ddy * FF_DIM])) continue;
+      const ni = idx + ddx + ddy * FF_DIM;
+      if (alive[ni] && ffCost[ni] > c + ncost[i]) {
         ffCost[ni] = c + ncost[i];
         if (tail < FF_SIZE) ffQueue[tail++] = ni;
       }
@@ -78,11 +101,12 @@ function updateFlowField(px, py) {
     const cy0 = ((i / FF_DIM) | 0) - FF_RAD + ffCY;
     let best = c, bestDX = 0, bestDY = 0;
     for (let k = 0; k < 8; k++) {
-      const nx = cx0 + ndx[k], ny = cy0 + ndy[k];
-      if (Math.abs(nx - ffCX) > FF_RAD || Math.abs(ny - ffCY) > FF_RAD) continue;
-      if (k >= 4 && (!isWalkableTile(cx0 + ndx[k], cy0) || !isWalkableTile(cx0, cy0 + ndy[k]))) continue;
-      const ni = i + ndx[k] + ndy[k] * FF_DIM;
-      if (ffCost[ni] < best) { best = ffCost[ni]; bestDX = ndx[k]; bestDY = ndy[k]; }
+      const ddx = ndx[k], ddy = ndy[k];
+      if (cx0 + ddx < ffCX - FF_RAD || cx0 + ddx > ffCX + FF_RAD ||
+          cy0 + ddy < ffCY - FF_RAD || cy0 + ddy > ffCY + FF_RAD) continue;
+      if (k >= 4 && (!alive[i + ddx] || !alive[i + ddy * FF_DIM])) continue;
+      const ni = i + ddx + ddy * FF_DIM;
+      if (alive[ni] && ffCost[ni] < best) { best = ffCost[ni]; bestDX = ddx; bestDY = ddy; }
     }
     ffDX[i] = bestDX;
     ffDY[i] = bestDY;

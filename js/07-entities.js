@@ -67,7 +67,10 @@ function spawnEnemy(type, bias) {
   const pos = findEnemySpawnPos(bias);
   let { x, y } = pos;
 
-  const radius = def.radius(dm);
+  // Enemy size tuning: normals (everything smaller than elites) are drawn
+  // double-size, elites are +15%. Wardens/bosses stay as authored.
+  const sizeScale = def.category === 'elite' ? 1.15 : (def.category === 'normal' ? 2 : 1);
+  const radius = def.radius(dm) * sizeScale;
   const hp = def.hp(dm);
 
   const base = {
@@ -85,7 +88,8 @@ function spawnEnemy(type, bias) {
     deep: def.deep,
     body: def.body, core: def.core, glint: def.glint,
     aura: def.aura, auraAlpha: def.auraAlpha, auraScale: def.auraScale,
-    flashTimer: 0
+    flashTimer: 0,
+    _bornT: g.time
   };
 
   // Specialized per-type fields
@@ -113,6 +117,7 @@ function spawnEnemy(type, bias) {
   base.x = x; base.y = y;
   base.vx = 0; base.vy = 0;
   base.ph = rand(0, PI2);
+  if (window.runLog) runLog.onSpawn(type, base.hp, base.damage);
   g.enemies.push(base);
   g.totalEnemiesSpawned++;
   if (def.category === 'boss') Sound.play('bossWarn');
@@ -125,7 +130,7 @@ function spawnSplitlings(x, y, maxHp, xp) {
   const def = ENEMY_DEFS.normal;
   const dm = g.difficultyMult;
   const hp = Math.max(1, Math.floor(maxHp / 2));
-  const radius = def.radius(dm) * 0.8;
+  const radius = def.radius(dm) * 0.8 * 2;   // shadowlings are normals: double-size
   for (let side = -1; side <= 1; side += 2) {
     const sx = x + side * 13, sy = y + rand(-8, 8);
     g.enemies.push({
@@ -133,11 +138,14 @@ function spawnSplitlings(x, y, maxHp, xp) {
       speed: def.speed(dm), damage: def.damage(dm),
       xp: Math.max(1, Math.ceil(xp / 2)),
       color: def.color, type: 'normal', name: 'Shadowling',
+      kind: 'shadowling',
       deep: def.deep,
       body: def.body, core: def.core, glint: def.glint,
       aura: def.aura, auraAlpha: def.auraAlpha, auraScale: def.auraScale,
-      vx: 0, vy: 0, ph: rand(0, PI2), flashTimer: 0
+      vx: 0, vy: 0, ph: rand(0, PI2), flashTimer: 0,
+      _bornT: g.time
     });
+    if (window.runLog) runLog.onSpawn('shadowling', hp, def.damage(dm));
     g.totalEnemiesSpawned++;
   }
 }
@@ -181,6 +189,7 @@ function spawnWave() {
 // PROJECTILE CREATION
 // ============================================================
 function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEffect, shape, trail, opts) {
+  const projSrc = (opts && opts.src) || (window.runLog && runLog.currentSrc) || 'projectile';
   game.projectiles.push({
     x, y, vx, vy, dmg, radius: radius || 4, color: color || '#ff0',
     prevX: x, prevY: y,
@@ -188,6 +197,7 @@ function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEf
     pierce: pierce || 0, areaEffect: areaEffect || 0,
     shape: shape || 'circle',
     trail: trail || false,
+    src: projSrc,
     rot: Math.atan2(vy, vx),
     trailTimer: 0,
     hitEnemies: new Set(),
@@ -195,36 +205,38 @@ function createProjectile(x, y, vx, vy, dmg, radius, color, life, pierce, areaEf
     maxOut: (opts && opts.maxOut) || 0,
     outDist: 0, returning: false,
     bounces: (opts && opts.bounces) || 0,
-    bounceRange: (opts && opts.bounceRange) || 120
+    bounceRange: (opts && opts.bounceRange) || 120,
+    delay: 0
   });
 
-  // Duplicator: the shot SPLITS into two weaker projectiles that peel off the
-  // original heading in a slight V (volume over accuracy — distinct from
-  // Overload's flat attack-speed boost).
+  // Duplicator: the shot is echoed by follow-up copies that hold at the muzzle
+  // for a beat and then fire in quick succession along the SAME heading, so a
+  // proc reads as a short burst down one line (distinct from Overload's flat
+  // attack-speed boost). Each echo trails the original and is weaker. The
+  // update loop freezes a projectile while `delay` ticks down, and the renderer
+  // skips it, so the echoes stay invisible until they fire.
   const pl = game.player;
   if (pl && pl.duplicate && Math.random() < pl.duplicate) {
-    const baseA = Math.atan2(vy, vx);
-    const spd = Math.hypot(vx, vy);
-    const DIV = 0.26;   // ±15° per sibling
-    const OFF = 5;      // px perpendicular spawn offset so the V is visible
-    for (let s = -1; s <= 1; s += 2) {
-      const aa = baseA + DIV * s;
+    const ECHOES = 2;    // follow-up shots per proc
+    const GAP = 70;      // ms between the original and each echo
+    const a = Math.atan2(vy, vx);
+    for (let s = 1; s <= ECHOES; s++) {
       game.projectiles.push({
-        x: x + Math.cos(baseA + Math.PI / 2) * OFF * s,
-        y: y + Math.sin(baseA + Math.PI / 2) * OFF * s,
-        vx: Math.cos(aa) * spd, vy: Math.sin(aa) * spd,
+        x, y, vx, vy,
         dmg: dmg * 0.65, radius: (radius || 4) * 0.85, color: color || '#ff0',
         prevX: x, prevY: y,
         life: life || 1500, maxLife: life || 1500,
         pierce: pierce || 0, areaEffect: areaEffect || 0,
         shape: shape || 'circle', trail: trail || false,
-        rot: aa, trailTimer: 0,
+        src: projSrc,
+        rot: a, trailTimer: 0,
         hitEnemies: new Set(),
         boomerang: !!(opts && opts.boomerang),
         maxOut: (opts && opts.maxOut) || 0,
         outDist: 0, returning: false,
         bounces: (opts && opts.bounces) || 0,
-        bounceRange: (opts && opts.bounceRange) || 120
+        bounceRange: (opts && opts.bounceRange) || 120,
+        delay: GAP * s
       });
     }
   }

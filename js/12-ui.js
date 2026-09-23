@@ -84,6 +84,10 @@ function updateUI() {
   const hpPct = (p.hp / p.maxHp * 100) + '%';
   document.getElementById('hp-bar').style.width = hpPct;
   document.getElementById('hp-text').textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
+  // Revive charges left this run (from the Aegis meta upgrade / Revive passive),
+  // so the player can see a resurrection actually exists before it fires.
+  const pips = document.getElementById('revive-pips');
+  if (pips) pips.textContent = p.revives > 0 ? `💫×${p.revives}` : '';
 
   const xpPct = (p.xp / p.xpToLevel * 100) + '%';
   document.getElementById('xp-bar').style.width = xpPct;
@@ -270,6 +274,11 @@ function endGame() {
   game.running = false;
   game.manualPause = false;
   game.paused = false;
+
+  // Balance telemetry: build + download the run log upfront, before the
+  // game-over screen reuses any state.
+  if (window.runLog) runLog.finish('death');
+
   document.getElementById('pause-screen').style.display = 'none';
   document.getElementById('pause-btn').style.display = 'none';
 
@@ -293,3 +302,19 @@ function endGame() {
   Sound.stopMusic();
   Sound.play('gameover');
 }
+
+// Damage-numbers toggle (pause menu): persists the choice and restyles the
+// pill exactly like the AUTO toggle. Damage-DEALT numbers hide; damage-TAKEN
+// numbers and the red hit feedback always stay on.
+(function initPauseDamageNumbers() {
+  const box = document.getElementById('pause-dmg-numbers');
+  if (!box) return;
+  const sync = () => {
+    const lbl = box.closest('label');
+    if (lbl) lbl.classList.toggle('checked', box.checked);
+    setDmgNumbers(box.checked);
+  };
+  box.checked = showDmgNumbers();
+  box.addEventListener('change', sync);
+  sync();
+})();

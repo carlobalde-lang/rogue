@@ -27,8 +27,8 @@ const RECIPES = [
     apply: p => { p.duplicate = (p.duplicate || 0) + 0.2; } },
   { id: 'mysticgaze',   weapon: 'holyCross',  passive: 'damage',    name: 'Mystic Gaze', desc: '+20% Damage',
     apply: p => { p.dmgMult *= 1.2; } },
-  { id: 'scourge',      weapon: 'mirrorShard', passive: 'soulHarvest', name: 'Scourge', desc: 'Kills explode harder (+24% chance)',
-    apply: p => { p.soulHarvest = (p.soulHarvest || 0) + 0.24; } }
+  { id: 'scourge',      weapon: 'mirrorShard', passive: 'soulHarvest', name: 'Scourge', desc: 'Kills explode harder (+15% chance)',
+    apply: p => { p.soulHarvest = (p.soulHarvest || 0) + 0.15; } }
 ];
 
 function checkRecipes() {
@@ -77,6 +77,13 @@ function gainXp(amount) {
     p.xp -= p.xpToLevel;
     p.level++;
     p.xpToLevel = Math.floor(10 + p.level * 5 + p.level * p.level * 0.5);
+    // Survivability: every level grants +5% Max HP (compounding) and heals the
+    // gained amount. Enemy damage scales with the difficulty term (which rises
+    // quadratically after level 15) while base Max HP is flat, so without this
+    // a late-game build that skipped Vitality gets two-shot by normal enemies.
+    const hpBefore = p.maxHp;
+    p.maxHp = Math.max(hpBefore + 1, Math.round(hpBefore * 1.05));
+    p.hp = Math.min(p.maxHp, p.hp + (p.maxHp - hpBefore));
     game.pendingLevelUps++;
     if (!game.levelUpPending) showLevelUp();
   }

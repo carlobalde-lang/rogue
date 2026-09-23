@@ -159,6 +159,18 @@ canvas { display: block; touch-action: none; }
   cursor: pointer; pointer-events: all; transition: all 0.2s; text-shadow: 1px 1px 3px #000;
 }
 #start-btn:hover { transform: scale(1.08); box-shadow: 0 0 30px rgba(255,50,50,0.4); }
+/* --- Pre-run loading overlay (terrain pre-bake) --- */
+#loading-screen {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: radial-gradient(ellipse at center, #1a0a2e, #000);
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 900; pointer-events: all;
+}
+#loading-wrap { width: min(420px, 84vw); text-align: center; }
+#loading-title { color: #f6e; font-size: 22px; font-weight: bold; letter-spacing: 3px; margin-bottom: 16px; text-shadow: 0 0 12px rgba(255,102,238,0.5); }
+#loading-bar { height: 18px; border: 2px solid #f66; border-radius: 9px; overflow: hidden; background: #180a2a; box-shadow: inset 0 0 8px #000; }
+#loading-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #f66, #fa6, #ffd); transition: width 0.15s linear; }
+#loading-pct { color: #aaa; font-size: 14px; margin-top: 10px; letter-spacing: 1px; }
 /* --- Best runs leaderboard --- */
 #best-runs {
   width: min(420px, 88vw); margin-top: 26px; padding: 14px 16px;
@@ -577,7 +589,7 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   </div>
   <div style="display:flex;gap:20px;align-items:center;">
     <div>
-      <div style="color:#f66;font-size:11px;margin-bottom:2px;">HP</div>
+      <div style="color:#f66;font-size:11px;margin-bottom:2px;">HP <span id="revive-pips" style="color:#f6f;font-weight:bold;"></span></div>
       <div class="bar-container" id="hp-bar-bg">
         <div class="bar-fill" id="hp-bar" style="width:100%"></div>
         <div class="bar-text" id="hp-text">100/100</div>
@@ -648,6 +660,13 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
         <span class="toggle-pill">AUTO</span>
       </label>
     </div>
+    <div class="settings-row">
+      <span class="settings-label">💥 Damage numbers</span>
+      <label class="pause-toggle" id="pause-dmg-nums">
+        <input type="checkbox" id="pause-dmg-numbers">
+        <span class="toggle-pill">DMG</span>
+      </label>
+    </div>
   </div>
   <button id="resume-btn">RESUME</button>
   <button id="leave-hub-btn">🏠 BACK TO HUB</button>
@@ -716,6 +735,14 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   <div id="start-controls">WASD / Arrow Keys to move<br>Touch &amp; drag on mobile to move<br>Weapons fire automatically<br>P or Esc to pause &bull; M to mute sound</div>
 </div>
 
+<div id="loading-screen">
+  <div id="loading-wrap">
+    <div id="loading-title">GENERATING SHADOWLANDS…</div>
+    <div id="loading-bar"><div id="loading-fill"></div></div>
+    <div id="loading-pct">0%</div>
+  </div>
+</div>
+
 <div id="guide-screen">
   <div id="guide-title">📖 GUIDE</div>
   <div id="guide-sub">Everything you need to survive the shadowlands</div>
@@ -756,6 +783,10 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 <script src="js/12-ui.js"></script>
 <!-- Rendering -->
 <script src="js/13-render.js"></script>
+<!-- WebGL wind-grass overlay (GPU instancing, falls back to 2D) -->
+<script src="js/21-wegrass.js"></script>
+<!-- Biome ambient details (fireflies, leaves, snow, spores…) -->
+<script src="js/24-ambient.js"></script>
 <!-- Procedural sound engine -->
 <script src="js/15-sound.js"></script>
 <!-- Meta progression hub (unlocks, permanent upgrades) -->
@@ -768,5 +799,9 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 <script src="js/14-main.js"></script>
 <!-- Dev menu & FPS (builds panel on load) -->
 <script src="js/16-dev.js"></script>
+<!-- Speed logger (F3 / dev menu) -->
+<script src="js/20-speedlog.js"></script>
+<!-- Run log (auto-saves balance telemetry at game over) -->
+<script src="js/22-runlog.js"></script>
 </body>
 </html>

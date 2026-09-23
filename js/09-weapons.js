@@ -1,6 +1,14 @@
 // ============================================================
 // WEAPON SYSTEM
 // ============================================================
+// Area scaling with diminishing returns: the areaMult stat (Growth, Inferno,
+// biome elite bonuses) still helps, but can't inflate weapon radii into
+// screen-wide blobs. At 506% area the multiplier is ~2.62x instead of 5.06x.
+function effectiveArea(baseArea) {
+  const am = game.player.areaMult;
+  return baseArea * (1 + 0.4 * (am - 1));
+}
+
 function getWeaponStats(weapon) {
   const def = WEAPON_DEFS[weapon.id];
   const lvl = weapon.level;
@@ -19,7 +27,7 @@ function getWeaponStats(weapon) {
         dmg: (def.baseDmg + 3 * (lvl - 1)) * g.dmgMult,
         speed: 0, rate: 0,
         count: def.baseCount + (lvl - 1),
-        area: (def.baseArea + 10 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 10 * (lvl - 1))
       };
     case 'lightning':
       return {
@@ -35,7 +43,7 @@ function getWeaponStats(weapon) {
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.94, lvl - 1),
         count: 1,
-        area: (def.baseArea + 15 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 15 * (lvl - 1))
       };
     case 'holyCross':
       return {
@@ -49,7 +57,7 @@ function getWeaponStats(weapon) {
       return {
         dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
         speed: 0, rate: 0, count: 1,
-        area: (def.baseArea + 6 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 6 * (lvl - 1))
       };
     case 'poisonCloud':
       return {
@@ -57,7 +65,7 @@ function getWeaponStats(weapon) {
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: 1,
-        area: (def.baseArea + 10 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 10 * (lvl - 1))
       };
     case 'boomerang':
       return {
@@ -80,7 +88,7 @@ function getWeaponStats(weapon) {
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.85, lvl - 1),
         count: 1,
-        area: (def.baseArea + 15 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 15 * (lvl - 1))
       };
     case 'frostNova':
       return {
@@ -88,7 +96,7 @@ function getWeaponStats(weapon) {
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.94, lvl - 1),
         count: 1,
-        area: (def.baseArea + 18 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 18 * (lvl - 1))
       };
     case 'bloodScythe':
       return {
@@ -96,7 +104,7 @@ function getWeaponStats(weapon) {
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: 1,
-        area: (def.baseArea + 15 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 15 * (lvl - 1))
       };
     case 'familiar':
       return {
@@ -112,7 +120,7 @@ function getWeaponStats(weapon) {
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.92, lvl - 1),
         count: 1,
-        area: (def.baseArea + 15 * (lvl - 1)) * g.areaMult
+        area: effectiveArea(def.baseArea + 15 * (lvl - 1))
       };
     case 'mirrorShard':
       return {
@@ -150,6 +158,7 @@ function fireWeapons() {
   for (const w of p.weapons) {
     const stats = getWeaponStats(w);
     w.stats = stats;
+    if (window.runLog) runLog.setSource(w.id);
 
     // Stellar fires one star per sub-interval, each shot in a fresh
     // direction (rotating the firing angle by a fixed step every time)
@@ -206,9 +215,9 @@ function fireWeapons() {
           createProjectile(
             boltTip.x, boltTip.y,
             Math.cos(a) * stats.speed, Math.sin(a) * stats.speed,
-            stats.dmg, 5, '#7ec8ff', 2000, 0, 0, 'bolt', true
+            stats.dmg, 5, '#9cffc8', 2000, 0, 0, 'bolt', true
           );
-          spawnParticles(boltTip.x, boltTip.y, '#9fd8ff', 3, 2.5);
+          spawnParticles(boltTip.x, boltTip.y, '#c6ffe2', 3, 2.5);
         }
         Sound.play('shoot');
         p.attackPulse = 1;
@@ -298,6 +307,7 @@ function fireWeapons() {
           x: p.x, y: p.y,
           radius: stats.area,
           dmg: stats.dmg,
+          src: (window.runLog && runLog.currentSrc) || 'poisonCloud',
           life: 4500, maxLife: 4500, tickTimer: 0
         });
         Sound.play('shootAlt');
@@ -347,6 +357,7 @@ function fireWeapons() {
           g.turrets.push({
             x: tx, y: ty,
             dmg: stats.dmg, rate: 700,
+            src: (window.runLog && runLog.currentSrc) || 'turret',
             life: 8000, maxLife: 8000, fireTimer: 0, aim: rand(0, PI2)
           });
         }
@@ -369,6 +380,7 @@ function fireWeapons() {
             x: rx, y: ry,
             radius: stats.area,
             dmg: stats.dmg,
+            src: (window.runLog && runLog.currentSrc) || 'voidRift',
             life: 2200, maxLife: 2200, tickTimer: 0
           });
           placed = true;
@@ -387,6 +399,7 @@ function fireWeapons() {
               x: rx, y: ry,
               radius: stats.area,
               dmg: stats.dmg,
+              src: (window.runLog && runLog.currentSrc) || 'voidRift',
               life: 2200, maxLife: 2200, tickTimer: 0
             });
             break;
@@ -521,6 +534,7 @@ function updateShieldOrbit() {
     if (w.id !== 'holyShield') continue;
     const stats = getWeaponStats(w);
     w.stats = stats;
+    if (window.runLog) runLog.setSource(w.id);
     const baseAngle = g.time * 0.003;
     for (let i = 0; i < stats.count; i++) {
       const a = baseAngle + (PI2 / stats.count) * i;
@@ -557,6 +571,7 @@ function updateFamiliar(dt) {
     if (w.id !== 'familiar') continue;
     const stats = getWeaponStats(w);
     w.stats = stats;
+    if (window.runLog) runLog.setSource(w.id);
     if (!w.drones) w.drones = [];
 
     // Snapshot the enemies nearest to the PLAYER (drones share this pool and
@@ -619,7 +634,7 @@ function updateClouds(dt, dtSec) {
       const nb = g.enemyGrid.query(c.x, c.y, c.radius + 20);
       for (const e of nb) {
         if (e.dead || dist(c, e) > c.radius + e.radius) continue;
-        damageEnemy(e, c.dmg, c.x, c.y);
+        damageEnemy(e, c.dmg, c.x, c.y, undefined, c.src || 'poisonCloud');
       }
     }
   }
@@ -646,7 +661,8 @@ function updateTurrets(dt, dtSec) {
         t.fireTimer = t.rate;
         const a = t.aim + rand(-0.06, 0.06);
         createProjectile(t.x, t.y, Math.cos(a) * 7, Math.sin(a) * 7,
-          t.dmg, 4, '#ffc078', 1600, 0, 0, 'circle', false);
+          t.dmg, 4, '#ffc078', 1600, 0, 0, 'circle', false,
+          { src: t.src || 'turret' });
         Sound.play('shootAlt');
       }
     }
@@ -677,7 +693,7 @@ function updateRifts(dt, dtSec) {
       r.tickTimer = 400;
       for (const e of nb) {
         if (e.dead || dist(r, e) > r.radius + e.radius) continue;
-        damageEnemy(e, r.dmg * 1.5, r.x, r.y);
+        damageEnemy(e, r.dmg * 1.5, r.x, r.y, undefined, r.src || 'voidRift');
       }
     }
   }

@@ -1,9 +1,9 @@
-﻿// ============================================================
+// ============================================================
 // RENDERING
 // ============================================================
 
-// Draw a horseshoe XP-magnet pickup (top-down view), open at the top
-// with white pole caps and orbiting sparks.
+// Draw a horseshoe XP-magnet pickup: a red U open at the top with silver
+// pole caps (mirroring the Magnet/🧲 icon), red glow and orbiting sparks.
 function drawMagnetPickup(x, y, t) {
   const pulse = 1 + Math.sin(t * 0.006) * 0.12;
   const r = 10 * pulse;
@@ -18,27 +18,36 @@ function drawMagnetPickup(x, y, t) {
     ctx.arc(x, y, 30 * pulse, 0, PI2);
     ctx.fill();
   }
-  // Horseshoe body (U shape, open at the top)
-  ctx.beginPath();
-  ctx.arc(x, y, r, Math.PI * 1.10, Math.PI * 1.90);
+  // Horseshoe body (a clean U, open at the top, like the Magnet icon)
+  const leg = 7 * pulse;
+  const top = 10 * pulse;
+  const bot = 9 * pulse;
   ctx.lineCap = 'round';
-  ctx.strokeStyle = '#c2222e';
+  ctx.lineJoin = 'round';
+  const uPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(x - leg, y - top);
+    ctx.quadraticCurveTo(x - leg, y + bot, x, y + bot);
+    ctx.quadraticCurveTo(x + leg, y + bot, x + leg, y - top);
+  };
+  ctx.strokeStyle = '#a31322';   // dark rim so the U reads off the ground
   ctx.lineWidth = 8;
+  uPath();
   ctx.stroke();
   ctx.strokeStyle = '#ff5566';
   ctx.lineWidth = 5;
+  uPath();
   ctx.stroke();
-  // Inner glow arc
-  ctx.strokeStyle = `rgba(255,140,160,${0.35 + 0.2 * Math.sin(t * 0.01)})`;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(x, y, r * 0.72, Math.PI * 1.05, Math.PI * 1.95);
-  ctx.stroke();
-  // White pole caps at the tips
-  ctx.fillStyle = '#ffe9ee';
-  for (const tip of [Math.PI * 1.10, Math.PI * 1.90]) {
+  // Silver pole caps at the open tips
+  for (const sgn of [-1, 1]) {
+    const tx = x + sgn * leg, ty = y - top;
+    ctx.fillStyle = '#f4f6f8';
     ctx.beginPath();
-    ctx.arc(x + Math.cos(tip) * r, y + Math.sin(tip) * r, 2.6, 0, PI2);
+    ctx.arc(tx, ty, 3.1, 0, PI2);
+    ctx.fill();
+    ctx.fillStyle = '#c9d0d8';
+    ctx.beginPath();
+    ctx.arc(tx + sgn * 0.9, ty, 2.4, 0, PI2);
     ctx.fill();
   }
   // Sparks orbiting the horseshoe
@@ -2902,6 +2911,242 @@ function drawStatues(cx, cy, w, h) {
   }
 }
 
+// ============================================================
+// SPAWN SIGNPOSTS — wooden signs to the eight biome hearts
+// ============================================================
+// Eight wooden signs ring the ruins spawn. Each is labelled with a climate and
+// points outward along that wedge's sector centre (north = screen up) — the
+// heading you follow to reach its heart, where a Guardian sleeps over the
+// sealed biome weapon. The arrow turns gold once that heart has been purified.
+function drawSpawnSignposts(cx, cy, w, h) {
+  const g = game;
+  const t = g.time;
+  const SX = 8 * TILE + TILE / 2;
+  const SY = 8 * TILE + TILE / 2;
+  const R = 92;
+  const boardH = 16;
+  const halfH = boardH / 2;
+  for (let k = 0; k < 8; k++) {
+    const id = BIOME_IDS[k];
+    const def = BIOME_DEFS[id];
+    if (!def.weapon) continue;
+    const ca = -Math.PI / 2 + k * Math.PI / 4;   // wedge centre angle
+    const dx = Math.cos(ca), dy = Math.sin(ca);
+    const bx = SX + dx * R - cx;
+    const by = SY + dy * R - cy;
+
+    // Board sized to its name: a cleared biome reserves a left-hand zone for
+    // the gold check so long names like "FROZEN GRASS" never collide with it.
+    ctx.font = 'bold 9px "Segoe UI", sans-serif';
+    const name = def.name.toUpperCase();
+    const textW = ctx.measureText(name).width;
+    const cleared = heartCleared(id);
+    const checkZone = cleared ? 14 : 0;
+    const boardW = Math.ceil(textW) + checkZone + 12;
+    const halfW = boardW / 2;
+    const textCx = bx + checkZone / 2;
+    if (bx < -boardW || bx > w + boardW || by < -60 || by > h + 60) continue;
+
+    // Ground shadow + post
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(bx, by + halfH + 6, 9, 3.5, 0, 0, PI2);
+    ctx.fill();
+    ctx.fillStyle = '#33251a';
+    ctx.fillRect(bx - 2, by, 4, halfH + 8);
+    ctx.fillStyle = '#573d26';
+    ctx.fillRect(bx - 1, by, 2, halfH + 8);
+
+    // Board
+    ctx.fillStyle = '#3a2a1c';
+    ctx.fillRect(bx - halfW - 1, by - halfH - 1, boardW + 2, boardH + 2);
+    ctx.fillStyle = '#8a6238';
+    ctx.fillRect(bx - halfW, by - halfH, boardW, boardH);
+    ctx.fillStyle = 'rgba(255,232,190,0.20)';
+    ctx.fillRect(bx - halfW, by - halfH, boardW, 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(bx - halfW, by + halfH - 2, boardW, 2);
+
+    // Biome name (with a dark drop shadow for legibility); shifted right to
+    // clear the reserved check zone on cleared boards.
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#241a10';
+    ctx.fillText(name, textCx + 0.5, by + 1.5);
+    ctx.fillStyle = '#f3e6c8';
+    ctx.fillText(name, textCx, by + 1);
+
+    // Purified biome: a gold check mark on the board's left edge
+    if (cleared) {
+      const qx = bx - halfW + 9, qy = by + 1;
+      ctx.save();
+      ctx.strokeStyle = '#ffd24d';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(qx - 3.5, qy);
+      ctx.lineTo(qx - 1, qy + 3);
+      ctx.lineTo(qx + 4, qy - 3.5);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Outward arrow, tinted with the biome colour (gold once purified)
+    const off = (Math.abs(dx) > 0.5 ? halfW : halfH) + 9;
+    const ax2 = bx + dx * off, ay2 = by + dy * off;
+    ctx.save();
+    ctx.translate(ax2, ay2);
+    ctx.rotate(ca);
+    ctx.globalAlpha = 0.65 + 0.35 * Math.sin(t * 0.004 + k * 1.7);
+    ctx.fillStyle = cleared ? '#ffd24d' : def.color;
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(-5, -6.5);
+    ctx.lineTo(-5, 6.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
+// ============================================================
+// BOSS COMPASS — a large corona with edge arrows to the nearest hearts
+// ============================================================
+// A big translucent corona is drawn around the player, its rim marking the
+// eight climate wedges (tinted per biome, dimmed once purified). For the three
+// NEAREST hearts still defended by a Guardian an arrow is drawn at the very
+// edge of the screen, pointing the way; the closest is the largest and is
+// tagged with the biome name and distance in metres (1 tile = 1 m). The rim is
+// a fixed compass (north = up); the arrows use the true bearing from the
+// player, so they stay correct wherever you wander.
+function drawBossCompass(cx, cy, w, h) {
+  const g = game;
+  const t = g.time;
+  const ia = (typeof g.renderAlpha === 'number') ? g.renderAlpha : 0;
+  const plx = (typeof g._rpPx === 'number') ? lerp(g._rpPx, g.player.x, ia) : g.player.x;
+  const ply = (typeof g._rpPy === 'number') ? lerp(g._rpPy, g.player.y, ia) : g.player.y;
+  const px = plx - cx, py = ply - cy;
+
+  // Every wedge heart, then the ones still guarded (closest to the player first).
+  const all = [];
+  for (let k = 0; k < 8; k++) {
+    const id = BIOME_IDS[k];
+    const def = BIOME_DEFS[id];
+    if (!def.weapon) continue;
+    const pos = chestPos(id);
+    const dx = pos.x - plx, dy = pos.y - ply;
+    all.push({
+      id, def,
+      sa: -Math.PI / 2 + k * Math.PI / 4,   // fixed compass heading of the wedge
+      ca: Math.atan2(dy, dx),               // true bearing from the player
+      cleared: heartCleared(id),
+      d: Math.hypot(dx, dy)
+    });
+  }
+  const targets = all.filter(e => !e.cleared).sort((a, b) => a.d - b.d);
+
+  const R = Math.min(w, h) * 0.46;         // a big corona, near the screen edge
+  const pulse = 0.5 + 0.5 * Math.sin(t * 0.004);
+
+  ctx.save();
+
+  // Corona rim + fixed wedge ticks.
+  ctx.globalAlpha = 0.30;
+  ctx.strokeStyle = 'rgba(225,228,238,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(px, py, R, 0, PI2); ctx.stroke();
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 3;
+  for (const e of all) {
+    const c = Math.cos(e.sa), s = Math.sin(e.sa);
+    ctx.strokeStyle = e.cleared ? 'rgba(120,122,132,0.5)' : e.def.color;
+    ctx.beginPath();
+    ctx.moveTo(px + c * (R - 16), py + s * (R - 16));
+    ctx.lineTo(px + c * R, py + s * R);
+    ctx.stroke();
+  }
+
+  // Edge arrows for the nearest guarded hearts (farthest first, closest on top).
+  const n = Math.min(3, targets.length);
+  for (let i = n - 1; i >= 0; i--) {
+    const e = targets[i];
+    const dx = Math.cos(e.ca), dy = Math.sin(e.ca);
+    const primary = i === 0;
+    const L = primary ? 46 : 32;            // arrow length, tip toward the edge
+    const W = primary ? 17 : 12;            // arrow half-width
+
+    // Where this bearing meets the screen border (kept a few px inside).
+    const inset = 6;
+    let tt = Infinity;
+    if (dx > 1e-6) tt = Math.min(tt, (w - inset - px) / dx);
+    else if (dx < -1e-6) tt = Math.min(tt, (inset - px) / dx);
+    if (dy > 1e-6) tt = Math.min(tt, (h - inset - py) / dy);
+    else if (dy < -1e-6) tt = Math.min(tt, (inset - py) / dy);
+    if (!isFinite(tt) || tt < 0) tt = 0;
+    const tipx = px + dx * tt, tipy = py + dy * tt;
+    const ax = tipx - dx * L, ay = tipy - dy * L;
+
+    // Guide line from the corona out to the arrow.
+    ctx.globalAlpha = primary ? 0.35 : 0.18;
+    ctx.strokeStyle = e.def.color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px + dx * R, py + dy * R);
+    ctx.lineTo(ax, ay);
+    ctx.stroke();
+
+    // The arrow itself.
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(e.ca);
+    ctx.globalAlpha = primary ? (0.7 + 0.3 * pulse) : 0.5;
+    ctx.fillStyle = e.def.color;
+    ctx.beginPath();
+    ctx.moveTo(0, -W);
+    ctx.lineTo(L, 0);
+    ctx.lineTo(0, W);
+    ctx.lineTo(L * 0.4, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+
+    // Nearest-boss readout, just inside its arrow.
+    if (primary) {
+      const txt = e.def.name.toUpperCase() + '  ' + Math.round(e.d / TILE) + 'm';
+      ctx.font = 'bold 12px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(txt).width + 16;
+      let lx = tipx - dx * (L + 22);
+      let ly = tipy - dy * (L + 22);
+      lx = Math.max(tw / 2 + 8, Math.min(w - tw / 2 - 8, lx));
+      ly = Math.max(12, Math.min(h - 12, ly));
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = 'rgba(10,12,18,0.78)';
+      ctx.fillRect(lx - tw / 2, ly - 10, tw, 20);
+      ctx.strokeStyle = e.def.color;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(lx - tw / 2, ly - 10, tw, 20);
+      ctx.fillStyle = e.def.color;
+      ctx.fillText(txt, lx, ly + 0.5);
+    }
+  }
+
+  ctx.restore();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
 // Swirling purple-gold warp portal rendered at a cleared heart.
 function drawPortal(sx, sy, t, ph) {
   const k = t * 0.003 + ph;
@@ -3636,6 +3881,332 @@ function vignetteSprite(w, h) {
   return _vigCan;
 }
 
+// ============================================================
+// WIND GRASS - animated grass overlay
+// ============================================================
+// The dark blades of every grass mat stay baked inside the chunk canvases;
+// this pass re-draws the exact thin LIGHT blades the bake would have stamped
+// (same per-tile seed and formula) and bends them with a slow travelling wind,
+// so the only moving grass on screen is the very same grass the bake owns - no
+// extra blades, no new tufts. Because the chunk bake skips its light pass
+// (skipLight), each blade exists exactly once and simply leans as the wind
+// passes.
+//
+// Cost model: per grass tile the light blades are cached once (a handful of
+// numbers), then rebuilt every frame into per-type Path2D paths with the wind
+// bend added to the tips. Screen-wide that is a few tens of thousands of segment
+// ops and a handful of strokes - no sprites, no transforms, trivial cache memory.
+// glint = brighter stem tint used while the wind folds a blade to its max:
+// the low-sun light catching the leaned tips (light/shadow wave accent).
+const GRASS_WIND_TYPES = [
+  { id: 'icegrass',     dark: '#6f93b8', light: '#c2ddf5', glint: '#eef9ff', base: 15, vari: 10, lean: 5,  wind: [0.9, 0.1, 0.85] },
+  { id: 'savgrass',     dark: '#7a5a20', light: '#a37a2c', glint: '#e6b84c', base: 18, vari: 12, lean: 6,  wind: [0.98, -0.2, 1.1] },
+  { id: 'tallgrass',    dark: '#4c5a1e', light: '#74902c', glint: '#b8e273', base: 20, vari: 14, lean: 7,  wind: [1, 0, 0.9] },
+  { id: 'thickgrass',   dark: '#2e5a22', light: '#4a8530', glint: '#86d66a', base: 24, vari: 14, lean: 6,  nL: 11, nD: 14, wind: [0.95, 0.1, 0.85] },
+  { id: 'swampgrass',   dark: '#3a4020', light: '#50591f', glint: '#9fb54f', base: 26, vari: 14, lean: 7,  nL: 11, nD: 14, wind: [0.75, 0.25, 0.55] },
+  { id: 'canyongrass',  dark: '#7a5738', light: '#a57950', glint: '#d19a66', base: 10, vari: 6,  lean: 4,  wind: [1, 0, 1.4] },
+  { id: 'prairiegrass', dark: '#3a5420', light: '#5f7f2e', glint: '#a6d66b', base: 42, vari: 18, lean: 10, nL: 28, nD: 36, dw: 3, wind: [0.98, 0.2, 1.25] }
+];
+const GRASS_WIND_IDX = {};
+for (let i = 0; i < GRASS_WIND_TYPES.length; i++) GRASS_WIND_IDX[GRASS_WIND_TYPES[i].id] = i;
+
+// Wind strength (-1..1): one slow travelling wave sweeping toward +x (left to
+// right on screen - a full wave crosses the 3.4k px screen in ~40s) plus two
+// very low-frequency organic layers so neighbouring tiles are never in unison.
+// t in ms.
+// Player grass trail: radius and bend strength of each walk push. Read by the
+// WG shader and the 2D fallback; the trail itself is fed by updatePlayer into
+// game.grassPushes (x,y + z,w = directional force, decaying over ~1s).
+const GRASS_PUSH_R = 12;
+const GRASS_PUSH_STR = 0.8;
+
+// Persistent trample mask: the player's walk leaves a permanent flattened path
+// (direction + soft radial amount) that never springs back, unlike the live
+// pushes above. Layout mirrors the animated blades: TRAMPLE_CELL world-px per
+// mask texel, mask tiles of TRAMPLE_A x TRAMPLE_A cells cached as RGBA
+// Uint8ClampedArray (R = amount, G/B = direction * amount, 255 in alpha).
+// updatePlayer stamps it; the WG shader samples it as a texture (bilinear ->
+// smooth path edges) and the 2D fallback reads the same cells per blade.
+const TRAMPLE_CELL = 4;
+const TRAMPLE_A = TILE / TRAMPLE_CELL;
+const GRASS_TRAMPLE_R = 12;
+const GRASS_TRAMPLE_STR = 1.0;
+const TRAMPLE_TILE_LR = 2048;
+const trampleTiles = new Map();
+let trampleRev = 0;
+
+function getTrampleTile(tx, ty) {
+  const key = tx + ',' + ty;
+  let t = trampleTiles.get(key);
+  if (t) return t;
+  t = new Uint8ClampedArray(TRAMPLE_A * TRAMPLE_A * 4);
+  trampleTiles.set(key, t);
+  if (trampleTiles.size > TRAMPLE_TILE_LR) {
+    trampleTiles.delete(trampleTiles.keys().next().value);
+  }
+  return t;
+}
+
+// Soft footprint stamp: writes the max radial envelope of a step into the cell
+// grid. A stronger/newer sample also wins the direction, so the trail follows
+// the last movement across a spot while the softer outer flanks of earlier
+// passes stay as a faint "sfumatura" of the path edge. Never decays.
+function trampleStamp(wx, wy, dx, dy, amt) {
+  const tt = getTile(wx, wy);
+  if (tt !== T_FLOOR && tt !== T_TREE && tt !== T_TALLGRASS) return;
+  if (ownHazardAt(wx, wy) !== HAZARD_NONE) return;
+  const invR2 = 1 / (GRASS_TRAMPLE_R * GRASS_TRAMPLE_R);
+  const cx0 = Math.floor((wx - GRASS_TRAMPLE_R) / TRAMPLE_CELL);
+  const cx1 = Math.floor((wx + GRASS_TRAMPLE_R) / TRAMPLE_CELL);
+  const cy0 = Math.floor((wy - GRASS_TRAMPLE_R) / TRAMPLE_CELL);
+  const cy1 = Math.floor((wy + GRASS_TRAMPLE_R) / TRAMPLE_CELL);
+  const gd = (dx + 1) * 0.5 * amt, bd = (dy + 1) * 0.5 * amt;
+  for (let cy = cy0; cy <= cy1; cy++) {
+    const ddy = cy * TRAMPLE_CELL + TRAMPLE_CELL * 0.5 - wy;
+    const my = ((cy % TRAMPLE_A) + TRAMPLE_A) % TRAMPLE_A;
+    const ty = Math.floor(cy / TRAMPLE_A);
+    for (let cx = cx0; cx <= cx1; cx++) {
+      const ddx = cx * TRAMPLE_CELL + TRAMPLE_CELL * 0.5 - wx;
+      const w = Math.exp(-(ddx * ddx + ddy * ddy) * invR2) * amt;
+      if (w < 0.02) continue;
+      const mx = ((cx % TRAMPLE_A) + TRAMPLE_A) % TRAMPLE_A;
+      const t = getTrampleTile(Math.floor(cx / TRAMPLE_A), ty);
+      const oi = (my * TRAMPLE_A + mx) * 4;
+      // A newer step wins when its falloff is within ~2% of the stored amount
+      // (so byte rounding / tiny offsets can't freeze the direction), then its
+      // own direction takes over: the path follows the latest movement.
+      if (w + 0.02 >= t[oi] / 255) {
+        t[oi] = w * 255;
+        t[oi + 1] = gd * 255;
+        t[oi + 2] = bd * 255;
+        t[oi + 3] = 255;
+      }
+    }
+  }
+  trampleRev++;
+}
+
+function grassWindBend(wx, wy, t, wd, wsp) {
+  wd = wd || [1, 0]; wsp = wsp || 1;
+  const ps = wx * 0.998 + wy * 0.063;            // shared crest axis: all types
+  const pp = wy * 0.998 - wx * 0.063;            // synchronised wavefronts
+  const wave = Math.sin(ps * 0.0030 - t * 0.00075);
+  const ripp = Math.sin(ps * 0.0058 - t * 0.00030 + Math.sin(pp * 0.0055) * 1.7) * 0.5;
+  const sway = Math.cos(ps * 0.0014 - t * 0.00018 + pp * 0.002) * 0.6;
+  const osc = wave * 0.50 + ripp * 0.34 + sway * 0.16;
+  return clamp(0.55 + osc * 0.45, 0, 1);           // global phase: synced for all types
+}
+
+// The per-tile mat hash, exactly as stampBiomeGrass computes it (from the chunk
+// cell index rather than the flat tile coords) so the animated blades are the
+// same blades the chunk bake would have stamped.
+function tileMatSeed(tx, ty) {
+  const lx = ((tx % CHUNK) + CHUNK) % CHUNK;
+  const ly = ((ty % CHUNK) + CHUNK) % CHUNK;
+  const cx = (tx - lx) / CHUNK, cy = (ty - ly) / CHUNK;
+  return seed2(cx * CHUNK + lx * 57 + 3, cy * CHUNK + ly * 41 + 11);
+}
+
+// The light blades of one grass tile - same seed, same counts and geometry as
+// drawPropTile's grassMat light pass. Returns null where the bake lays no grass
+// (walls, hazards, desert/canyon gaps).
+const grassLightCache = new Map();
+// Big enough to hold every visible tile (a 3.4k x 1.3k screen spans ~4600 tiles)
+// plus scroll slack, so a steady view never evicts its own blades.
+// Must exceed the worst-case tile count in view at DPR2 (6880/D32*2542/32
+// ≈ 17.6k plus 3-ring margin ≈ 20k) or the LR will thrash and re-bake the
+// whole visible set every frame (that was the real 150 ms cost, not the 2D stroke).
+const GRASS_WIND_LR = 30000;
+function bakeGrassLight(tx, ty) {
+  const wx = tx * TILE + TILE * 0.5, wy = ty * TILE + TILE * 0.5;
+  const tt = getTile(wx, wy);
+  if (tt !== T_FLOOR && tt !== T_TREE && tt !== T_TALLGRASS) return null;
+  if (ownHazardAt(wx, wy) !== HAZARD_NONE) return null;
+  const gr = tileMatSeed(tx, ty);
+  let gi, hgt;
+  if (tt === T_TALLGRASS) {
+    gi = GRASS_WIND_IDX.prairiegrass; hgt = 1;
+  } else {
+    const bm = owningBiomeAt(wx, wy);
+    const gtype = BIOME_GRASS[bm];
+    if (gtype === undefined) return null;        // desert stays still
+    const temp = BIOME_TEMP[bm] || 0.6;
+    if (gr >= (temp === 0.9 ? 0.07 : grassDensity(temp))) return null;
+    gi = GRASS_WIND_IDX[gtype];
+    if (gi === undefined) return null;           // no animated light pass for it
+    hgt = temp === 0.9 ? 1 : grassHeight(temp);
+  }
+  const gt = GRASS_WIND_TYPES[gi];
+  const rh = (k) => {
+    const v = Math.sin(gr * 43758.5453 + k * 12.9898) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const lines = [], dlines = [];
+  if (gi === GRASS_WIND_IDX.canyongrass) {
+    // Isolated dry clumps: 3 absolute-size blades per clump, 1-2 clumps per tile
+    // (mirror of drawPropTile's canyongrass branch).
+    const cl = 1 + (rh(3) > 0.62 ? 1 : 0);
+    for (let k = 0; k < cl; k++) {
+      const cxx = 16 + (rh(4 + k * 5) - 0.5) * 22;
+      const cyy = 7 + rh(8 + k * 7) * (TILE - 14);
+      for (let i = 0; i < 3; i++) {
+        lines.push({
+          gx: cxx + (rh(37 + i + k * 23) - 0.5) * 8,
+          grt: cyy,
+          gh: 5 + rh(47 + i + k * 11) * 4,
+          le: (rh(43 + i + k * 31) - 0.5) * 5
+        });
+      }
+      for (let i = 0; i < 4; i++) {
+        dlines.push({
+          gx: cxx + (rh(11 + i + k * 13) - 0.5) * 10,
+          grt: cyy,
+          gh: 7 + rh(19 + i + k * 17) * 6,
+          le: (rh(29 + i + k * 9) - 0.5) * 4
+        });
+      }
+    }
+  } else {
+    const vs = 0.6 + gr * 0.8;                 // same size variation as the bake
+    const nL = gt.nL || 10;
+    for (let i = 0; i < nL; i++) {
+      lines.push({
+        gx: 16 + (rh(i + 41) - 0.5) * 34,      // root x inside the tile
+        grt: rh(i + 59) * TILE,                // root depth (anywhere in tile)
+        gh: (gt.base * 0.72 + rh(i + 53) * gt.vari) * vs * hgt,
+        le: (rh(i + 67) - 0.5) * gt.lean * 0.7 // baked static lean
+      });
+    }
+    const nD = gt.nD || 12;
+    for (let i = 0; i < nD; i++) {
+      dlines.push({
+        gx: 16 + (rh(i + 1) - 0.5) * 34,
+        grt: rh(i + 47) * TILE,
+        gh: (gt.base + rh(i + 20) * gt.vari) * vs * hgt,
+        le: (rh(i + 31) - 0.5) * gt.lean
+      });
+    }
+  }
+  // Compact: one flat Float32Array [gx,grt,gh,le, ...] keeps the cache small
+  // (~200B/tile) and the per-frame rebuild loop linear without object reads.
+  const d = new Float32Array(lines.length * 4);
+  for (let i = 0; i < lines.length; i++) {
+    const o = i * 4;
+    d[o] = lines[i].gx; d[o + 1] = lines[i].grt; d[o + 2] = lines[i].gh; d[o + 3] = lines[i].le;
+  }
+  const dd = new Float32Array(dlines.length * 4);
+  for (let i = 0; i < dlines.length; i++) {
+    const o = i * 4;
+    dd[o] = dlines[i].gx; dd[o + 1] = dlines[i].grt; dd[o + 2] = dlines[i].gh; dd[o + 3] = dlines[i].le;
+  }
+  return { gi, d, dd };
+}
+
+// Rebuild the cached light blades into per-type paths, bent by the wind (tips
+// shift proportionally to their height, like a strand leaning). Each grass type
+// gets two strokes: a normal one plus a "glint" one - blades folded far enough
+// that their tip leans over catch a brighter tint, sweeping over the field as
+// the wave crest passes (light/shadow accent).
+const GRASS_GLINT_PX = 3;   // min tip displacement (px) before a blade glints
+function drawGrassWind(cx, cy, w, h, t) {
+  if (!GFX.grass) return;
+  if (typeof WG !== 'undefined' && WG.ok) {
+    wgRender(cx, cy, w, h, t);
+    ctx.drawImage(WG.canvas, 0, 0, w, h);
+    return;
+  }
+  const firstTx = Math.floor(cx / TILE) - 1, firstTy = Math.floor(cy / TILE) - 1;
+  const lastTx = Math.floor((cx + w) / TILE) + 1, lastTy = Math.floor((cy + h) / TILE) + 1;
+  const paths = new Map();
+  for (let ty = firstTy; ty <= lastTy; ty++) {
+    for (let tx = firstTx; tx <= lastTx; tx++) {
+      if (GFX.level >= 2 && ((tx + ty) & 1)) continue;   // half density on weak machines
+      const key = tx + ',' + ty;
+      let ent = grassLightCache.get(key);
+      if (ent === undefined) {
+        ent = bakeGrassLight(tx, ty);
+        grassLightCache.set(key, ent);
+        if (grassLightCache.size > GRASS_WIND_LR) {
+          grassLightCache.delete(grassLightCache.keys().next().value);
+        }
+      }
+      if (!ent) continue;
+      const wind = GRASS_WIND_TYPES[ent.gi].wind || [1, 0, 1];
+      const bend = grassWindBend((tx & ~1) * TILE + TILE * 0.5 + 16, (ty & ~1) * TILE + TILE * 0.5 + 16, t, wind, wind[2]);
+      const lit = bend <= 0.45 ? 0 : bend >= 0.75 ? 1 : ((bend - 0.45) / 0.3) * ((bend - 0.45) / 0.3) * (3 - 2 * ((bend - 0.45) / 0.3));
+      const gust = 0.8 + 0.2 * Math.min(1.6, Math.max(0.4, wind[2]));
+      const k = bend * 0.6 * (1 + lit * 1.6) * gust, fold = 1 - bend * 0.2;
+      const wl = Math.sqrt(wind[0] * wind[0] + wind[1] * wind[1]) || 1;
+      const lx = wind[0] / wl, ly = wind[1] / wl;
+      const gP = typeof game !== 'undefined' && game && game.grassPushes ? game.grassPushes : null;
+      let pvx = 0, pvy = 0;
+      if (gP && gP.length) {
+        const cx0 = tx * TILE + TILE * 0.5, cy0 = ty * TILE + TILE * 0.5;
+        const invR2 = 1 / (GRASS_PUSH_R * GRASS_PUSH_R);
+        for (let i = 0; i < gP.length && i < 40; i++) {
+          const dx = cx0 - gP[i].x, dy = cy0 - gP[i].y;
+          const w = Math.exp(-(dx * dx + dy * dy) * invR2);
+          pvx += gP[i].z * w; pvy += gP[i].w * w;
+        }
+        pvx *= GRASS_PUSH_STR; pvy *= GRASS_PUSH_STR;
+      }
+      const ox = tx * TILE - cx, oy = ty * TILE - cy;
+      const d = ent.d;
+      // Persistent trample cells for this tile, when the walk ever flattened it.
+      const tt = trampleTiles.get(tx + ',' + ty);
+      for (let j = 0; j < d.length; j += 4) {
+        const gx = d[j], grt = d[j + 1], gh = d[j + 2], le = d[j + 3];
+        // Per-blade shade bucket (stable per blade, roughly balanced 0..4). Uses the
+        // local blade geometry as a cheap, deterministic spread.
+        const bkt = ((((gx | 0) * 7 + (grt | 0) * 13 + (gh | 0) * 31) % GRASS_TINT_LEVELS.length) + GRASS_TINT_LEVELS.length) % GRASS_TINT_LEVELS.length;
+        const key = ent.gi * 11 + bkt * 2;
+        let pn = paths.get(key);
+        let pl = paths.get(key + 1);
+        if (!pn) { pn = new Path2D(); paths.set(key, pn); }
+        if (!pl) { pl = new Path2D(); paths.set(key + 1, pl); }
+        const wx0 = ox + gx + (le + k * gh) * lx, wy0 = oy + grt - gh * fold + (le + k * gh) * ly;
+        // Same mask the WG shader samples: R=amount, G/B=direction*amount.
+        let tpx = 0, tpy = 0;
+        if (tt) {
+          const cix = (gx / TRAMPLE_CELL) | 0;
+          const ciy = (grt / TRAMPLE_CELL) | 0;
+          if (cix < TRAMPLE_A && ciy < TRAMPLE_A) {
+            const oi = (ciy * TRAMPLE_A + cix) * 4;
+            const a = tt[oi] / 255;
+            if (a > 0) {
+              tpx = (tt[oi + 1] / 255 * 2 - a) * GRASS_TRAMPLE_STR;
+              tpy = (tt[oi + 2] / 255 * 2 - a) * GRASS_TRAMPLE_STR;
+            }
+          }
+        }
+        let txx = wx0 + (pvx + tpx) * gh, tyy = wy0 + (pvy + tpy) * gh - Math.hypot(pvx + tpx, pvy + tpy) * gh * 0.08;
+        const len0 = Math.hypot(wx0 - ox - gx, wy0 - oy - grt);
+        const len1 = Math.hypot(txx - ox - gx, tyy - oy - grt);
+        if (len1 > len0 && len0 > 0.5) { txx = ox + gx + (txx - ox - gx) * len0 / len1; tyy = oy + grt + (tyy - oy - grt) * len0 / len1; }
+        if (lit > 0.5) {
+          pl.moveTo(ox + gx, oy + grt);
+          pl.lineTo(txx, tyy);
+        } else {
+          pn.moveTo(ox + gx, oy + grt);
+          pn.lineTo(txx, tyy);
+        }
+      }
+    }
+  }
+  for (const entry of paths) {
+    const key = entry[0];
+    const gi = (key / 11) | 0;
+    const glint = key & 1;
+    const bkt = ((key >> 1) % GRASS_TINT_LEVELS.length) % GRASS_TINT_LEVELS.length;
+    ctx.lineWidth = glint ? 1.25 : 1;
+    ctx.strokeStyle = tintHex(
+      GRASS_WIND_TYPES[gi][glint ? 'glint' : 'light'],
+      GRASS_TINT_LEVELS[bkt]
+    );
+    ctx.stroke(entry[1]);
+  }
+}
+
 function render() {
   const g = game;
   // Interpolated camera: the sim advances in fixed 8.33ms steps, so rendering
@@ -3647,8 +4218,15 @@ function render() {
   const ia = (typeof g.renderAlpha === 'number') ? g.renderAlpha : 0;
   const cam0x = (typeof g._rpCamX === 'number') ? g._rpCamX : g.camera.x;
   const cam0y = (typeof g._rpCamY === 'number') ? g._rpCamY : g.camera.y;
-  const cx = lerp(cam0x, g.camera.x, ia);
-  const cy = lerp(cam0y, g.camera.y, ia);
+  let cx = lerp(cam0x, g.camera.x, ia);
+  let cy = lerp(cam0y, g.camera.y, ia);
+  // Damage-shock camera kick: a small decaying shake right after a hit so hits
+  // register on screen even when damage numbers are hidden.
+  const shk = (g.player.hurtShake || 0) * 5;
+  if (shk > 0.01) {
+    cx += Math.sin(g.time * 0.021) * shk;
+    cy += Math.cos(g.time * 0.017) * shk;
+  }
   const w = VIEW_W;
   const h = VIEW_H;
   ctx.setTransform(DPR * GFX.pixelScale, 0, 0, DPR * GFX.pixelScale, 0, 0);
@@ -3670,6 +4248,9 @@ function render() {
     }
   }
 
+  // --- Animated wind grass (baked blade cache, wave + sun glint) ---
+  drawGrassWind(cx, cy, w, h, g.time);
+
   // --- Torches with flickering fire ---
   if (GFX.fire > 0) drawTorches(cx, cy, w, h);
 
@@ -3679,8 +4260,17 @@ function render() {
   // --- Big canopy trees (world-space pass, over terrain/torches) ---
   drawTrees(cx, cy, w, h);
 
+  // --- Biome ambient details (fireflies, leaves, snow, spores…) ---
+  drawAmbientDetails(cx, cy, w, h);
+
   // --- Biome treasure chests ---
   drawStatues(cx, cy, w, h);
+
+  // --- Spawn signposts: wooden signs toward the eight biome hearts ---
+  drawSpawnSignposts(cx, cy, w, h);
+
+  // --- Boss compass: big corona + edge arrows to the nearest hearts ---
+  drawBossCompass(cx, cy, w, h);
 
   // --- Pickups ---
   for (const pk of g.pickups) {
@@ -3856,17 +4446,6 @@ function render() {
     const core = e.core || '#7a1a1a';
     const glint = e.glint || '#ff9e9e';
     const deep = e.deep || body;
-
-    // Shadow aura (soft, breathing)
-    if (GFX.enemyFx) {
-      const pulse = 1 + 0.08 * Math.sin(t * 0.003 + eph);
-      ctx.globalAlpha = (e.auraAlpha ?? 0.15) * pulse;
-      ctx.fillStyle = `rgb(${ar},${ag},${ab})`;
-      ctx.beginPath();
-      ctx.arc(sx, sy, R * (e.auraScale ?? 2.2) * pulse, 0, PI2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
 
     // Materialized shadow silhouette: each enemy kind draws its own shifting
     // body via the shared "living shadow" helpers inside drawShadowBody.
@@ -4136,6 +4715,7 @@ function render() {
     const sx = prx - cx;
     const sy = pry - cy;
     if (sx < -40 || sx > w + 40 || sy < -40 || sy > h + 40) continue;
+    if (pr.delay > 0) continue;   // Duplicator echo still waiting to fire
     const alpha = clamp(pr.life / pr.maxLife, 0, 1);
     if (alpha <= 0.02) continue;
 
@@ -4161,7 +4741,7 @@ function render() {
       const r = pr.radius;
       // Outer glow
       ctx.globalAlpha = alpha * 0.35;
-      ctx.fillStyle = '#3a6fc4';
+      ctx.fillStyle = '#2fae6c';
       ctx.beginPath();
       ctx.ellipse(0, 0, r * 3.2, r * 1.8, 0, 0, PI2);
       ctx.fill();
@@ -4331,11 +4911,18 @@ function render() {
   // Only the wizard (aeloria) wears the cape; the other characters keep
   // their own silhouettes (pyromancer hood, sentinel armor, assassin cloak).
   const mageOnly = !pl.charId || pl.charId === 'aeloria';
-  if (!capeFront && mageOnly) drawCape(cx, cy);
-
-  // Invulnerability blink
+  // Fade the whole silhouette (cape + body) for the invulnerability blink and
+  // while standing under a tree crown, so the tree reads as passing in front
+  // of the player instead of the player stamping over it.
+  let plAlpha = underTreeCanopy(plx, ply) ? 0.36 : 1;
   if (pl.invulnTimer > 0 && Math.floor(g.time / 80) % 2 === 0) {
-    ctx.globalAlpha = 0.45;
+    plAlpha = Math.min(plAlpha, 0.45);
+  }
+
+  if (!capeFront && mageOnly) {
+    ctx.globalAlpha = plAlpha;
+    drawCape(cx, cy);
+    ctx.globalAlpha = 1;
   }
 
   // ---- Active XP magnet: expanding red pull rings ----
@@ -4356,9 +4943,9 @@ function render() {
   for (const wpn of pl.weapons) {
     if (wpn.id !== 'chainSaw') continue;
     const st = getWeaponStats(wpn);
-    const SR = st.area;
-    const sawPulse = 1 + pl.attackPulse * 0.3;
-    const rR = SR * sawPulse;
+    // No pulse: the ring stays at its true hit radius (`st.area`) at all times,
+    // so it never swells when another weapon (e.g. magic bullet) fires.
+    const rR = st.area;
     const teeth = 18;
     const spikeLen = 16;
 
@@ -4405,15 +4992,19 @@ function render() {
 
   // Player: dispatches on the selected character's archetype.
   const charId = pl.charId || 'aeloria';
+  ctx.globalAlpha = plAlpha;
   if (charId === 'rael') drawTopDownRael(px, py, pl, g.time);
   else if (charId === 'briga') drawTopDownBriga(px, py, pl, g.time);
   else if (charId === 'nyx') drawTopDownNix(px, py, pl, g.time);
   else drawTopDownMage(px, py, pl, g.time);
-
   ctx.globalAlpha = 1;
 
   // Cape in front of the character (back view) â€” wizard only.
-  if (capeFront && mageOnly) drawCape(cx, cy);
+  if (capeFront && mageOnly) {
+    ctx.globalAlpha = plAlpha;
+    drawCape(cx, cy);
+    ctx.globalAlpha = 1;
+  }
 
   // --- Particles ---
   for (const pt of g.particles) {
@@ -4528,7 +5119,9 @@ function render() {
   // --- Floating texts ---
   ctx.font = 'bold 14px Arial';
   ctx.textAlign = 'center';
+  const dmgNums = showDmgNumbers();
   for (const ft of g.floatingTexts) {
+    if (ft.kind === 'dmg' && !dmgNums) continue;   // damage toggle hides dealt
     const alpha = clamp(ft.life / ft.maxLife, 0, 1);
     ctx.globalAlpha = alpha;
     ctx.fillStyle = ft.color;
@@ -4558,8 +5151,16 @@ function render() {
   // Cached full-screen vignette (rebuilt only on resize)
   ctx.drawImage(vignetteSprite(w, h), 0, 0, w, h);
 
-  // --- Biome compass ---
-  if (GFX.compass) drawCompass();
+  // --- Damage-taken feedback: red edge vignette, bright when just hit ---
+  // Drawn AFTER the world so it tints the whole screen but stays under the HUD.
+  const hf = g.player.hurtFlash || 0;
+  if (hf > 0.02) {
+    const rg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.28, w / 2, h / 2, Math.max(w, h) * 0.72);
+    rg.addColorStop(0, 'rgba(200,10,20,0)');
+    rg.addColorStop(1, `rgba(210,16,28,${0.62 * hf})`);
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, w, h);
+  }
 
   // --- Weather overlays (falling precipitation + taiga gust streaks) ---
   drawStormOverlay();
@@ -4759,118 +5360,6 @@ function drawCapeRibbon(cx, cy, cap) {
   ctx.lineWidth = 1.2;
   ctx.stroke();
   ctx.restore();
-}
-
-function drawCompass() {
-  const g = game;
-  const R = 60;
-  const cx = VIEW_W - R - 16;
-  const cy = VIEW_H - R - 16;
-  const p = g.player;
-
-  // Face — a translucent rose fixed to the world (north = screen up)
-  ctx.fillStyle = 'rgba(4,8,16,0.55)';
-  ctx.strokeStyle = '#31415c';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, PI2);
-  ctx.fill();
-  ctx.stroke();
-
-  // Cardinal letters
-  ctx.fillStyle = '#7aa2c4';
-  ctx.font = 'bold 10px "Segoe UI", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('N', cx, cy - R + 10);
-  ctx.fillText('E', cx + R - 10, cy);
-  ctx.fillText('S', cx, cy + R - 10);
-  ctx.fillText('W', cx - R + 10, cy);
-
-  const ring = R - 16;
-
-  // Tick marks at the 8 sector directions
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-  ctx.lineWidth = 1;
-  for (let k = 0; k < 8; k++) {
-    const a = k * Math.PI / 4;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a) * (ring - 5), cy + Math.sin(a) * (ring - 5));
-    ctx.lineTo(cx + Math.cos(a) * ring, cy + Math.sin(a) * ring);
-    ctx.stroke();
-  }
-
-  // One dot per discovered biome: the chest sits at the heart of each wedge,
-  // so every dot points exactly at that treasure. Undiscovered biomes show
-  // as faint ghost dots; the current biome always glows.
-  const weights = biomeWeightsAt(p.x, p.y);
-  const cur = owningBiomeAt(p.x, p.y);
-  for (let k = 0; k < 8; k++) {
-    const id = BIOME_IDS[k];
-    const c = chestPos(id);
-    const ba = Math.atan2(c.y - p.y, c.x - p.x);
-    const wt = weights[id] || 0;
-    const isCur = id === cur;
-    const discovered = isCur || g.discoveredBiomes.includes(id);
-    const cleared = heartCleared(id);
-
-    const bx = cx + Math.cos(ba) * (ring - 5);
-    const by = cy + Math.sin(ba) * (ring - 5);
-
-    if (!discovered) {
-      // Ghost dot: very faint hint that something exists out there
-      ctx.globalAlpha = 0.10;
-      ctx.fillStyle = '#556677';
-      ctx.beginPath();
-      ctx.arc(bx, by, 2.5, 0, PI2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      continue;
-    }
-
-    // Discovered biome: full color, current biome pulses
-    const rad = isCur ? 4.5 + wt * 1.5 + Math.sin(g.time * 0.006) * 0.6 : 3 + wt * 3;
-    ctx.globalAlpha = isCur ? 1 : clamp(0.35 + wt * 2.2, 0, 1);
-    if (isCur) {
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(bx, by, rad + 1.5, 0, PI2);
-      ctx.fill();
-    }
-    ctx.fillStyle = BIOME_DEFS[id].color;
-    ctx.beginPath();
-    ctx.arc(bx, by, rad, 0, PI2);
-    ctx.fill();
-    // Cleared-heart purple ring
-    if (cleared) {
-      ctx.strokeStyle = 'rgba(200,155,255,0.8)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(bx, by, rad + 3 + Math.sin(g.time * 0.005 + k) * 0.8, 0, PI2);
-      ctx.stroke();
-    }
-    // Biome name label for discovered biomes with a weapon
-    if (BIOME_DEFS[id].weapon) {
-      const midAng = -Math.PI / 2 + k * Math.PI / 4 + Math.PI / 8;
-      const lx = cx + Math.cos(midAng) * (ring - 15);
-      const ly = cy + Math.sin(midAng) * (ring - 15);
-      ctx.globalAlpha = isCur ? 1 : 0.7;
-      ctx.fillStyle = BIOME_DEFS[id].color;
-      ctx.font = 'bold 8px "Segoe UI", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(BIOME_DEFS[id].name.toUpperCase(), lx, ly);
-    }
-  }
-  ctx.globalAlpha = 1;
-
-  // Player centre mark
-  ctx.fillStyle = '#e8f2ff';
-  ctx.beginPath();
-  ctx.arc(cx, cy, 3, 0, PI2);
-  ctx.fill();
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
 }
 
 // --- Full-screen weather: tint + falling precipitation ---

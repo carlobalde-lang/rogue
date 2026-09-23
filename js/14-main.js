@@ -25,6 +25,10 @@ const SIM_MAX_STEPS = 16;          // hard cap on catch-up steps per frame
 const SIM_ACC_MAX = 240;           // accumulator clamp (prevents spiral)
 let simAcc = 0;
 
+// Shared stats mirror for the speed logger (20-speedlog.js): the main loop
+// writes steps/alpha here every rendered frame.
+window.__simStats = window.__simStats || { steps: 0, alpha: 0 };
+
 function gameLoop(timestamp) {
   if (!lastFrameTime) lastFrameTime = timestamp;
   const raw = Math.min(Math.max(timestamp - lastFrameTime, 0), SIM_MAX_STEPS * SIM_STEP);
@@ -32,8 +36,8 @@ function gameLoop(timestamp) {
 
   if (game && game.running) {
     simAcc = Math.min(simAcc + raw, SIM_ACC_MAX);
+    let steps = 0;
     if (!game.paused && !game.gameOver) {
-      let steps = 0;
       while (simAcc >= SIM_STEP && steps < SIM_MAX_STEPS) {
         // Snapshot camera + player BEFORE the step so the renderer can
         // interpolate between "just finished" and "about to happen" and render
@@ -53,8 +57,14 @@ function gameLoop(timestamp) {
       simAcc = 0;                               // paused / game over: discard captured time
       if (game) game.renderAlpha = 0;
     }
+    // Mirror per-frame sim stats for the speed logger (20-speedlog.js)
+    if (window.__simStats) {
+      window.__simStats.steps = steps;
+      window.__simStats.alpha = (game && game.renderAlpha) || 0;
+    }
     render();
     updateUI();
+    if (window.__speedLogTick) window.__speedLogTick();
   } else {
     simAcc = 0;
   }
@@ -157,6 +167,64 @@ window.addEventListener('keydown', e => {
 // ============================================================
 // GAME INITIALIZATION
 // ============================================================
+// Pre-run loading screen: START (or restart / hub PLAY) shows the loading
+// overlay and pre-bakes every chunk canvas around the run's fixed spawn, a few
+// per tick so the browser keeps painting the progress bar. Only when the whole
+// opening ring is streamed does the actual run begin (startGame), so the first
+// seconds never hitch on a terrain bake. The ruins heart is always chunk (0,0);
+// world tile (8,8) in that chunk is the spawn — see doWarpToSpawn().
+let prewarmKeys = null;
+let prewarmIdx = 0;
+let loadingActive = false;
+
+function beginRun() {
+  if (loadingActive) return;
+  loadingActive = true;
+
+  // Brand-new map every run: reroll the world seed and drop the old terrain
+  // caches BEFORE the prewarm bake streams the opening chunks.
+  if (typeof rerollWorldSeed === 'function') rerollWorldSeed();
+
+  const spawnX = 8 * TILE + TILE / 2, spawnY = 8 * TILE + TILE / 2;
+  const pcx = Math.floor(spawnX / CHUNK_PX), pcy = Math.floor(spawnY / CHUNK_PX);
+  const rMax = (Math.max(Math.ceil(VIEW_W / CHUNK_PX), Math.ceil(VIEW_H / CHUNK_PX)) >> 1) + 3;
+  prewarmKeys = prewarmChunkList(pcx, pcy, rMax);
+  prewarmIdx = 0;
+
+  // Swap the start screen for the loading overlay immediately.
+  const loadEl = document.getElementById('loading-screen');
+  document.getElementById('start-screen').style.display = 'none';
+  const fillEl = document.getElementById('loading-fill');
+  const pctEl = document.getElementById('loading-pct');
+  loadEl.style.display = 'flex';
+  if (fillEl) fillEl.style.width = '0%';
+  if (pctEl) pctEl.textContent = '0%';
+
+  setTimeout(prewarmTick, 16);
+}
+
+function prewarmTick() {
+  const total = prewarmKeys.length;
+  const n = Math.min(total, prewarmIdx + 3);   // ~3 chunk bakes per tick
+  for (; prewarmIdx < n; prewarmIdx++) {
+    const key = prewarmKeys[prewarmIdx];
+    const i = key.indexOf(',');
+    getChunkCanvas(parseInt(key.slice(0, i), 10), parseInt(key.slice(i + 1), 10));
+  }
+
+  const fillEl = document.getElementById('loading-fill');
+  const pctEl = document.getElementById('loading-pct');
+  const pct = total ? Math.round(prewarmIdx / total * 100) : 100;
+  if (fillEl) fillEl.style.width = pct + '%';
+  if (pctEl) pctEl.textContent = pct + '%';
+
+  if (prewarmIdx < total) { setTimeout(prewarmTick, 0); return; }
+
+  document.getElementById('loading-screen').style.display = 'none';
+  loadingActive = false;
+  startGame();
+}
+
 function startGame() {
   game = createGameState();
   if (typeof resetSpawnQueue === 'function') resetSpawnQueue();   // no leftover horde at run start
@@ -177,6 +245,9 @@ function startGame() {
 
   // Give starting weapon
   game.player.weapons.push({ id: getStartWeapon(), level: 1, lastFired: 0 });
+
+  // Start balance/difficulty telemetry capture for this run
+  if (window.runLog) runLog.begin();
 
   // Initialize flow field + world around the player
   ffCX = 999999; ffCY = 999999;   // force recomputation on first update
@@ -313,9 +384,9 @@ hubLeaveBtn.addEventListener('click', () => {
   leaveToHub();
 });
 
-// Start / restart buttons
-document.getElementById('start-btn').addEventListener('click', startGame);
-document.getElementById('restart-btn').addEventListener('click', startGame);
+// Start / restart buttons (both go through the pre-run loading screen)
+document.getElementById('start-btn').addEventListener('click', beginRun);
+document.getElementById('restart-btn').addEventListener('click', beginRun);
 
 // Volume sliders (start & pause screens)
 initVolumeControls();

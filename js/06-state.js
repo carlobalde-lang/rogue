@@ -23,6 +23,8 @@ function createGameState() {
       weapons: [],
       passives: [],
       invulnTimer: 0,
+      hurtFlash: 0,       // red damage vignette intensity, decays toward 0
+      hurtShake: 0,       // camera shake magnitude after a hit, decays toward 0
       facingAngle: 0,
       renderAngle: 0,
       cape: null,

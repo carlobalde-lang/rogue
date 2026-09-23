@@ -279,6 +279,35 @@ function updatePlayer(dt, dtSec) {
   // --- Dynamic cape (verlet chain trailing the player's back) ---
   updateCape(dtSec);
 
+  // --- Reactive grass trail: while the player walks, drop soft "pushes" onto
+  // the ground at their feet (position + walk direction + force). Each push
+  // decays exponentially, so the grass bends along the player's path and slowly
+  // springs back to the wind motion after they pass. ---
+  if (!game.grassPushes) game.grassPushes = [];
+  const gP = game.grassPushes;
+  const gspd = Math.hypot(p.velX, p.velY);
+  if (gspd > 90) {
+    const pf = Math.min(1, gspd / 240);
+    // Lead: place the push ~2 sprite diameters AHEAD of the player so the
+    // grass already bends as you step onto it, not a beat later. One push per
+    // sim frame keeps the reaction instant (no interval gating).
+    const lead = 40;
+    gP.push({
+      x: p.x + (p.velX / gspd) * lead, y: p.y + (p.velY / gspd) * lead,
+      z: (p.velX / gspd) * pf,
+      w: (p.velY / gspd) * pf
+    });
+    if (gP.length > 60) gP.shift();
+    // Persistent trample: the walked line stays flattened forever (directional
+    // soft mask), stamped under the feet - the path never springs back.
+    trampleStamp(p.x, p.y, p.velX / gspd, p.velY / gspd, pf);
+  }
+  const gDec = Math.exp(-dt / 800);
+  for (let i = gP.length - 1; i >= 0; i--) {
+    gP[i].z *= gDec; gP[i].w *= gDec;
+    if (Math.abs(gP[i].z) + Math.abs(gP[i].w) < 0.02) gP.splice(i, 1);
+  }
+
   // --- Flow field recompute (only when the player is 2+ tiles from the
   // field's origin, or has left its range). Recomputing on every single tile
   // crossing fired a 7225-cell BFS ~7 times per second while walking; keeping
@@ -289,6 +318,8 @@ function updatePlayer(dt, dtSec) {
     updateFlowField(p.x, p.y);
   }
   p.invulnTimer = Math.max(0, p.invulnTimer - dt);
+  p.hurtFlash = Math.max(0, p.hurtFlash - dt * 0.0035);   // ~285ms fade
+  p.hurtShake = Math.max(0, p.hurtShake - dt * 0.002);
   p.hp = Math.min(p.maxHp, p.hp + p.regen * dtSec);
 
   // --- Lava burn: standing in a lava tile ticks damage on its own clock ---
@@ -300,6 +331,7 @@ function updatePlayer(dt, dtSec) {
       p.lavaT = 400;
       if (!game.dev.godMode) {
         p.hp -= 1;
+        if (window.runLog) runLog.onDamageTaken(1, 'lava');
         spawnFloatingText(p.x, p.y - 10, -1, '#ff9a4a');
         spawnParticles(p.x, p.y, '#ff7a2a', 4, 2);
         resolvePlayerDeath();
@@ -515,6 +547,7 @@ function updateSpawning(dt) {
   g.waveTimer -= dt;
   if (g.waveTimer <= 0) {
     spawnWave();
+    if (window.runLog) runLog.addSpawnType('wave');
     g.waveTimer = Math.max(800, 3000 - g.difficultyMult * 200) * (g.dev.waveIntervalMult || 1) * stormMult;
   }
 
@@ -522,6 +555,7 @@ function updateSpawning(dt) {
   if (g.eliteTimer <= 0) {
     const eliteCount = 1 + Math.floor(g.difficultyMult / 8);
     for (let i = 0; i < eliteCount; i++) spawnEnemy('elite');
+    if (window.runLog) runLog.addSpawnType('elite', eliteCount);
     g.eliteTimer = Math.max(5000, 20000 - g.difficultyMult * 800) * (g.dev.eliteIntervalMult || 1);
   }
 
@@ -530,6 +564,7 @@ function updateSpawning(dt) {
   g.wardenTimer -= dt;
   if (g.difficultyMult >= 12 && g.wardenTimer <= 0) {
     spawnEnemy('warden');
+    if (window.runLog) runLog.addSpawnType('warden');
     spawnParticles(g.player.x, g.player.y, '#fa0', 20, 7);
     g.wardenTimer = Math.max(30000, 90000 - g.difficultyMult * 1500) * (g.dev.eliteIntervalMult || 1);
   }
@@ -537,6 +572,7 @@ function updateSpawning(dt) {
   g.bossTimer -= dt;
   if (g.bossTimer <= 0) {
     spawnEnemy('boss');
+    if (window.runLog) runLog.addSpawnType('boss');
     spawnParticles(g.player.x, g.player.y, '#f0f', 30, 8);
     g.bossTimer = Math.max(90000, 180000 - g.difficultyMult * 3000) * (g.dev.bossIntervalMult || 1);
   }
@@ -600,6 +636,7 @@ function updateEnemies(dt, dtSec) {
           y: e.y + Math.sin(fa) * (e.radius + 8),
           vx: Math.cos(fa) * 130, vy: Math.sin(fa) * 130,
           dmg: e.damage, radius: 5,
+          srcKind: e.kind,
           color: e.glint || '#B83DDB',
           dark: e.core || '#5B1F91',
           head: 'rgb(' + (e.aura || [241, 155, 255]).join(',') + ')',
@@ -688,10 +725,25 @@ function updateEnemies(dt, dtSec) {
       e.slowT -= dt;
       if (e.slowT <= 0) e.slowFactor = 1;
     }
+    // Terrain footing, same as the player: snow/swamp/water/lava pools slow
+    // enemies down (ice never speeds them up). Lava additionally burns on its
+    // own tick clock, routing through damageEnemy so drops/kills still work.
+    const eHaz = tileHazardAt(e.x, e.y);
+    const eHazF = Math.min(HAZARD_FACTOR[eHaz] || 1, 1);
+    if (eHaz === HAZARD_LAVA) {
+      e._lavaT = (e._lavaT || 0) - dt;
+      if (e._lavaT <= 0) {
+        e._lavaT = 400;
+        if (!e.dead) damageEnemy(e, 1, undefined, undefined, undefined, 'lava');
+        spawnParticles(e.x, e.y - e.radius * 0.5, '#ff7a2a', 3, 4);
+      }
+    } else {
+      e._lavaT = 0;
+    }
     // Move with substep per-axis wall sliding: small substeps let enemies
     // naturally round convex corners by sliding along one axis, then
     // transitioning when the wall ends.
-    const spd = e.speed * (e.slowFactor && e.slowFactor < 1 ? e.slowFactor : 1) * (e.spdMult || 1) * dtSec;
+    const spd = e.speed * (e.slowFactor && e.slowFactor < 1 ? e.slowFactor : 1) * (e.spdMult || 1) * eHazF * dtSec;
     // Pathing radius shrinks with size so big enemies can still squeeze
     // through 1-tile doorways; collision is approximate, not visual.
     const hitR = Math.max(3, Math.min(e.radius * 0.4, 10));
@@ -757,7 +809,7 @@ function updateEnemies(dt, dtSec) {
     // Contact damage
     const contactR = e.radius + p.radius;
     if (dist2(e, p) < contactR * contactR) {
-      damagePlayer(e.damage);
+      damagePlayer(e.damage, 'contact', e.kind);
     }
   }
 
@@ -825,7 +877,7 @@ function updateEnemyProjectiles(dt, dtSec) {
     if (cp.life <= 0) { g.castProjectiles.splice(i, 1); continue; }
     if (dist(cp, p) < cp.radius + p.radius) {
       g.castProjectiles.splice(i, 1);
-      damagePlayer(cp.dmg);
+      damagePlayer(cp.dmg, 'projectile', cp.srcKind);
       continue;
     }
   }
@@ -886,12 +938,12 @@ function updateProjectiles(dt, dtSec) {
       if (stopped) return;
       if (pr.hitEnemies.has(e)) return;
       if (dist(pr, e) < e.radius + pr.radius) {
-        damageEnemy(e, pr.dmg);
+        damageEnemy(e, pr.dmg, undefined, undefined, undefined, pr.src || 'projectile');
         pr.hitEnemies.add(e);
         if (pr.areaEffect > 0) {
           g.enemyGrid.queryEach(pr.x, pr.y, pr.areaEffect * p.areaMult, ae => {
             if (ae !== e && dist(pr, ae) < pr.areaEffect * p.areaMult) {
-              damageEnemy(ae, pr.dmg * 0.5);
+              damageEnemy(ae, pr.dmg * 0.5, undefined, undefined, undefined, pr.src || 'projectile');
             }
           });
         }
@@ -1394,9 +1446,16 @@ function update(dt) {
   // After level 15 the level term accelerates quadratically, making the
   // horde reliably tougher in the late game.
   const lvlTerm = lvl <= 15 ? lvl * 0.15 : 15 * 0.15 + (lvl - 15) * (lvl - 15) * 0.25;
+  // Time term flattened from run-log telemetry: the old 1 + T*(1 + T/5)
+  // (T = minutes) drove dm past ~17 by minute 8 on Normal while weapon DPS
+  // still scales roughly linearly, turning every run into a pure attrition
+  // wall. Gentler start + a later, softer spike:
+  //   1 min ~1.8   8 min ~11   15 min ~22   20 min ~30
+  const minutes = g.time / 60000;
+  const timeTerm = 1 + minutes * (0.75 + minutes / 12);
   g.difficultyMult = (g.dev.difficultyOverride > 0)
     ? g.dev.difficultyOverride
-    : (1 + (g.time / 60000) * (1 + g.time / 300000) + lvlTerm) * (typeof difficultyScale === 'function' ? difficultyScale() : 1);
+    : (timeTerm + lvlTerm) * (typeof difficultyScale === 'function' ? difficultyScale() : 1);
 
   updatePlayer(dt, dtSec);
   updateHearts(dt);
@@ -1453,4 +1512,7 @@ function update(dt) {
     }
   }
   if (g.projectiles.length > 300) g.projectiles.splice(0, g.projectiles.length - 300);
+
+  // Balance telemetry: accumulate window stats for the run log (no-op when idle)
+  if (window.runLog) runLog.tick(dt);
 }
