@@ -183,6 +183,7 @@ function _ambFlutterBugs(cx, cy, w, h, biome, count, palette, speedMul) {
       const wX = (tau) => ax + Math.cos(tau * speed / rr + ang0) * rr + Math.sin(tau * 0.00021 + h2 * 6.5) * 55;
       const wY = (tau) => ay + Math.sin(tau * speed / rr + ang0) * rr * 0.75 + Math.cos(tau * 0.00017 + h1 * 8.3) * 42;
       const wx = wX(t), wy = wY(t);
+      if (owningBiomeAt(wx, wy) !== biome) continue;
       const sx = wx - cx, sy = wy - cy;
       if (sx < -70 || sx > w + 70 || sy < -70 || sy > h + 70) continue;
       // heading from the finite difference over a small step; the butterfly's
