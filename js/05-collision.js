@@ -6,10 +6,11 @@
 // tree tiles collide with a CIRCLE around the trunk instead of the full-tile
 // square. You can now graze a treeline or slip past a trunk the way you'd walk
 // around a real tree instead of being stopped by an invisible square around it.
-// Savanna baobabs have a thick water-storing bole, so their trunk hitbox is
-// much fatter.
+// Savanna baobabs are a single giant tree: only the coloured bole at the anchor
+// tile blocks, with a slim circle that hugs it. The canopy footprint is walkable
+// (you walk under the crown), so the hitbox never grows past the trunk.
 const TREE_HIT_R = 11;
-const BAOBAB_HIT_R = 26;
+const BAOBAB_TRUNK_R = 10;
 
 function circleBlocked(x, y, r) {
   const minX = Math.floor((x - r) / TILE);
@@ -22,9 +23,22 @@ function circleBlocked(x, y, r) {
       const tt = getTile(x0 + TILE * 0.5, y0 + TILE * 0.5);
       if (tt !== T_WALL && tt !== T_TREE && tt !== T_TALLGRASS && tt !== T_CLIFF) continue;
       if (tt === T_TREE) {
-        const tr = owningBiomeAt(x0 + TILE * 0.5, y0 + TILE * 0.5) === 'east' ? BAOBAB_HIT_R : TREE_HIT_R;
+        if (owningBiomeAt(x0 + TILE * 0.5, y0 + TILE * 0.5) === 'east') {
+          // Savanna baobab: skip the canopy tiles entirely and collide only
+          // with a slim circle around the bole of the single anchor tile.
+          const tx = Math.floor(x0 / TILE), ty = Math.floor(y0 / TILE);
+          const a = baobabAnchor(Math.floor(tx / BAOBAB_CELL), Math.floor(ty / BAOBAB_CELL));
+          if (!a || a.tx !== tx || a.ty !== ty) continue;
+          // The painted bole sits 5 local units above the base, scaled by the
+          // tree's drawn scale, so centre the hitbox exactly on the artwork.
+          const ddy = y - (a.wy - 5 * baobabScale(a));
+          const ddx = x - a.wx;
+          const rr = r + BAOBAB_TRUNK_R;
+          if (ddx * ddx + ddy * ddy < rr * rr) return true;
+          continue;
+        }
         const ddx = x - (x0 + TILE * 0.5), ddy = y - (y0 + TILE * 0.5);
-        const rr = r + tr;
+        const rr = r + TREE_HIT_R;
         if (ddx * ddx + ddy * ddy < rr * rr) return true;
       } else {
         const x1 = x0 + TILE;

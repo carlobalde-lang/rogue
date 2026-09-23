@@ -31,91 +31,91 @@ const WEAPON_DEFS = {
   magicBolt: {
     name: 'Magic Bolt', icon: '🔮', color: '#aaf',
     desc: 'Fires homing bolts at nearest enemies',
-    baseDmg: 8, baseSpeed: 8, baseRate: 900, baseCount: 1, baseArea: 0,
+    baseDmg: 10, baseSpeed: 8, baseRate: 900, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+2 dmg' + (l > 1 && (l - 1) % 3 === 0 ? ', +1 bolt' : '')
   },
   holyShield: {
     name: 'Holy Shield', icon: '🛡️', color: '#ffa',
     desc: 'Orbiting shields that damage enemies',
-    baseDmg: 12, baseSpeed: 0, baseRate: 0, baseCount: 2, baseArea: 50,
+    baseDmg: 14, baseSpeed: 0, baseRate: 0, baseCount: 2, baseArea: 50,
     upgradeDesc: l => '+3 dmg, +1 orb'
   },
   lightning: {
     name: 'Lightning', icon: '⚡', color: '#ff0',
     desc: 'Strikes nearest enemy with chain lightning',
-    baseDmg: 15, baseSpeed: 0, baseRate: 1200, baseCount: 1, baseArea: 0,
+    baseDmg: 18, baseSpeed: 0, baseRate: 1200, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+4 dmg' + (l > 1 && (l - 1) % 2 === 0 ? ', +1 target' : '')
   },
   fireBlast: {
     name: 'Fire Blast', icon: '🔥', color: '#f80',
     desc: 'Periodic explosions around you',
-    baseDmg: 6, baseSpeed: 0, baseRate: 2200, baseCount: 1, baseArea: 75,
+    baseDmg: 7, baseSpeed: 0, baseRate: 2200, baseCount: 1, baseArea: 75,
     upgradeDesc: l => '+1 dmg, +15 area'
   },
   holyCross: {
     name: 'Stellar', icon: '✨', color: '#aef3ff',
     desc: 'Star projectiles that pierce enemies',
-    baseDmg: 6, baseSpeed: 5, baseRate: 1100, baseCount: 1, baseArea: 0,
+    baseDmg: 7, baseSpeed: 5, baseRate: 1100, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+2 dmg, +1 star'
   },
   chainSaw: {
     name: 'Chain Saw', icon: '🪚', color: '#afc',
     desc: 'Rotating saw: enemies take damage only touching the blades',
-    baseDmg: 8, baseSpeed: 0, baseRate: 0, baseCount: 1, baseArea: 30,
+    baseDmg: 10, baseSpeed: 0, baseRate: 0, baseCount: 1, baseArea: 30,
     upgradeDesc: l => '+2 dmg, +6 area'
   },
   poisonCloud: {
     name: 'Poison Cloud', icon: '☠️', color: '#6e5',
-    desc: 'Leaves clouds around you that poison enemies (DoT)',
-    baseDmg: 6, baseSpeed: 0, baseRate: 1000, baseCount: 1, baseArea: 65,
+    desc: 'Leaves clouds around you that poison enemies',
+    baseDmg: 7, baseSpeed: 0, baseRate: 1000, baseCount: 1, baseArea: 65,
     upgradeDesc: l => '+2 dmg, +10 area'
   },
   boomerang: {
     name: 'Boomerang', icon: '🪃', color: '#8f8',
     desc: 'Throws boomerangs that return, hitting twice',
-    baseDmg: 14, baseSpeed: 6, baseRate: 1400, baseCount: 1, baseArea: 0,
+    baseDmg: 17, baseSpeed: 6, baseRate: 1400, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+3 dmg' + (l > 1 && (l - 1) % 3 === 0 ? ', +1 boomerang' : '')
   },
   turret: {
     name: 'Turret', icon: '🗼', color: '#fc8',
     desc: 'Deploys turrets that fire on their own',
-    baseDmg: 9, baseSpeed: 0, baseRate: 0, baseCount: 1, baseArea: 0,
+    baseDmg: 11, baseSpeed: 0, baseRate: 0, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+2 dmg, +1 turret'
   },
   voidRift: {
     name: 'Void Rift', icon: '🌀', color: '#8af',
     desc: 'Opens rifts that pull enemies in and drain them',
-    baseDmg: 3, baseSpeed: 0, baseRate: 5500, baseCount: 1, baseArea: 90,
+    baseDmg: 4, baseSpeed: 0, baseRate: 5500, baseCount: 1, baseArea: 90,
     upgradeDesc: l => '+15 area, -15% cooldown'
   },
   frostNova: {
     name: 'Frost Nova', icon: '❄️', color: '#8ff',
     desc: 'Pulses of frost that slow enemies in a ring',
-    baseDmg: 4, baseSpeed: 0, baseRate: 2100, baseCount: 1, baseArea: 90,
+    baseDmg: 5, baseSpeed: 0, baseRate: 2100, baseCount: 1, baseArea: 90,
     upgradeDesc: l => '+2 dmg, +18 area'
   },
   bloodScythe: {
     name: 'Blood Scythe', icon: '🩸', color: '#f66',
     desc: 'Arc slash in front; bonus damage from missing HP',
-    baseDmg: 10, baseSpeed: 0, baseRate: 1400, baseCount: 1, baseArea: 115,
+    baseDmg: 12, baseSpeed: 0, baseRate: 1400, baseCount: 1, baseArea: 115,
     upgradeDesc: l => '+3 dmg, +15 arc range'
   },
   familiar: {
     name: 'Familiar', icon: '🛸', color: '#6ff',
     desc: 'Drone that orbits you and shoots the nearest enemy',
-    baseDmg: 5, baseSpeed: 0, baseRate: 620, baseCount: 1, baseArea: 0,
+    baseDmg: 6, baseSpeed: 0, baseRate: 620, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+1 dmg' + (l > 1 && (l - 1) % 3 === 0 ? ', +1 drone' : '')
   },
   whipChain: {
     name: 'Whip Chain', icon: '⛓️', color: '#ffd176',
     desc: 'Lashes a line in your movement direction',
-    baseDmg: 9, baseSpeed: 0, baseRate: 900, baseCount: 1, baseArea: 150,
+    baseDmg: 11, baseSpeed: 0, baseRate: 900, baseCount: 1, baseArea: 150,
     upgradeDesc: l => '+3 dmg, +15 range'
   },
   mirrorShard: {
     name: 'Mirror Shard', icon: '🪞', color: '#bcd0ff',
     desc: 'Glass shards that bounce between nearby enemies',
-    baseDmg: 12, baseSpeed: 9, baseRate: 1300, baseCount: 1, baseArea: 0,
+    baseDmg: 14, baseSpeed: 9, baseRate: 1300, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+2 dmg' + (l > 1 && l % 2 === 1 ? ', +1 shard' : '')
   }
 };
@@ -124,12 +124,12 @@ const WEAPON_DEFS = {
 const PASSIVE_DEFS = {
   maxHp:     { name: 'Vitality',     icon: '❤️', desc: '+20 Max HP', apply: p => { p.maxHp += 20; p.hp = Math.min(p.hp + 20, p.maxHp); } },
   speed:     { name: 'Swift Boots',  icon: '👟', desc: '+12% Move Speed', apply: p => { p.speed *= 1.12; } },
-  damage:    { name: 'Power Up',     icon: '💪', desc: '+15% Damage', apply: p => { p.dmgMult *= 1.15; } },
-  soulHarvest: { name: 'Soul Harvest', icon: '💀', desc: 'Kills explode, damaging nearby enemies (18% chance, small blast)', apply: p => { p.soulHarvest += 0.18; } },
+  damage:    { name: 'Power Up',     icon: '💪', desc: '+20% Damage', apply: p => { p.dmgMult *= 1.20; } },
+  soulHarvest: { name: 'Soul Harvest', icon: '💀', desc: 'Kills explode, damaging nearby enemies (12% chance, small blast)', apply: p => { p.soulHarvest += 0.12; } },
   cooldown:  { name: 'Haste',        icon: '⏱️', desc: '-15% Cooldown', apply: p => { p.cdMult *= 0.85; } },
   armor:     { name: 'Iron Skin',    icon: '🪖', desc: '+1 Armor (reduces dmg)', apply: p => { p.armor += 1; } },
   magnet:    { name: 'Magnet',       icon: '🧲', desc: '+40% Pickup Range', apply: p => { p.pickupRange *= 1.4; } },
-  regen:     { name: 'Regeneration', icon: '💚', desc: '+0.3 HP/s', apply: p => { p.regen += 0.3; } },
+  regen:     { name: 'Regeneration', icon: '💚', desc: '+0.25 HP/s', apply: p => { p.regen += 0.25; } },
   vampirism: { name: 'Vampirism',    icon: '🩸', desc: '+10% of damage dealt becomes HP', apply: p => { p.vamp = (p.vamp || 0) + 0.10; } },
   growth:    { name: 'Growth',       icon: '📈', desc: '+15% Weapon Area / Radius', apply: p => { p.areaMult *= 1.15; } },
   duplicator:{ name: 'Duplicator',   icon: '✌️', desc: '+12% chance shots split into 2 weaker projectiles', apply: p => { p.duplicate = (p.duplicate || 0) + 0.12; } },
@@ -376,7 +376,10 @@ swarmling: {
     // player's roughly-linear weapon scaling.
     hp: dm => 40 + 12 * Math.pow(dm, 1.5),
     speed: dm => 55 + rand(0, 25) + dm * 2,
-    damage: dm => 8 + Math.floor(dm * 3),
+    // Elite contact damage trimmed ~30% from run-log telemetry: elites were
+    // the biggest single source of player damage (43% of all contact damage),
+    // with each hit ~40-60 in the late game.
+    damage: dm => 6 + Math.floor(dm * 2),
     xp: 25,
     color: '#fa0',
     deep: '#0A0614',
@@ -386,7 +389,7 @@ swarmling: {
   warden: {
     name: 'Warden', category: 'warden',
     radius: dm => 24,
-    hp: dm => 90 + 26 * Math.pow(dm, 1.5),
+    hp: dm => 90 + 19.5 * Math.pow(dm, 1.5),
     speed: dm => 55 + dm * 3 + rand(0, 20),
     damage: dm => 10 + Math.floor(dm * 3),
     xp: 45,

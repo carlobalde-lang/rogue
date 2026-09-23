@@ -31,29 +31,12 @@ function maybeDropMagnet(x, y, chance) {
 }
 
 // ============================================================
-// BIOME ELITE BONUSES
+// SHIELD MECHANIC & SLOW
 // ============================================================
-// When an elite or warden is slain, it may grant a small random stat bonus on
-// top of the existing essence payouts. This keeps elite encounters rewarding
-// beyond the generic gem haul.
-const ELITE_BONUSES = [
-  { label: 'DMG +4%',     apply: p => { p.dmgMult *= 1.04; } },
-  { label: 'AREA +5%',    apply: p => { p.areaMult *= 1.05; } },
-  { label: 'SPD +4%',     apply: p => { p.speed *= 1.04; } },
-  { label: 'COOLDOWN -3%',apply: p => { p.cdMult *= 0.97; } },
-  { label: 'PICKUP +25',  apply: p => { p.pickupRange += 25; } },
-  { label: 'REGEN +0.2',  apply: p => { p.regen += 0.2; } }
-];
+// Elites/wardens previously rolled a random permanent stat bonus on death;
+// removed entirely — stacking multiplicative bonuses snowballed long runs into
+// absurd stats. Elites still pay out x3 essence and 5 XP gems as usual.
 
-function applyEliteBonus(e) {
-  const b = ELITE_BONUSES[Math.floor(Math.random() * ELITE_BONUSES.length)];
-  b.apply(game.player);
-  spawnFloatingText(e.x, e.y - e.radius - 22, '⬆ ' + b.label, '#ffd24d');
-  spawnParticles(e.x, e.y - 6, '#ffd24d', 8, 3);
-}
-
-// Drop a Umbra Shards pickup (meta currency). Only elites, wardens and bosses
-// pay these out, so upgrades stay scarce.
 // Frost Nova / cold sources: temporarly reduce an enemy's move speed to
 // the strongest slow applied so far; a fresh weaker slow never overwrites.
 function applySlow(e, factor, durMs) {
@@ -95,7 +78,14 @@ function dropXpGem(x, y, xp, color) {
   });
 }
 
-function damageEnemy(e, dmg, srcX, srcY, silentHit) {
+// Damage-dealt numbers obey the pause-menu toggle (and the low-FPS crowd
+// guard); everything else (SHIELD DOWN!, damage TAKEN, events) never does.
+function spawnDmgText(x, y, value, color) {
+  if (!showDmgNumbers()) return;
+  spawnFloatingText(x, y, value, color, 'dmg');
+}
+
+function damageEnemy(e, dmg, srcX, srcY, silentHit, src) {
   if (e.dead) return;
   const g = game;
   const p = g.player;
@@ -122,7 +112,8 @@ function damageEnemy(e, dmg, srcX, srcY, silentHit) {
     if (Math.abs(diff) < Math.PI * 0.19) {          // ~34° front arc
       e.shield -= dmg;
       e.flashTimer = 100;
-      if (!crowdNoNumbers) spawnFloatingText(e.x, e.y - e.radius - 5, Math.floor(dmg), '#6cf');
+      if (window.runLog) runLog.onShieldBlock(dmg);
+      if (!crowdNoNumbers) spawnDmgText(e.x, e.y - e.radius - 5, Math.floor(dmg), '#6cf');
       if (e.shield <= 0) {
         e.shield = 0;
         spawnParticles(e.x, e.y, '#4af', 12, 6);
@@ -136,8 +127,10 @@ function damageEnemy(e, dmg, srcX, srcY, silentHit) {
   }
 
   e.hp -= dmg;
+  e._dmgTaken = (e._dmgTaken || 0) + dmg;
   e.flashTimer = 100;
-  if (!crowdNoNumbers) spawnFloatingText(e.x, e.y - e.radius - 5, Math.floor(dmg), '#ff0');
+  if (window.runLog) runLog.onDamageDealt(dmg, src);
+  if (!crowdNoNumbers) spawnDmgText(e.x, e.y - e.radius - 5, Math.floor(dmg), '#ff0');
   if (!silentHit) Sound.play('hit');
 
   // Per-type behavior after taking damage (e.g. Leecher self-heal).
@@ -157,6 +150,11 @@ function killEnemy(e) {
   const p = g.player;
   e.dead = true;
   g.kills++;
+  if (window.runLog) {
+    runLog.onKill(e.kind || e.type || 'unknown',
+      (e._bornT !== undefined ? g.time - e._bornT : -1),
+      e._dmgTaken || 0);
+  }
   Sound.play(e.type === 'boss' ? 'dieBoss' : (e.type === 'elite' || e.type === 'warden') ? 'dieElite' : 'die');
 
   // Per-type behavior on death (e.g. Splitter spawns two Shadowlings).
@@ -216,12 +214,6 @@ function killEnemy(e) {
     }
   }
 
-  // Biome elites: a random stat bonus rolls when slain (x3 essence is already
-  // handled above; this is the extra "aggiornamento casuale").
-  if (e.type === 'elite' || e.type === 'warden') {
-    applyEliteBonus(e);
-  }
-
   // Drop XP magnets (Luck boosts the odds). Bosses always, wardens often,
   // elites sometimes, normal mobs rarely.
   const luckMult = 1 + (p.luck || 0) * 1.5;
@@ -244,13 +236,16 @@ function killEnemy(e) {
   // enemies within a radius of the ORIGINAL explosion, so it can't ride
   // across the whole map kill-to-kill.
   if (p.soulHarvest > 0 && Math.random() < p.soulHarvest) {
-    const explosionRadius = 55 * p.areaMult;
+    // Area scaling is capped so stacked Soul Harvest + Growth/Area builds
+    // can't turn every kill into a screen-wide wipe.
+    const explosionRadius = 55 * Math.min(p.areaMult, 1.5);
     const explosionDmg = (4 + p.level) * p.dmgMult;
     // Chain origin: if this kill is part of a chain, use the chain's
     // start point; otherwise this kill starts a fresh chain.
     let originX = e.x, originY = e.y;
     if (e.soulChained) { originX = e.soulOriginX; originY = e.soulOriginY; }
-    const chainRadius = explosionRadius * 2.2;
+    // Fixed chain reach (no area scaling) so cascades stay local.
+    const chainRadius = 120;
     if (dist(e, { x: originX, y: originY }) > chainRadius) {
       originX = e.x; originY = e.y; // too far: break and restart the chain
     }
@@ -265,7 +260,7 @@ function killEnemy(e) {
         ae.soulChained = true;
         ae.soulOriginX = originX;
         ae.soulOriginY = originY;
-        damageEnemy(ae, explosionDmg);
+        damageEnemy(ae, explosionDmg, undefined, undefined, undefined, 'soulHarvest');
       }
     }
     if (GFX.shockwaves) {
@@ -279,16 +274,28 @@ function killEnemy(e) {
   }
 }
 
-function damagePlayer(dmg) {
+function damagePlayer(dmg, src, srcKind) {
   const g = game;
   const p = g.player;
   if (p.invulnTimer > 0 || g.dev.godMode) return;
-  const actualDmg = Math.max(1, dmg - p.armor);
+  // Armor cuts a hit down to at most 75% OFF — it can never reduce it to a
+  // 1-HP tick that regen out-heals. A high-level swarm always dents a tank,
+  // so "invincible even while surrounded" can't happen silently anymore.
+  const safeArmor = Math.min(p.armor, dmg * 0.75);
+  const actualDmg = Math.max(1, dmg - safeArmor);
   p.hp -= actualDmg;
-  p.invulnTimer = 500;
-  spawnFloatingText(p.x, p.y - 30, Math.floor(actualDmg), '#f44');
+  p.invulnTimer = 400;
+  if (window.runLog) runLog.onDamageTaken(actualDmg, src || 'other', srcKind);
+  // Damage-taken number ALWAYS shows (independent of the damage-dealt toggle).
+  spawnFloatingText(p.x, p.y - 30, Math.floor(actualDmg), '#ff3b3b');
   spawnParticles(p.x, p.y, '#f44', 6, 3);
   Sound.play('hurt');
+
+  // Feedback that scales with how hard the hit lands: red vignette + shake.
+  const frac = actualDmg / Math.max(1, p.maxHp);
+  const hit = clamp(0.25 + frac * 3.2, 0.25, 1);
+  p.hurtFlash = Math.max(p.hurtFlash || 0, hit);
+  p.hurtShake = Math.max(p.hurtShake || 0, hit);
 
   // Thorns: reflect a portion of the damage to enemies in contact
   if (p.thorns > 0 && actualDmg > 0) {
@@ -301,7 +308,7 @@ function damagePlayer(dmg) {
       const each = actualDmg * p.thorns / Math.min(targets, 6);
       g.enemyGrid.queryEach(p.x, p.y, rad, e => {
         if (e.dead || dist(p, e) >= p.radius + e.radius + 24) return;
-        damageEnemy(e, each, e.x, e.y);
+        damageEnemy(e, each, e.x, e.y, undefined, 'thorns');
       });
       spawnParticles(p.x, p.y, '#7f4', Math.min(targets * 2, 10), 4);
     }
@@ -319,7 +326,7 @@ function resolvePlayerDeath() {
     p.revives--;
     p.hp = Math.max(1, Math.ceil(p.maxHp * 0.6));
     p.invulnTimer = 2000;
-    spawnFloatingText(p.x, p.y - 34, 'REVIVE!', '#f6f');
+    spawnFloatingText(p.x, p.y - 34, p.revives > 0 ? `REVIVE! (${p.revives} left)` : 'REVIVE! (last)', '#f6f');
     spawnParticles(p.x, p.y, '#f6f', 24, 8);
     Sound.play('levelup');
     return;
@@ -344,9 +351,10 @@ function spawnParticles(x, y, color, count, maxSpeed) {
   }
 }
 
-function spawnFloatingText(x, y, value, color) {
+function spawnFloatingText(x, y, value, color, kind) {
   game.floatingTexts.push({
     x, y, text: String(value), color,
+    kind: kind || 'text',
     life: 800, maxLife: 800, vy: -60
   });
 }

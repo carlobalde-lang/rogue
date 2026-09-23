@@ -16,9 +16,15 @@ const T_TREE = 3;
 // structures in the prairie. Baked like floor but fully covered by tall grass.
 const T_TALLGRASS = 4;
 
+// Global world seed. Rerolled once per run (see rerollWorldSeed) and mixed
+// into seed2() below, so every lattice derived from it — chunk structures,
+// biome borders, pools, groves — shifts together and each game is a brand-new
+// map. 0 reproduces the original fixed world.
+let WORLD_SEED = 0;
+
 // Deterministic hash for a world cell -> [0,1)
 function seed2(x, y) {
-  let h = (x | 0) * 374761393 + (y | 0) * 668265263;
+  let h = (x | 0) * 374761393 + (y | 0) * 668265263 + WORLD_SEED;
   h = (h ^ (h >> 13)) >>> 0;
   h = (h * 1274126177) >>> 0;
   h = (h ^ (h >> 16)) >>> 0;
@@ -498,9 +504,10 @@ const PRAIRIE_GROVE_MAX_R = 6.5;     // largest thicket radius (tiles)
 
 // Savanna baobabs (east wedge): the adobe structures are replaced by single
 // giant baobab trees. Each macro cell may host ONE tree — an anchor trunk tile
-// (always present) plus a soft organic canopy footprint of impassable T_TREE
-// tiles. Cells are small and sparse so the trees stand alone with wide kiting
-// lanes kept open between them.
+// (always present) plus a soft organic canopy footprint of T_TREE tiles. The
+// crown is walkable: collision only stops you at the trunk (see circleBlocked),
+// so the footprint is a canopy to walk under, not a wall. Cells are small and
+// sparse so the trees stand alone with wide kiting lanes kept open between them.
 const BAOBAB_CELL = 10;
 const BAOBAB_CHANCE = 0.16;
 const BAOBAB_MIN_R = 1.4;
@@ -531,12 +538,72 @@ function baobabShapeAt(mx, my, wx, wy) {
   return organicPoolBody(mx, my, wx, wy, R, a.wx, a.wy, 113);
 }
 
+// Drawn scale of a baobab sprite. The renderer caches sprites keyed on a
+// 0.1-rounded scale, so the actual painted tree uses this rounded value;
+// collision/transparency must read the same number to hug the artwork.
+function baobabScale(anchor) {
+  const sg = seed2(anchor.tx * 13 + 1, anchor.ty * 29 + 5);
+  return Math.round((4.6 + sg * 1.6) * 10) / 10;
+}
+
+// True when a world point sits under the painted canopy of ANY big tree (not
+// the ground footprint, which also wraps in front of the base). Each canopy is
+// an ellipse around the crown drawn by drawPropTile, scaled by the tree's drawn
+// scale k. Render uses it to fade the player so a tree reads as passing in
+// front of them. k must match the sprite cache rounding (0.1).
+function underTreeCanopy(wx, wy) {
+  const c0x = Math.floor((wx - 140) / CHUNK_PX), c0y = Math.floor((wy - 140) / CHUNK_PX);
+  const c1x = Math.floor((wx + 140) / CHUNK_PX), c1y = Math.floor((wy + 140) / CHUNK_PX);
+  for (let cy = c0y; cy <= c1y; cy++) {
+    for (let cx = c0x; cx <= c1x; cx++) {
+      const list = getChunkTrees(cx, cy);
+      for (const t of list) {
+        const k = Math.round(t.s * 10) / 10;
+        let dyc, rxc, ryc;
+        if (t.type === 'pine') {        // tapered spire: 12 wide, 11 tall
+          dyc = -18 * k; rxc = 12 * k; ryc = 11 * k;
+        } else if (t.type === 'swamptree') {
+          dyc = -18 * k; rxc = 13 * k; ryc = 11 * k;
+        } else if (t.type === 'cactus') { // tall saguaro column
+          dyc = -9 * k; rxc = 8 * k; ryc = 9 * k;
+        } else if (t.type === 'baobab') { // wide irregular crown
+          dyc = -25 * k; rxc = 29 * k; ryc = 17 * k;
+        } else {                        // forest tree: 13 wide, 13.5 tall
+          dyc = -16.5 * k; rxc = 13 * k; ryc = 13.5 * k;
+        }
+        const dx = (wx - t.x) / rxc;
+        const dy = (wy - (t.y + dyc)) / ryc;
+        if (dx * dx + dy * dy <= 1) return true;
+        if (t.type === 'baobab' && wy <= t.y - 5 * k) {
+          // The bole is far wider than the crown ellipse allows at trunk
+          // height, so passing behind the trunk fell through the gap: fade
+          // too inside the trunk art (north half only — the south half reads
+          // as the player standing in front of it).
+          const bx = (wx - t.x) / (12 * k), by = (wy - (t.y - 5 * k)) / (10 * k);
+          if (bx * bx + by * by <= 1) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 const BIOME_CORE = 'core';
 const BIOME_IDS = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
 
 const BIOME_RADIUS_CORE = 8000;      // ~45s of walking: fully neutral ruins
 const BIOME_RADIUS_FULL = 30000;     // ~3min: the chosen climate is pure
 const BIOME_SECTOR_POWER = 8;        // cos(angle)^P cos falloff → soft blend
+// Precomputed cos/sin of the 8 sector centre angles (-90° + k·45°), so
+// biomeWeightsAt can evaluate cos(a - ca) = cos a·cos ca + sin a·sin ca
+// without per-sector trig or angle wrapping.
+const _SECTOR_COS = new Float64Array(8);
+const _SECTOR_SIN = new Float64Array(8);
+for (let _k = 0; _k < 8; _k++) {
+  const _a = -Math.PI / 2 + _k * Math.PI / 4;
+  _SECTOR_COS[_k] = Math.cos(_a);
+  _SECTOR_SIN[_k] = Math.sin(_a);
+}
 
 const BIOME_DEFS = {
   core: {
@@ -590,8 +657,8 @@ const BIOME_DEFS = {
     ambient: { tint: [255, 84, 18], strength: 0.10 }
   },
   southwest: {
-    name: 'Prairie',          color: '#b9e06a',
-    floor: [48, 50, 24], floorVar: 10, wall: [112, 96, 60],
+    name: 'Prairie',          color: '#2f6a38',
+    floor: [26, 44, 22], floorVar: 9, wall: [58, 82, 40],
     hazard: { type: HAZARD_WATER, density: 0.07 },
     prop:   { type: 'tallgrass', density: 0.30 },
     enemy: 'riverwisp',
@@ -668,19 +735,22 @@ function biomeWeightsAt(px, py) {
   const i = biomeIntensity(r);
   if (i <= 0) return { core: 1 };
   const a = Math.atan2(py, px);
+  const cosA = Math.cos(a), sinA = Math.sin(a);
   const map = {};
   if (i < 1) map.core = 1 - i;
+  // cos(a - ca) = cos a·cos ca + sin a·sin ca. Angle wrapping is irrelevant
+  // because only the cosine is used, so it is dropped entirely. The sector
+  // falloff is cos(·)^8, evaluated with multiplications instead of Math.pow.
   for (let k = 0; k < 8; k++) {
-    const ca = -Math.PI / 2 + k * Math.PI / 4;   // north = -90° (screen up)
-    const d = wrapAngle(a - ca);
-    const w = Math.pow(Math.max(0, Math.cos(d)), BIOME_SECTOR_POWER);
+    const c = cosA * _SECTOR_COS[k] + sinA * _SECTOR_SIN[k];
+    if (c <= 0) continue;
+    const c2 = c * c, c4 = c2 * c2, w = c4 * c4;   // c^8 (BIOME_SECTOR_POWER)
     if (w > 0.03) map[BIOME_IDS[k]] = i * w;
   }
   let sum = 0;
   for (const k in map) sum += map[k];
-  const out = {};
-  for (const k in map) out[k] = map[k] / sum;
-  return out;
+  if (sum > 0) for (const k in map) map[k] /= sum;
+  return map;
 }
 
 // Deterministic dominant biome id for a world point (seed-picked from the
@@ -1358,12 +1428,13 @@ function drawHazardTile(c, px, py, type, r) {
 }
 
 // --- Decorative props (non-colliding scenery, kept inside their tile) ---
-function drawPropTile(c, type, px, py, r, hgt) {
+function drawPropTile(c, type, px, py, r, hgt, skipLight, part) {
   const bx = px + 16;
   const by = py + TILE;
   const vs = 0.6 + r * 0.8;      // size variation from the tile seed
   const vx = (r - 0.5) * 4;      // small horizontal jitter
   if (hgt === undefined) hgt = 1; // temperature growth multiplier (grass mats)
+  const drawLight = !skipLight;   // mat light blades are animated separately
   // Per-blade hash: decorrelates the clump geometry from the tile grid so the
   // grass mat never lines up in rows across neighbouring tiles.
   const rh = (k) => {
@@ -1384,16 +1455,18 @@ function drawPropTile(c, type, px, py, r, hgt) {
       c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 31) - 0.5) * lean, grt - gh);
     }
     c.stroke();
-    c.strokeStyle = light;
-    c.lineWidth = 1;
-    c.beginPath();
-    for (let i = 0; i < (nLight || 10); i++) {
-      const gx = bx + (rh(i + 41) - 0.5) * 34;
-      const grt = py + rh(i + 59) * TILE;
-      const gh = (base * 0.72 + rh(i + 53) * vari) * vs * hgt;
-      c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 67) - 0.5) * lean * 0.7, grt - gh);
+    if (drawLight) {
+      c.strokeStyle = light;
+      c.lineWidth = 1;
+      c.beginPath();
+      for (let i = 0; i < (nLight || 10); i++) {
+        const gx = bx + (rh(i + 41) - 0.5) * 34;
+        const grt = py + rh(i + 59) * TILE;
+        const gh = (base * 0.72 + rh(i + 53) * vari) * vs * hgt;
+        c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 67) - 0.5) * lean * 0.7, grt - gh);
+      }
+      c.stroke();
     }
-    c.stroke();
   };
   if (type === 'icegrass') {            // frozen grass: short, sparse, icy blue
     grassMat('#6f93b8', '#c2ddf5', 15, 10, 5);
@@ -1419,14 +1492,16 @@ function drawPropTile(c, type, px, py, r, hgt) {
         c.moveTo(gx, cyy); c.lineTo(gx + (rh(29 + i + k * 9) - 0.5) * 4, cyy - gh);
       }
       c.stroke();
-      c.strokeStyle = '#a57950';
-      c.lineWidth = 1;
-      c.beginPath();
-      for (let i = 0; i < 3; i++) {
-        const gx = cxx + (rh(37 + i + k * 23) - 0.5) * 8;
-        c.moveTo(gx, cyy); c.lineTo(gx + (rh(43 + i + k * 31) - 0.5) * 5, cyy - (5 + rh(47 + i + k * 11) * 4));
+      if (drawLight) {          // canyon light blades move with the wind, too
+        c.strokeStyle = '#a57950';
+        c.lineWidth = 1;
+        c.beginPath();
+        for (let i = 0; i < 3; i++) {
+          const gx = cxx + (rh(37 + i + k * 23) - 0.5) * 8;
+          c.moveTo(gx, cyy); c.lineTo(gx + (rh(43 + i + k * 31) - 0.5) * 5, cyy - (5 + rh(47 + i + k * 11) * 4));
+        }
+        c.stroke();
       }
-      c.stroke();
     }
   } else if (type === 'drygrass') {     // desert: thin pale scruff
     grassMat('#a07a3a', '#cfa65c', 12, 8, 4);
@@ -1529,33 +1604,139 @@ function drawPropTile(c, type, px, py, r, hgt) {
     c.fillRect(bx - 6, by - 11, 3, 1);
     c.fillRect(bx + 5, by - 9, 1, 1);
   } else if (type === 'baobab') {           // BAOBAB - TOP DOWN (giant savanna tree)
-    c.fillStyle = 'rgba(0,0,0,0.22)';       // fat cast shadow ring
-    c.fillRect(bx - 14, by - 8, 28, 9);
-    c.fillRect(bx - 9, by - 12, 18, 11);
-    c.fillStyle = '#3d2b15';                // thick water-storing bole
-    c.beginPath();
-    c.ellipse(bx, by - 3, 6, 4.5, 0, 0, 7);
-    c.fill();
-    c.fillStyle = '#5c4426';
-    c.beginPath();
-    c.ellipse(bx - 1, by - 4, 3.5, 2.5, 0, 0, 7);
-    c.fill();
-    c.fillStyle = '#284018';                // flat-topped irregular crown
-    c.beginPath();
-    c.arc(bx - 7, by - 17, 11, 0, 7);
-    c.arc(bx + 7, by - 16, 12, 0, 7);
-    c.arc(bx, by - 23, 9, 0, 7);
-    c.fill();
-    c.fillStyle = '#335522';
-    c.beginPath();
-    c.arc(bx - 6, by - 15, 8, 0, 7);
-    c.arc(bx + 6, by - 15, 9, 0, 7);
-    c.fill();
-    c.fillStyle = '#3f6b2a';
-    c.beginPath();
-    c.arc(bx - 3, by - 19, 5, 0, 7);
-    c.arc(bx + 3, by - 18, 5, 0, 7);
-    c.fill();
+    // ============================================================
+    // BAOBAB - MASSIVE SILHOUETTE / TOP-DOWN PIXEL ART
+    // ============================================================
+    // part splits the art so the sway loop can keep the anchored footprint
+    // (shadow, roots, bole) perfectly still while only the canopy leans.
+    const isBase = part !== 'canopy';
+    const isCanopy = part !== 'base';
+    if (isBase) {
+      // --- Large soft ground shadow ---
+      c.fillStyle = 'rgba(0,0,0,0.20)';
+      c.beginPath();
+      c.ellipse(bx, by - 5, 25, 15, 0, 0, Math.PI * 2);
+      c.fill();
+
+      // Secondary darker shadow beneath the canopy
+      c.fillStyle = 'rgba(0,0,0,0.12)';
+      c.beginPath();
+      c.ellipse(bx + 2, by - 15, 21, 13, 0, 0, Math.PI * 2);
+      c.fill();
+
+      // --- Massive roots extending from the trunk ---
+      c.fillStyle = '#3b2917';
+
+      c.beginPath();
+      c.moveTo(bx - 5, by - 3);
+      c.lineTo(bx - 17, by + 2);
+      c.lineTo(bx - 21, by + 5);
+      c.lineTo(bx - 11, by + 5);
+      c.lineTo(bx - 2, by + 1);
+      c.closePath();
+      c.fill();
+
+      c.beginPath();
+      c.moveTo(bx + 5, by - 3);
+      c.lineTo(bx + 17, by + 2);
+      c.lineTo(bx + 21, by + 5);
+      c.lineTo(bx + 11, by + 5);
+      c.lineTo(bx + 2, by + 1);
+      c.closePath();
+      c.fill();
+
+      // --- Huge water-storing trunk ---
+      c.fillStyle = '#3d2b18';
+
+      c.beginPath();
+      c.ellipse(bx, by - 5, 10, 8, 0, 0, Math.PI * 2);
+      c.fill();
+
+      // Main trunk highlight
+      c.fillStyle = '#5b4326';
+
+      c.beginPath();
+      c.ellipse(bx - 2, by - 7, 7, 5.5, 0, 0, Math.PI * 2);
+      c.fill();
+
+      // Trunk texture
+      c.fillStyle = '#765832';
+
+      c.fillRect(bx - 5, by - 10, 2, 5);
+      c.fillRect(bx + 2, by - 8, 2, 4);
+      c.fillRect(bx - 1, by - 4, 2, 3);
+    }
+
+    if (isCanopy) {
+      // --- Thick branches visible beneath canopy ---
+      c.fillStyle = '#49351e';
+
+      c.fillRect(bx - 15, by - 15, 14, 5);
+      c.fillRect(bx + 1, by - 16, 15, 5);
+      c.fillRect(bx - 4, by - 27, 8, 15);
+
+      // --- Outer canopy silhouette (irregular and wide) ---
+      c.fillStyle = '#263b16';
+
+      c.beginPath();
+
+      c.moveTo(bx - 25, by - 15);
+      c.lineTo(bx - 23, by - 23);
+      c.lineTo(bx - 17, by - 29);
+      c.lineTo(bx - 10, by - 30);
+      c.lineTo(bx - 7, by - 38);
+      c.lineTo(bx + 1, by - 41);
+      c.lineTo(bx + 9, by - 37);
+      c.lineTo(bx + 14, by - 31);
+      c.lineTo(bx + 23, by - 30);
+      c.lineTo(bx + 28, by - 24);
+      c.lineTo(bx + 27, by - 16);
+      c.lineTo(bx + 22, by - 10);
+      c.lineTo(bx + 12, by - 8);
+      c.lineTo(bx + 4, by - 11);
+      c.lineTo(bx - 6, by - 9);
+      c.lineTo(bx - 16, by - 10);
+      c.closePath();
+
+      c.fill();
+
+      // --- Mid-tone foliage masses ---
+      c.fillStyle = '#385522';
+
+      c.beginPath();
+      c.arc(bx - 15, by - 22, 11, 0, Math.PI * 2);
+      c.arc(bx - 5, by - 31, 11, 0, Math.PI * 2);
+      c.arc(bx + 8, by - 30, 13, 0, Math.PI * 2);
+      c.arc(bx + 18, by - 21, 11, 0, Math.PI * 2);
+      c.arc(bx + 7, by - 15, 10, 0, Math.PI * 2);
+      c.fill();
+
+      // --- Light foliage patches ---
+      c.fillStyle = '#4b7029';
+
+      c.beginPath();
+      c.arc(bx - 12, by - 25, 7, 0, Math.PI * 2);
+      c.arc(bx - 2, by - 34, 7, 0, Math.PI * 2);
+      c.arc(bx + 10, by - 29, 8, 0, Math.PI * 2);
+      c.arc(bx + 17, by - 20, 6, 0, Math.PI * 2);
+      c.fill();
+
+      // --- Bright pixel clusters ---
+      c.fillStyle = '#66883a';
+
+      c.fillRect(bx - 15, by - 29, 4, 3);
+      c.fillRect(bx - 5, by - 37, 5, 3);
+      c.fillRect(bx + 7, by - 33, 4, 3);
+      c.fillRect(bx + 16, by - 24, 4, 3);
+
+      // --- Small dark gaps for depth ---
+      c.fillStyle = '#1c2d12';
+
+      c.fillRect(bx - 22, by - 19, 4, 4);
+      c.fillRect(bx - 8, by - 15, 4, 4);
+      c.fillRect(bx + 12, by - 13, 5, 3);
+      c.fillRect(bx + 19, by - 26, 4, 4);
+    }
   } else if (type === 'canyonrock') {        // small scattered scree / boulder
     const rk = 0.38 + r * 0.55;              // much smaller + varied rock size
     const ox = (r - 0.5) * 8;
@@ -1593,23 +1774,28 @@ const treeCache = new Map();
 // so the same bush-height class is shared by all trees of that size). The
 // anchor: drawPropTile called with px=-16,py=0 fixes the base at (0,TILE) in
 // local space, which the caller maps onto the world root point of the tree.
-function bigTreeSprite(type, s) {
-  const key = type + ':' + (Math.round(s * 10) / 10).toFixed(1);
+// part ('base'/'canopy') bakes a single baobab layer so the sway loop can keep
+// the footprint static; undefined bakes the whole tree as before.
+function bigTreeSprite(type, s, part) {
+  const kstr = (Math.round(s * 10) / 10).toFixed(1);
+  const key = part ? part + ':' + type + ':' + kstr : type + ':' + kstr;
   let spr = treeSpriteCache.get(key);
   if (spr) return spr;
-  const k = parseFloat(key.slice(key.indexOf(':') + 1));
-  const cw = Math.ceil(27 * k) + 6;
-  const ch = Math.ceil(32 * k) + 6;
+  const k = parseFloat(kstr);
+  // Canvas must fit every tree silhouette: local drawPropTile space spans
+  // bx in [-28,28] and by in [-9,38] (crown 41 above the base, roots 6 below).
+  const cw = Math.ceil(58 * k) + 6;
+  const ch = Math.ceil(60 * k) + 6;
   const cv = document.createElement('canvas');
   cv.width = cw; cv.height = ch;
   const c = cv.getContext('2d');
   c.save();
-  c.translate(3 + 13.5 * k, ch - 3 - 32 * k);
+  c.translate(3 + 29 * k, ch - 3 - 45 * k);
   c.scale(k, k);
-  drawPropTile(c, type, -16, 0, 0);
+  drawPropTile(c, type, -16, 0, 0, 1, undefined, part);
   c.restore();
-  cv._ox = 3 + 13.5 * k;    // canvas coords of the tree base
-  cv._oy = ch - 3;
+  cv._ox = 3 + 29 * k;    // canvas coords of the tree base
+  cv._oy = ch - 3 - 13 * k;
   treeSpriteCache.set(key, cv);
   if (treeSpriteCache.size > 120) {
     const keys = [...treeSpriteCache.keys()];
@@ -1650,9 +1836,9 @@ function getChunkTrees(cx, cy) {
       if (ownHazardAt(wx, wy) !== HAZARD_NONE) continue;
       if (t === T_TREE && owningBiomeAt(wx + TILE * 0.5, wy + TILE * 0.5) === 'east') {
         // Savanna baobab: only the anchor tile of the hosting macro cell draws
-        // the single giant tree — the rest of the footprint stays impassable
-        // but is covered by that one canopy, so a baobab reads as one tree,
-        // not a grove cluster.
+        // the single giant tree — the rest of the footprint is the same crown
+        // (walkable; collision keeps you off the trunk only), so a baobab reads
+        // as one tree, not a grove cluster.
         const wxC = wx + TILE * 0.5, wyC = wy + TILE * 0.5;
         const cmx = Math.floor(wxC / TILE / BAOBAB_CELL);
         const cmy = Math.floor(wyC / TILE / BAOBAB_CELL);
@@ -1663,8 +1849,7 @@ function getChunkTrees(cx, cy) {
           }
         }
         if (anchor && cx * CHUNK + tx === anchor.tx && cy * CHUNK + ty === anchor.ty) {
-          const sg = seed2(anchor.tx * 13 + 1, anchor.ty * 29 + 5);
-          list.push({ type: 'baobab', x: anchor.wx, y: anchor.wy, s: 4.6 + sg * 1.6 });
+          list.push({ type: 'baobab', x: anchor.wx, y: anchor.wy, s: baobabScale(anchor) });
         }
         continue;
       }
@@ -1713,7 +1898,12 @@ function treeLoopFrames(type, s) {
   const key = type + ':' + (Math.round(s * 10) / 10).toFixed(1);
   let loop = treeLoopCache.get(key);
   if (loop) return loop;
-  const spr = bigTreeSprite(type, s);
+  // Baobab footprint (shadow, roots, bole) must not sway: bake it as a static
+  // base layer and rotate only the canopy sprite on top. Other trees keep the
+  // single full sprite so the common path stays one drawImage per frame.
+  const isBaobab = type === 'baobab';
+  const spr = isBaobab ? bigTreeSprite(type, s, 'base') : bigTreeSprite(type, s);
+  const canopySpr = isBaobab ? bigTreeSprite(type, s, 'canopy') : spr;
   const k = parseFloat(key.slice(key.indexOf(':') + 1));
   const swayA = 0.010 + k * 0.002;
   // Shadow: long shade cast down-right from the trunk base (SY is the base).
@@ -1741,10 +1931,12 @@ function treeLoopFrames(type, s) {
     c.lineTo(dx + shW, dy - 9);
     c.closePath();
     c.fill();
-    // Canopy leaning over its sway phase, pivoting around the trunk base.
+    // Base layer stays planted on the ground; the canopy leans over its sway
+    // phase, pivoting around the trunk base at (dx,dy).
     c.translate(dx, dy);
+    if (isBaobab) c.drawImage(spr, -spr._ox, -spr._oy);
     c.rotate(Math.sin(n / TREE_SWAY_N * PI2) * swayA);
-    c.drawImage(spr, -spr._ox, -spr._oy);
+    c.drawImage(canopySpr, -canopySpr._ox, -canopySpr._oy);
     frames.push(cv);
   }
   loop = { frames, _dx: dx, _dy: dy, _N: TREE_SWAY_N };
@@ -1789,6 +1981,9 @@ function drawTrees(cx, cy, w, h) {
 // follow the biome temperature; colour follows the biome. Impassable prairie
 // thickets (T_TALLGRASS) bake a dense, very tall patch instead of the open mat.
 function stampBiomeGrass(c, lx, ly, cx, cy, ox, oy) {
+  // With the WebGL grass layer active every blade (dark base + light top) is
+  // baked in the walk pass, so the static chunks must not stamp any of it.
+  if (GFX.grass && typeof WG !== 'undefined' && WG.ok) return;
   const px = lx * TILE + (ox || 0);
   const py = ly * TILE + (oy || 0);
   const wx = cx * CHUNK_PX + lx * TILE;
@@ -1798,7 +1993,7 @@ function stampBiomeGrass(c, lx, ly, cx, cy, ox, oy) {
   if (ownHazardAt(wx, wy) !== HAZARD_NONE) return;
   const gr = seed2(cx * CHUNK + lx * 57 + 3, cy * CHUNK + ly * 41 + 11);
   if (tt === T_TALLGRASS) {
-    drawPropTile(c, 'prairiegrass', px, py, gr);
+    drawPropTile(c, 'prairiegrass', px, py, gr, undefined, GFX.grass);
     return;
   }
   const gtype = BIOME_GRASS[owningBiomeAt(wx, wy)];
@@ -1808,7 +2003,7 @@ function stampBiomeGrass(c, lx, ly, cx, cy, ox, oy) {
   // mat), so the rock lanes read as skeleton terrain.
   const dens = temp === 0.9 ? 0.07 : grassDensity(temp);
   if (gr >= dens) return;
-  drawPropTile(c, gtype, px, py, gr, temp === 0.9 ? 1 : grassHeight(temp));
+  drawPropTile(c, gtype, px, py, gr, temp === 0.9 ? 1 : grassHeight(temp), GFX.grass);
 }
 
 // Low-sun shadow cast by one solid tile (wall / tree / thicket): a long shade
@@ -2247,4 +2442,41 @@ function preBakeChunks(px, py) {
     const i = best.indexOf(',');
     getChunkCanvas(parseInt(best.slice(0, i), 10), parseInt(best.slice(i + 1), 10));
   }
+}
+
+// Reroll the world and drop every derived cache, so the next run generates a
+// brand-new map. Called once per run (beginRun) BEFORE the prewarm bake, so the
+// freshly rolled terrain is what gets streamed in. All world art/data is a pure
+// function of WORLD_SEED, so clearing the caches is enough to switch maps.
+function rerollWorldSeed() {
+  WORLD_SEED = (Math.random() * 4294967296) >>> 0;
+  chunkMap.clear();
+  hazardMapCache.clear();
+  lavaCache.clear();
+  hazardCache.clear();
+  chestCache.clear();
+  chunkCanvasCache.clear();
+  treeSpriteCache.clear();
+  treeCache.clear();
+  treeLoopCache.clear();
+  if (typeof clearTorchCache === 'function') clearTorchCache();
+}
+
+// Ordered list (ring-outward, centre chunk first) of every chunk within `radius`
+// chunks of chunk (cx, cy). Used by the pre-run loading screen: baking these
+// canvases means the whole opening screen is streamed (tile data + terrain art)
+// before the run starts, so the first seconds never hitch on a chunk bake.
+// The list is NOT filtered by cache state — getChunkCanvas returns instantly
+// for already-baked chunks, so the caller can just walk the full ring.
+function prewarmChunkList(cx, cy, radius) {
+  const keys = [];
+  for (let r = 0; r <= radius; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        keys.push((cx + dx) + ',' + (cy + dy));
+      }
+    }
+  }
+  return keys;
 }

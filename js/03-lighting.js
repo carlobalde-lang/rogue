@@ -3,6 +3,12 @@
 // ============================================================
 const torchCache = new Map();
 
+// Drop the torch layout (and the world-space visibility paths cached on each
+// torch) so a fresh world seed rebuilds them from the new tiles.
+function clearTorchCache() {
+  torchCache.clear();
+}
+
 // Every chunk gets a deterministic set of torches on floor tiles that
 // line a wall, so the lighting is stable across frames. Placement avoids
 // the old random scatter: candidates are accepted with a dart-throwing

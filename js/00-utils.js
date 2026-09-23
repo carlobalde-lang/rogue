@@ -44,3 +44,21 @@ function formatTime(ms) {
 function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+// --- Persistent user preferences (localStorage, keyed `shadow.prefs.<k>`) ---
+function prefGet(key, defVal) {
+  try {
+    const v = localStorage.getItem('shadow.prefs.' + key);
+    return v === null ? defVal : (v === '1' || v === 'true');
+  } catch (e) { return defVal; }
+}
+
+function prefSet(key, val) {
+  try { localStorage.setItem('shadow.prefs.' + key, val ? '1' : '0'); } catch (e) {}
+}
+
+// Latest user choice: show the yellow damage-dealt numbers above enemies.
+// Cached in memory so the render loop never hits localStorage per frame.
+let _dmgNumbers = prefGet('dmgNumbers', true);
+function setDmgNumbers(v) { _dmgNumbers = !!v; prefSet('dmgNumbers', _dmgNumbers); }
+function showDmgNumbers() { return _dmgNumbers; }

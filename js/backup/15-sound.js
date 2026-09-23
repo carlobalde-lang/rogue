@@ -984,71 +984,73 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — domanda, ingresso deciso, primo salto verso l'alto
+        // Bar 1
         [
-          M(0, 7, 3, 1.2),
-          M(4, 9, 2),
-          M(7, 10, 3, 1.1),
-          M(12, 12, 2, 1.3)
-        ],
-
-        // Bar 2 — la domanda sale, picco di tensione, resta sospesa
-        [
-          M(0, 10, 2),
-          M(3, 12, 2, 1.1),
-          M(6, 14, 3, 1.3),
-          M(11, 10, 2)
-        ],
-
-        // Bar 3 — risposta: discesa per gradi con nota di passaggio
-        [
-          M(0, 9, 2),
-          M(2, 7, 1),
-          M(4, 5, 2),
-          M(8, 4, 2, 1.1),
-          M(12, 5, 2)
-        ],
-
-        // Bar 4 — cadenza, si posa quasi sulla tonica
-        [
-          M(0, 7, 2),
-          M(4, 5, 1),
-          M(6, 4, 1),
-          M(8, 2, 2),
-          M(12, 2, 4, 1.2)
-        ],
-
-        // Bar 5 — nuova sotto-frase, sparsa e sospesa (respiro)
-        [
-          M(0, 4, 2),
-          M(6, 5, 1),
-          M(8, 7, 3, 1.1),
-          M(13, 9, 2)
-        ],
-
-        // Bar 6 — riprende slancio verso il secondo climax
-        [
-          M(0, 7, 2),
+          M(0, 7, 2, 1.2),
           M(3, 9, 1),
           M(4, 10, 2, 1.1),
-          M(9, 12, 2),
-          M(13, 10, 2)
-        ],
-
-        // Bar 7 — salita finale
-        [
-          M(0, 9, 2, 1.1),
-          M(4, 11, 2),
-          M(8, 12, 2, 1.2),
-          M(12, 14, 3, 1.3)
-        ],
-
-        // Bar 8 — climax assoluto del brano, poi discesa che richiude il loop
-        [
-          M(0, 14, 3, 1.4),
-          M(4, 12, 2),
           M(8, 9, 2),
-          M(12, 7, 4, 1.2)
+          M(12, 7, 3, 1.1)
+        ],
+
+        // Bar 2
+        [
+          M(0, 5, 2),
+          M(3, 7, 1),
+          M(4, 9, 2, 1.1),
+          M(8, 10, 2),
+          M(12, 9, 2),
+          M(15, 7, 1)
+        ],
+
+        // Bar 3
+        [
+          M(0, 4, 2, 1),
+          M(4, 7, 2, 1.1),
+          M(8, 9, 2),
+          M(12, 11, 2, 1.2)
+        ],
+
+        // Bar 4
+        [
+          M(0, 9, 2),
+          M(3, 7, 1),
+          M(4, 5, 2),
+          M(8, 7, 2, 1),
+          M(12, 9, 3, 1.2)
+        ],
+
+        // Bar 5
+        [
+          M(0, 7, 2),
+          M(4, 5, 2),
+          M(8, 3, 2),
+          M(12, 5, 3)
+        ],
+
+        // Bar 6
+        [
+          M(0, 4, 2),
+          M(3, 5, 1),
+          M(4, 7, 2),
+          M(8, 9, 2),
+          M(12, 7, 3)
+        ],
+
+        // Bar 7
+        [
+          M(0, 7, 2, 1.1),
+          M(4, 9, 2),
+          M(8, 10, 2),
+          M(12, 12, 2, 1.2)
+        ],
+
+        // Bar 8
+        [
+          M(0, 11, 2, 1.2),
+          M(4, 10, 2),
+          M(8, 7, 2),
+          M(12, 5, 4, 1.3)
         ]
 
       ],
@@ -1086,66 +1088,58 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — domanda, sale verso una tensione sospesa
         [
           M(0, 7, 3),
           M(5, 9, 2),
           M(9, 10, 3),
-          M(14, 12, 1)
+          M(14, 9, 1)
         ],
 
-        // Bar 2 — la tensione continua a salire, poi si allenta
         [
-          M(0, 10, 3),
-          M(5, 12, 2),
+          M(0, 5, 3),
+          M(5, 7, 2),
           M(9, 9, 3),
           M(14, 7, 1)
         ],
 
-        // Bar 3 — risposta, discesa per gradi
         [
-          M(0, 9, 2),
-          M(4, 7, 2),
-          M(8, 5, 2),
-          M(12, 4, 3)
+          M(0, 10, 2),
+          M(4, 12, 2),
+          M(8, 10, 2),
+          M(12, 9, 3)
         ],
 
-        // Bar 4 — cadenza verso una nota più stabile
+        [
+          M(0, 7, 3),
+          M(5, 5, 2),
+          M(9, 7, 2),
+          M(13, 9, 2)
+        ],
+
+        [
+          M(0, 5, 4),
+          M(8, 3, 3),
+          M(13, 5, 2)
+        ],
+
+        [
+          M(0, 7, 3),
+          M(5, 9, 2),
+          M(9, 10, 2),
+          M(13, 12, 2)
+        ],
+
+        [
+          M(0, 10, 3),
+          M(5, 9, 2),
+          M(9, 7, 3)
+        ],
+
         [
           M(0, 5, 3),
-          M(5, 4, 2),
-          M(9, 3, 2),
-          M(13, 2, 2)
-        ],
-
-        // Bar 5 — sotto-frase sparsa, respiro
-        [
-          M(0, 4, 4),
-          M(8, 5, 3),
-          M(13, 7, 2)
-        ],
-
-        // Bar 6 — nuovo slancio verso il climax
-        [
-          M(0, 9, 3),
-          M(5, 10, 2),
-          M(9, 12, 2),
-          M(13, 10, 2)
-        ],
-
-        // Bar 7 — climax cristallino
-        [
-          M(0, 12, 3),
-          M(5, 14, 2),
-          M(9, 10, 3)
-        ],
-
-        // Bar 8 — discesa finale che richiude il loop
-        [
-          M(0, 9, 3),
           M(5, 7, 2),
-          M(9, 5, 2),
-          M(13, 3, 3)
+          M(9, 9, 2),
+          M(13, 7, 3)
         ]
 
       ],
@@ -1183,7 +1177,6 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — motivo plucked, apertura
         [
           M(0, 4, 1),
           M(2, 4, 1),
@@ -1193,66 +1186,59 @@ const Sound = (() => {
           M(12, 4, 2)
         ],
 
-        // Bar 2 — sale un po' più in alto
         [
           M(0, 4, 1),
           M(2, 4, 1),
           M(4, 7, 2),
-          M(8, 12, 1),
+          M(8, 11, 1),
           M(10, 9, 1),
           M(12, 7, 2)
         ],
 
-        // Bar 3 — continua a salire invece di richiudersi subito
         [
           M(0, 2, 2),
           M(4, 4, 1),
           M(6, 7, 1),
           M(8, 9, 2),
-          M(12, 11, 2)
+          M(12, 7, 2)
         ],
 
-        // Bar 4 — discende dal nuovo picco
         [
-          M(0, 12, 1),
-          M(2, 9, 1),
-          M(4, 7, 2),
-          M(8, 4, 2),
-          M(12, 2, 2)
+          M(0, 9, 1),
+          M(2, 7, 1),
+          M(4, 4, 2),
+          M(8, 2, 2),
+          M(12, 4, 2)
         ],
 
-        // Bar 5 — anticipa il climax
         [
           M(0, 5, 2),
           M(4, 7, 2),
           M(8, 9, 2),
-          M(12, 14, 2)
+          M(12, 11, 2)
         ],
 
-        // Bar 6 — ridiscende brevemente
         [
-          M(0, 12, 1),
-          M(2, 9, 1),
-          M(4, 7, 2),
-          M(8, 5, 2),
-          M(12, 4, 2)
+          M(0, 9, 1),
+          M(2, 7, 1),
+          M(4, 5, 2),
+          M(8, 4, 2),
+          M(12, 2, 2)
         ],
 
-        // Bar 7 — climax vero e proprio
         [
           M(0, 4, 1),
           M(2, 7, 1),
           M(4, 9, 2),
-          M(8, 12, 2),
-          M(12, 14, 2)
+          M(8, 11, 2),
+          M(12, 9, 2)
         ],
 
-        // Bar 8 — risoluzione discendente
         [
-          M(0, 12, 2),
-          M(4, 9, 2),
-          M(8, 7, 2),
-          M(12, 4, 4)
+          M(0, 7, 2),
+          M(4, 5, 2),
+          M(8, 4, 2),
+          M(12, 2, 4)
         ]
 
       ],
@@ -1290,7 +1276,6 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — tema marimba, apertura luminosa
         [
           M(0, 0, 1, 1.2),
           M(2, 2, 1),
@@ -1300,7 +1285,6 @@ const Sound = (() => {
           M(12, 2, 2)
         ],
 
-        // Bar 2 — variazione, sale un poco
         [
           M(0, 0, 1),
           M(2, 2, 1),
@@ -1310,57 +1294,51 @@ const Sound = (() => {
           M(12, 4, 2)
         ],
 
-        // Bar 3 — continua a salire invece di richiudere subito
         [
           M(0, 4, 1),
           M(2, 5, 1),
           M(4, 7, 2, 1.2),
           M(8, 9, 1),
-          M(10, 11, 1),
-          M(12, 9, 2)
+          M(10, 7, 1),
+          M(12, 5, 2)
         ],
 
-        // Bar 4 — risposta, discende verso la tonica
         [
-          M(0, 9, 2),
-          M(4, 7, 2),
-          M(8, 4, 2),
-          M(12, 2, 3)
+          M(0, 7, 2),
+          M(4, 4, 2),
+          M(8, 2, 2),
+          M(12, 0, 3)
         ],
 
-        // Bar 5 — nuovo slancio, più ampio del primo
         [
           M(0, 2, 1),
           M(2, 4, 1),
           M(4, 7, 2),
           M(8, 9, 2),
-          M(12, 11, 2)
+          M(12, 7, 2)
         ],
 
-        // Bar 6 — sale ancora, preparando il climax
         [
-          M(0, 9, 1),
+          M(0, 5, 1),
           M(2, 7, 1),
           M(4, 9, 2),
-          M(8, 11, 2),
-          M(12, 12, 2)
-        ],
-
-        // Bar 7 — rincorsa finale
-        [
-          M(0, 7, 1),
-          M(2, 9, 1),
-          M(4, 11, 2),
-          M(8, 12, 2),
-          M(12, 14, 2)
-        ],
-
-        // Bar 8 — climax e risoluzione
-        [
-          M(0, 14, 2),
-          M(4, 9, 2),
           M(8, 7, 2),
-          M(12, 4, 4)
+          M(12, 4, 2)
+        ],
+
+        [
+          M(0, 0, 1),
+          M(2, 2, 1),
+          M(4, 4, 2),
+          M(8, 7, 2),
+          M(12, 9, 2)
+        ],
+
+        [
+          M(0, 7, 2),
+          M(4, 5, 2),
+          M(8, 4, 2),
+          M(12, 2, 4)
         ]
 
       ],
@@ -1398,7 +1376,6 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — frase lenta di apertura
         [
           M(0, 0, 3),
           M(5, 3, 1),
@@ -1406,7 +1383,6 @@ const Sound = (() => {
           M(13, 3, 2)
         ],
 
-        // Bar 2 — ripete e sale un poco
         [
           M(0, 0, 3),
           M(5, 3, 1),
@@ -1414,46 +1390,40 @@ const Sound = (() => {
           M(13, 5, 2)
         ],
 
-        // Bar 3 — continua a salire
         [
           M(0, 5, 2),
           M(4, 7, 2),
-          M(8, 10, 3),
-          M(13, 8, 2)
-        ],
-
-        // Bar 4 — primo picco, poi respiro
-        [
-          M(0, 12, 2),
-          M(4, 10, 2),
           M(8, 8, 3),
           M(13, 7, 2)
         ],
 
-        // Bar 5 — sotto-frase più intima
         [
-          M(0, 3, 3),
-          M(5, 5, 2),
-          M(9, 8, 3)
-        ],
-
-        // Bar 6 — rincorsa verso il climax
-        [
-          M(0, 5, 2),
+          M(0, 10, 2),
           M(4, 8, 2),
-          M(8, 10, 2),
-          M(12, 12, 3)
-        ],
-
-        // Bar 7 — climax cinematico
-        [
-          M(0, 14, 2),
-          M(4, 10, 2),
           M(8, 7, 3),
           M(13, 5, 2)
         ],
 
-        // Bar 8 — chiusura che richiude il loop
+        [
+          M(0, 3, 3),
+          M(5, 5, 2),
+          M(9, 7, 3)
+        ],
+
+        [
+          M(0, 5, 2),
+          M(4, 7, 2),
+          M(8, 8, 2),
+          M(12, 10, 3)
+        ],
+
+        [
+          M(0, 10, 2),
+          M(4, 8, 2),
+          M(8, 7, 3),
+          M(13, 5, 2)
+        ],
+
         [
           M(0, 3, 3),
           M(5, 5, 2),
@@ -1496,7 +1466,6 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — motivo frigio con la seconda minore caratteristica
         [
           M(0, 0, 2),
           M(3, 1, 1),
@@ -1505,7 +1474,6 @@ const Sound = (() => {
           M(12, 3, 2)
         ],
 
-        // Bar 2 — ripete e sale un poco
         [
           M(0, 0, 2),
           M(3, 1, 1),
@@ -1514,50 +1482,44 @@ const Sound = (() => {
           M(12, 5, 2)
         ],
 
-        // Bar 3 — continua a salire
         [
           M(0, 3, 1),
           M(2, 5, 1),
           M(4, 7, 2),
-          M(8, 10, 1),
-          M(10, 8, 1),
-          M(12, 7, 2)
+          M(8, 8, 1),
+          M(10, 7, 1),
+          M(12, 5, 2)
         ],
 
-        // Bar 4 — tensione più alta
         [
-          M(0, 12, 2),
-          M(4, 10, 2),
-          M(8, 8, 2),
-          M(12, 7, 2)
+          M(0, 10, 2),
+          M(4, 8, 2),
+          M(8, 7, 2),
+          M(12, 5, 2)
         ],
 
-        // Bar 5 — sotto-frase, sale ancora
         [
           M(0, 1, 2),
           M(4, 3, 2),
           M(8, 5, 2),
-          M(12, 8, 2)
-        ],
-
-        // Bar 6 — rincorsa verso il climax
-        [
-          M(0, 5, 1),
-          M(2, 7, 1),
-          M(4, 10, 2),
-          M(8, 8, 2),
           M(12, 7, 2)
         ],
 
-        // Bar 7 — climax, poi discesa
         [
-          M(0, 14, 2),
-          M(4, 10, 2),
-          M(8, 8, 2),
+          M(0, 5, 1),
+          M(2, 7, 1),
+          M(4, 8, 2),
+          M(8, 7, 2),
           M(12, 5, 2)
         ],
 
-        // Bar 8 — cadenza con la seconda minore che richiude il loop
+        [
+          M(0, 10, 2),
+          M(4, 8, 2),
+          M(8, 7, 2),
+          M(12, 3, 2)
+        ],
+
         [
           M(0, 1, 2),
           M(4, 3, 2),
@@ -1600,7 +1562,6 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — salita gentile
         [
           M(0, 0, 2),
           M(4, 3, 2),
@@ -1608,7 +1569,6 @@ const Sound = (() => {
           M(12, 7, 2)
         ],
 
-        // Bar 2 — risposta discendente
         [
           M(0, 7, 2),
           M(4, 5, 2),
@@ -1616,7 +1576,6 @@ const Sound = (() => {
           M(12, 2, 2)
         ],
 
-        // Bar 3 — nuova salita, un grado più in alto
         [
           M(0, 3, 2),
           M(4, 5, 2),
@@ -1624,31 +1583,27 @@ const Sound = (() => {
           M(12, 9, 2)
         ],
 
-        // Bar 4 — prosegue invece di rispecchiare la bar 2
+        [
+          M(0, 7, 2),
+          M(4, 5, 2),
+          M(8, 3, 2),
+          M(12, 0, 3)
+        ],
+
+        [
+          M(0, 0, 2),
+          M(4, 3, 2),
+          M(8, 5, 2),
+          M(12, 7, 2)
+        ],
+
         [
           M(0, 9, 2),
           M(4, 7, 2),
           M(8, 5, 2),
-          M(12, 3, 3)
+          M(12, 3, 2)
         ],
 
-        // Bar 5 — variazione della bar 1, non identica
-        [
-          M(0, 2, 2),
-          M(4, 5, 2),
-          M(8, 7, 2),
-          M(12, 9, 2)
-        ],
-
-        // Bar 6 — piccolo picco, il momento più alto del brano
-        [
-          M(0, 11, 2),
-          M(4, 9, 2),
-          M(8, 7, 2),
-          M(12, 5, 2)
-        ],
-
-        // Bar 7 — si riavvicina alla frase iniziale
         [
           M(0, 2, 2),
           M(4, 3, 2),
@@ -1656,7 +1611,6 @@ const Sound = (() => {
           M(12, 7, 2)
         ],
 
-        // Bar 8 — cadenza finale
         [
           M(0, 5, 2),
           M(4, 3, 2),
@@ -1699,7 +1653,6 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — frase corale di apertura
         [
           M(0, 7, 3),
           M(5, 8, 1),
@@ -1707,7 +1660,6 @@ const Sound = (() => {
           M(13, 8, 2)
         ],
 
-        // Bar 2 — sale un poco di più
         [
           M(0, 7, 3),
           M(5, 8, 1),
@@ -1715,15 +1667,13 @@ const Sound = (() => {
           M(13, 10, 2)
         ],
 
-        // Bar 3 — prima tensione, senza toccare ancora il vero climax
         [
           M(0, 10, 2),
           M(4, 12, 2),
-          M(8, 12, 3),
-          M(13, 10, 2)
+          M(8, 14, 3),
+          M(13, 12, 2)
         ],
 
-        // Bar 4 — respiro, discesa
         [
           M(0, 10, 2),
           M(4, 8, 2),
@@ -1731,7 +1681,6 @@ const Sound = (() => {
           M(13, 5, 2)
         ],
 
-        // Bar 5 — riprende la frase corale
         [
           M(0, 7, 3),
           M(5, 8, 1),
@@ -1739,15 +1688,13 @@ const Sound = (() => {
           M(13, 12, 2)
         ],
 
-        // Bar 6 — seconda tensione, ancora sotto il picco assoluto
         [
-          M(0, 10, 2),
+          M(0, 14, 2),
           M(4, 12, 2),
           M(8, 10, 3),
           M(13, 8, 2)
         ],
 
-        // Bar 7 — rincorsa finale
         [
           M(0, 7, 2),
           M(4, 10, 2),
@@ -1755,7 +1702,6 @@ const Sound = (() => {
           M(12, 14, 2)
         ],
 
-        // Bar 8 — unico vero climax del brano, poi risoluzione
         [
           M(0, 12, 2),
           M(4, 10, 2),
@@ -1798,7 +1744,6 @@ const Sound = (() => {
 
       melody: [
 
-        // Bar 1 — motivo minimale, quasi immobile
         [
           M(0, 0, 2),
           M(4, 2, 1),
@@ -1806,7 +1751,6 @@ const Sound = (() => {
           M(12, 2, 2)
         ],
 
-        // Bar 2 — variazione leggerissima
         [
           M(0, 0, 2),
           M(4, 2, 1),
@@ -1814,23 +1758,20 @@ const Sound = (() => {
           M(12, 3, 2)
         ],
 
-        // Bar 3 — inizia a salire
         [
           M(0, 3, 2),
           M(4, 5, 1),
           M(6, 7, 2),
-          M(12, 8, 2)
+          M(12, 5, 2)
         ],
 
-        // Bar 4 — salto inatteso, il primo momento inquietante
         [
-          M(0, 10, 2),
-          M(4, 7, 1),
-          M(6, 5, 2),
-          M(12, 3, 2)
+          M(0, 7, 2),
+          M(4, 5, 1),
+          M(6, 3, 2),
+          M(12, 2, 2)
         ],
 
-        // Bar 5 — torna alla calma iniziale
         [
           M(0, 0, 2),
           M(4, 2, 1),
@@ -1838,23 +1779,20 @@ const Sound = (() => {
           M(12, 5, 2)
         ],
 
-        // Bar 6 — sale verso il momento più teso del brano
         [
           M(0, 5, 2),
-          M(4, 8, 1),
-          M(6, 10, 2),
-          M(12, 8, 2)
-        ],
-
-        // Bar 7 — eco del salto inquietante
-        [
-          M(0, 10, 2),
           M(4, 7, 1),
-          M(6, 5, 2),
-          M(12, 3, 2)
+          M(6, 8, 2),
+          M(12, 7, 2)
         ],
 
-        // Bar 8 — si dissolve verso la tonica
+        [
+          M(0, 7, 2),
+          M(4, 5, 1),
+          M(6, 3, 2),
+          M(12, 2, 2)
+        ],
+
         [
           M(0, 3, 2),
           M(4, 2, 1),

@@ -24,6 +24,7 @@ const GFX = {
   fire: 2,           // 2 = flames + warm pools, 1 = flames only, 0 = off
   cape: true,        // dynamic billowing cape (simulation + render)
   compass: true,     // corner biome compass
+  grass: true,       // animated wind grass overlay (baked blades, wave + glint)
   shockwaves: true,  // gradient shockwave particles
   enemyFx: true,     // wobbly blobs / auras / crowns vs plain circles
   particleCap: 500,
@@ -49,6 +50,7 @@ function applyGfxLevel() {
 GFX.compass   = lvl < 2;
   GFX.shockwaves = lvl < 2;
   GFX.enemyFx    = lvl < 2;
+  GFX.grass      = lvl < 3;
   GFX.particleCap  = [500, 300, 150, 60][lvl];
   const prevScale = GFX.pixelScale;
   GFX.pixelScale   = lvl < 3 ? 1 : 0.66;

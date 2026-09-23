@@ -593,7 +593,8 @@ function initMeta() {
   document.getElementById('hub-close').addEventListener('click', closeHub);
   document.getElementById('hub-play').addEventListener('click', () => {
     closeHub();
-    if (typeof startGame === 'function') startGame();
+    if (typeof beginRun === 'function') beginRun();
+    else if (typeof startGame === 'function') startGame();
   });
   document.getElementById('hub-btn').addEventListener('click', () => openHub('char'));
   const go = document.getElementById('hub-btn-go');
