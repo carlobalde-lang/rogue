@@ -6,9 +6,10 @@
 //
 // Active biomes: core (dust motes near torches) and northeast (pine
 // needles + a little snow). Savanna / canyon / desert / swamp / frozen
-// grass / prairie have no ambient effects. Forest keeps firefly swarms
-// (long dark stretches between brief blinks) and a few violet insects
-// that cross the screen on long, slow, wandering paths.
+// grass have no ambient effects. Forest keeps firefly swarms (long dark
+// stretches between brief blinks) and violet insects crossing the screen
+// on long, slow paths; prairie has its own slower butterflies in three
+// color variants.
 // ============================================================
 
 const AMB_CELL = 150;            // world px per ambient grid cell
@@ -33,6 +34,8 @@ const AMB_COL = {
   sparkle:    '#dff3ff',
   mote:       '#b8bcc8',
   butterflyP: '#ffd98a',
+  // Prairie butterflies: three distinct color variants (gold, orange, cream).
+  butterfliesPrairie: ['#ffd98a', '#ffab5e', '#fff4d0'],
   firefly:    { main: '#ffe9a0', glow: '#ffd76a' }
 };
 
@@ -152,51 +155,63 @@ function _ambRuinsDust(cx, cy, w, h) {
 
 // --- individual motifs -------------------------------------------------
 
-// Forest insects: a few bugs (way fewer than before) that are NOT grid-spawned
-// — they ride long, slow crossing trajectories through the viewport, entering
-// on one side and exiting on the other with a wandering wobble. Their layout
-// is seeded by the viewport position so it stays stable while walking.
-const AMB_BUGS_COUNT = 5;
-function _ambForestBugs(cx, cy, w, h) {
-  const viewKey = Math.floor(cx / AMB_CELL / 2) * 31 + Math.floor(cy / AMB_CELL / 2);
-  const mcx = cx + w * 0.5, mcy = cy + h * 0.5;
-  const diag = Math.hypot(w, h);
-  for (let k = 0; k < AMB_BUGS_COUNT; k++) {
-    const h0 = _ambH(viewKey, k, 300);
-    const h1 = _ambH(viewKey, k, 301);
-    const h2 = _ambH(viewKey, k, 302);
-    const h3 = _ambH(viewKey, k, 303);
-    const heading = h0 * PI2;
-    const perpY = (h1 - 0.5) * h * 0.4;
-    const speed = 0.09 + h2 * 0.06;           // px per ms — crosses in ~25-45s
-    const pathLen = diag * 2.2;
-    const u = ((t * speed + h3 * pathLen) % pathLen) - pathLen * 0.5;
-    const baseX = mcx + Math.cos(heading) * u;
-    const baseY = mcy + Math.sin(heading) * u + perpY;
-    // wandering wobble so the flight is curved, not a straight slide
-    const wx = baseX + Math.sin(t * 0.00021 + h3 * 6.5) * 55;
-    const wy = baseY + Math.cos(t * 0.00017 + h1 * 8.3) * 42 + Math.sin(t * 0.00011 + h1 * 4) * 30;
-    if (owningBiomeAt(wx, wy) !== 'west') continue;
-    const sx = wx - cx, sy = wy - cy;
-    if (sx < -70 || sx > w + 70 || sy < -70 || sy > h + 70) continue;
-    // alpha fades while crossing the screen edges
-    const edgeA = clamp(Math.min(sx / 46, (w - sx) / 46, sy / 46, (h - sy) / 46), 0, 1);
-    const gA = Math.min(0.9, edgeA * 1.2);
-    ctx.save();
-    ctx.globalAlpha = gA;
-    _ambButterfly(sx, sy, h3 * 9, 0.65, 0.9, AMB_COL.butterflyF);
-    ctx.restore();
+// Forest insects and prairie butterflies: a few bugs that are NOT glued to the
+// camera. Each one is anchored to a fixed world cell (like the other ambient
+// motifs) and rides a slow, large ellipse around it, so it drifts in and out
+// of the viewport using its own world-space path instead of following the
+// player. They are only hidden while off-screen, and each one is rotated to
+// face its direction of travel.
+function _ambFlutterBugs(cx, cy, w, h, biome, count, palette, speedMul) {
+  const x0 = Math.floor(cx / AMB_CELL) - 1, x1 = Math.floor((cx + w) / AMB_CELL) + 1;
+  const y0 = Math.floor(cy / AMB_CELL) - 1, y1 = Math.floor((cy + h) / AMB_CELL) + 1;
+  const biomeSalt = biome.charCodeAt(0) + biome.length * 7;
+  const dProb = 0.08;
+  let spawned = 0;
+  for (let gy = y0; gy <= y1 && spawned < count; gy++) {
+    for (let gx = x0; gx <= x1 && spawned < count; gx++) {
+      if (_ambH(gx, gy, 400 + biomeSalt) > dProb) continue;
+      const h0 = _ambH(gx, gy, 401);
+      const h1 = _ambH(gx, gy, 402);
+      const h2 = _ambH(gx, gy, 403);
+      // world-anchored ellipse center (fixed cell, NOT camera center)
+      const ax = gx * AMB_CELL + AMB_CELL * 0.5;
+      const ay = gy * AMB_CELL + AMB_CELL * 0.5;
+      const rr = AMB_CELL * (1.7 + h0 * 3.0);        // 255..705px radius
+      const speed = (0.09 + h1 * 0.06) * speedMul;   // arc speed, px per ms
+      const ang0 = h2 * PI2;
+      // position at time tau (main ellipse + slight wobble)
+      const wX = (tau) => ax + Math.cos(tau * speed / rr + ang0) * rr + Math.sin(tau * 0.00021 + h2 * 6.5) * 55;
+      const wY = (tau) => ay + Math.sin(tau * speed / rr + ang0) * rr * 0.75 + Math.cos(tau * 0.00017 + h1 * 8.3) * 42;
+      const wx = wX(t), wy = wY(t);
+      const sx = wx - cx, sy = wy - cy;
+      if (sx < -70 || sx > w + 70 || sy < -70 || sy > h + 70) continue;
+      // heading from the finite difference over a small step; the butterfly's
+      // "forward" axis is its local -Y, so rot points it along the travel dir
+      const dt = 25;
+      const vx = wX(t + dt) - wx, vy = wY(t + dt) - wy;
+      const rot = Math.atan2(vx, -vy);
+      // alpha fades while crossing the screen edges
+      const edgeA = clamp(Math.min(sx / 46, (w - sx) / 46, sy / 46, (h - sy) / 46), 0, 1);
+      const gA = Math.min(0.9, edgeA * 1.2);
+      const col = palette[(h1 * palette.length) | 0];
+      ctx.save();
+      ctx.globalAlpha = gA;
+      _ambButterfly(sx, sy, h2 * 9, speedMul, 0.9, col, rot);
+      ctx.restore();
+      spawned++;
+    }
   }
 }
+const AMB_FOREST_BUGS = 5;
+const AMB_PRAIRIE_BUGS = 5;
 
-function _ambButterfly(px, py, ph, sp, s, col) {
+function _ambButterfly(px, py, ph, sp, s, col, rot) {
   const flap = Math.sin(t * 0.028 + ph);
   const x = px + Math.sin(t * 0.004 + ph) * 20 * sp;
   const y = py + Math.sin(t * 0.006 + ph) * 2 + Math.cos(t * 0.005 + ph) * 6;
-  const tilt = Math.sin(t * 0.004 + ph * 0.7) * 0.6;
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(tilt);
+  ctx.rotate((rot || 0) + Math.sin(t * 0.004 + ph * 0.7) * 0.15);
   const w = 3 * s * (0.45 + 0.55 * Math.abs(flap));
   ctx.globalAlpha = 0.9;
   ctx.fillStyle = col;
@@ -394,6 +409,8 @@ function drawAmbientDetails(cx, cy, w, h) {
       }
     }
   }
-  // Forest insects fly their own long, non-grid paths across the screen.
-  _ambForestBugs(cx, cy, w, h);
+  // Forest insects and prairie butterflies ride their own long, non-grid
+  // paths across the screen (prairie ones move slower).
+  _ambFlutterBugs(cx, cy, w, h, 'west', AMB_FOREST_BUGS, [AMB_COL.butterflyF], 0.65);
+  _ambFlutterBugs(cx, cy, w, h, 'southwest', AMB_PRAIRIE_BUGS, AMB_COL.butterfliesPrairie, 0.4);
 }
