@@ -312,7 +312,7 @@ function _ambFireflySwarm(cxo, cyo, gx, gy, vw, vh, camX, camY) {
     gate = Math.min(1, Math.max(0, gate));
   }
   if (gate <= 0.02) return;
-  const n = 3 + (_ambH(gx, gy, 50) * 3) | 0;
+  const n = 1 + (_ambH(gx, gy, 50) * 2) | 0;
   const cdx = Math.sin(t * 0.0006 + _ambH(gx, gy, 51) * 9) * 14;
   const cdy = Math.cos(t * 0.0005 + _ambH(gx, gy, 52) * 7) * 10;
   for (let i = 0; i < n; i++) {
