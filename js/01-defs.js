@@ -29,7 +29,7 @@ function rollRarityKey() {
 // --- Weapon definitions — add new weapons here ---
 const WEAPON_DEFS = {
   magicBolt: {
-    name: 'Magic Bolt', icon: '🔮', color: '#aaf',
+    name: 'Magic Bolt', icon: '🔮', color: '#a8f0c0',
     desc: 'Fires homing bolts at nearest enemies',
     baseDmg: 10, baseSpeed: 8, baseRate: 900, baseCount: 1, baseArea: 0,
     upgradeDesc: l => '+2 dmg' + (l > 1 && (l - 1) % 3 === 0 ? ', +1 bolt' : '')

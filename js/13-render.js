@@ -4151,15 +4151,19 @@ function drawGrassWind(cx, cy, w, h, t) {
         pvx *= GRASS_PUSH_STR; pvy *= GRASS_PUSH_STR;
       }
       const ox = tx * TILE - cx, oy = ty * TILE - cy;
-      const b2 = ent.gi * 2;
-      let pn = paths.get(b2), pl = paths.get(b2 + 1);
-      if (!pn) { pn = new Path2D(); paths.set(b2, pn); }
-      if (!pl) { pl = new Path2D(); paths.set(b2 + 1, pl); }
       const d = ent.d;
       // Persistent trample cells for this tile, when the walk ever flattened it.
       const tt = trampleTiles.get(tx + ',' + ty);
       for (let j = 0; j < d.length; j += 4) {
         const gx = d[j], grt = d[j + 1], gh = d[j + 2], le = d[j + 3];
+        // Per-blade shade bucket (stable per blade, roughly balanced 0..4). Uses the
+        // local blade geometry as a cheap, deterministic spread.
+        const bkt = ((((gx | 0) * 7 + (grt | 0) * 13 + (gh | 0) * 31) % GRASS_TINT_LEVELS.length) + GRASS_TINT_LEVELS.length) % GRASS_TINT_LEVELS.length;
+        const key = ent.gi * 11 + bkt * 2;
+        let pn = paths.get(key);
+        let pl = paths.get(key + 1);
+        if (!pn) { pn = new Path2D(); paths.set(key, pn); }
+        if (!pl) { pl = new Path2D(); paths.set(key + 1, pl); }
         const wx0 = ox + gx + (le + k * gh) * lx, wy0 = oy + grt - gh * fold + (le + k * gh) * ly;
         // Same mask the WG shader samples: R=amount, G/B=direction*amount.
         let tpx = 0, tpy = 0;
@@ -4190,8 +4194,15 @@ function drawGrassWind(cx, cy, w, h, t) {
     }
   }
   for (const entry of paths) {
-    ctx.lineWidth = entry[0] & 1 ? 1.25 : 1;
-    ctx.strokeStyle = GRASS_WIND_TYPES[(entry[0] / 2) | 0][entry[0] & 1 ? 'glint' : 'light'];
+    const key = entry[0];
+    const gi = (key / 11) | 0;
+    const glint = key & 1;
+    const bkt = ((key >> 1) % GRASS_TINT_LEVELS.length) % GRASS_TINT_LEVELS.length;
+    ctx.lineWidth = glint ? 1.25 : 1;
+    ctx.strokeStyle = tintHex(
+      GRASS_WIND_TYPES[gi][glint ? 'glint' : 'light'],
+      GRASS_TINT_LEVELS[bkt]
+    );
     ctx.stroke(entry[1]);
   }
 }
@@ -4727,7 +4738,7 @@ function render() {
       const r = pr.radius;
       // Outer glow
       ctx.globalAlpha = alpha * 0.35;
-      ctx.fillStyle = '#3a6fc4';
+      ctx.fillStyle = '#2fae6c';
       ctx.beginPath();
       ctx.ellipse(0, 0, r * 3.2, r * 1.8, 0, 0, PI2);
       ctx.fill();

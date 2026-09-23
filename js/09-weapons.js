@@ -215,9 +215,9 @@ function fireWeapons() {
           createProjectile(
             boltTip.x, boltTip.y,
             Math.cos(a) * stats.speed, Math.sin(a) * stats.speed,
-            stats.dmg, 5, '#7ec8ff', 2000, 0, 0, 'bolt', true
+            stats.dmg, 5, '#9cffc8', 2000, 0, 0, 'bolt', true
           );
-          spawnParticles(boltTip.x, boltTip.y, '#9fd8ff', 3, 2.5);
+          spawnParticles(boltTip.x, boltTip.y, '#c6ffe2', 3, 2.5);
         }
         Sound.play('shoot');
         p.attackPulse = 1;
