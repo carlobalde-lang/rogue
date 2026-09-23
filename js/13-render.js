@@ -4260,6 +4260,9 @@ function render() {
   // --- Big canopy trees (world-space pass, over terrain/torches) ---
   drawTrees(cx, cy, w, h);
 
+  // --- Biome ambient details (fireflies, leaves, snow, spores…) ---
+  drawAmbientDetails(cx, cy, w, h);
+
   // --- Biome treasure chests ---
   drawStatues(cx, cy, w, h);
 

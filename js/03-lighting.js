@@ -243,12 +243,26 @@ function drawTorches(cx, cy, w, h) {
         if (sx < -30 || sx > w + 30 || sy < -30 || sy > h + 30) continue;
         const idx = (Math.floor(g.time * 0.0011 + t.ph * 0.0010) % fn + fn) % fn;
         ctx.drawImage(fat, 0, idx * fat._H, fat._W, fat._H, sx - fat._ax, sy - fat._ay, fat._W, fat._H);
-        // Rising spark (the one live element per torch)
-        const spA = g.time * 0.02 + t.ph;
-        ctx.fillStyle = 'rgba(255,210,120,0.5)';
-        ctx.beginPath();
-        ctx.arc(sx + Math.sin(spA) * 3, sy - 8 - (g.time * 12 + t.ph) % 14, 1.4, 0, PI2);
-        ctx.fill();
+        // Rising spark (every torch; a per-torch random vanish height a bit higher
+        // than before, and only ~a quarter of each cycle is visible so on
+        // average a quarter as many sparks are on screen at once). Drifts up
+        // slowly and sways gently instead of dashing.
+        const spH = 30 + (t.ph % 36);                     // random fade-out height (30..65px)
+        const rise = (g.time * 0.03 + t.ph) % (spH * 2);
+        if (rise < spH) {
+          const spA = g.time * 0.0005 + t.ph;
+          const swayX =
+            Math.sin(spA * 2.3 + (t.ph % 7)) * 3 +
+            Math.sin(spA * 1.1 + (t.ph % 13) * 1.7) * 5 +
+            Math.sin(spA * 0.6 + (t.ph % 11) * 2.3) * 8;
+          const tw = 0.5 + 0.5 * Math.sin(spA * 5 + t.ph); // fade near the top
+          ctx.globalAlpha = 0.5 * tw;
+          ctx.fillStyle = 'rgba(255,210,120,1)';
+          ctx.beginPath();
+          ctx.arc(sx + swayX, sy - 8 - rise, 1.4, 0, PI2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
       }
     }
   }
