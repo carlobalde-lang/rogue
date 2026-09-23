@@ -45,6 +45,27 @@ function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// --- Grass blade colour variation ---
+// Five graded shade levels used to tint individual grass blades of the same
+// tone (~±12% luminance). Small enough to stay "the same green", large enough
+// that neighbouring blades read as slightly different strands.
+const GRASS_TINT_LEVELS = [0.88, 0.94, 1.0, 1.06, 1.12];
+
+// Scale every RGB channel of a #rrggbb colour by `f` (0..1 dims, >1 brightens).
+function tintHex(hex, f) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, Math.round(((n >> 16) & 255) * f)));
+  const g = Math.max(0, Math.min(255, Math.round(((n >> 8) & 255) * f)));
+  const b = Math.max(0, Math.min(255, Math.round((n & 255) * f)));
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+// #rrggbb -> [r, g, b] (used to feed hex blade colours into palette arrays).
+function hexRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
 // --- Persistent user preferences (localStorage, keyed `shadow.prefs.<k>`) ---
 function prefGet(key, defVal) {
   try {

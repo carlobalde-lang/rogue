@@ -68,9 +68,11 @@ function wgInit() {
       'uniform vec2 u_trampleSize;',
       'uniform float u_trampleStr;',
       'varying float v_lit;',
+      'varying float v_tint;',
       'void main() {',
       '  float gh = a_size.x, le = a_size.y;',
       '  float wx = a_root.x, wy = a_root.y;',
+      '  v_tint = 1.0 + (fract(sin(dot(a_root.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.24;',
       '  float ps = wx * 0.998 + wy * 0.063;',
       '  float pp = wy * 0.998 - wx * 0.063;',
       '  float wave = sin(ps * 0.0030 - u_time * 0.00075);',
@@ -121,7 +123,8 @@ function wgInit() {
       'uniform vec3 u_light;',
       'uniform vec3 u_glint;',
       'varying float v_lit;',
-      'void main() { gl_FragColor = vec4(mix(u_light, u_glint, v_lit * 0.55), 1.0); }'
+      'varying float v_tint;',
+      'void main() { gl_FragColor = vec4(mix(u_light, u_glint, v_lit * 0.55) * v_tint, 1.0); }'
     ].join('\n');
 
     function shader(type, src) {

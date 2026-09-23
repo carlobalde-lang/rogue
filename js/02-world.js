@@ -605,6 +605,20 @@ for (let _k = 0; _k < 8; _k++) {
   _SECTOR_SIN[_k] = Math.sin(_a);
 }
 
+// Darkest blade colour of each grass mat (single source of truth: the terrain
+// floor of every vegetated biome is exactly this colour, so blades and ground
+// read as the same tone).
+const GRASS_DARK = {
+  icegrass:    '#6f93b8',
+  savgrass:    '#7a5a20',
+  tallgrass:   '#4c5a1e',
+  thickgrass:  '#2e5a22',
+  swampgrass:  '#3a4020',
+  prairiegrass:'#3a5420',
+  canyongrass: '#7a5738',
+  drygrass:    '#a07a3a'
+};
+
 const BIOME_DEFS = {
   core: {
     name: 'Ruins',            color: '#8a90a6',
@@ -622,7 +636,7 @@ const BIOME_DEFS = {
   },
   northeast: {
     name: 'Taiga',            color: '#7fd6c8',
-    floor: [26, 46, 48], floorVar: 8, wall: [46, 70, 74],
+    floor: hexRgb(GRASS_DARK.icegrass), floorVar: 8, wall: [46, 70, 74],
     hazard: { type: HAZARD_SNOW, density: 0.12 },
     prop:   { type: 'pine', density: 0.42 },
     enemy: 'pinewraith',
@@ -631,7 +645,7 @@ const BIOME_DEFS = {
   },
   east: {
     name: 'Savanna',          color: '#ffd98a',
-    floor: [52, 42, 26], floorVar: 12, wall: [120, 92, 52],
+    floor: hexRgb(GRASS_DARK.savgrass), floorVar: 12, wall: [120, 92, 52],
     hazard: null,
     prop:   { type: 'savgrass', density: 0.34 },
     enemy: 'dunerunner',
@@ -658,7 +672,7 @@ const BIOME_DEFS = {
   },
   southwest: {
     name: 'Prairie',          color: '#2f6a38',
-    floor: [26, 44, 22], floorVar: 9, wall: [58, 82, 40],
+    floor: hexRgb(GRASS_DARK.prairiegrass), floorVar: 9, wall: [58, 82, 40],
     hazard: { type: HAZARD_WATER, density: 0.07 },
     prop:   { type: 'tallgrass', density: 0.30 },
     enemy: 'riverwisp',
@@ -667,7 +681,7 @@ const BIOME_DEFS = {
   },
   west: {
     name: 'Forest',           color: '#5fbf6a',
-    floor: [22, 42, 26], floorVar: 8, wall: [60, 86, 54],
+    floor: hexRgb(GRASS_DARK.thickgrass), floorVar: 8, wall: [60, 86, 54],
     hazard: null,
     prop:   { type: 'tree', density: 0.48 },
     enemy: 'dryadseer',
@@ -676,7 +690,7 @@ const BIOME_DEFS = {
   },
   northwest: {
     name: 'Swamp',            color: '#9fc06a',
-    floor: [34, 40, 20], floorVar: 9, wall: [66, 70, 40],
+    floor: hexRgb(GRASS_DARK.swampgrass), floorVar: 9, wall: [66, 70, 40],
     hazard: { type: HAZARD_SWAMP, density: 0.10 },
     prop:   { type: 'swamptree', density: 0.36 },
     enemy: 'boghaunt',
@@ -1445,68 +1459,82 @@ function drawPropTile(c, type, px, py, r, hgt, skipLight, part) {
   // to the bottom edge) so the mat never forms periodic horizontal lines at
   // tile boundaries, and blades spill over the neighbours as a continuous mat.
   const grassMat = (dark, light, base, vari, lean, nDark, nLight, sw) => {
-    c.strokeStyle = dark;
-    c.lineWidth = sw || 2;
-    c.beginPath();
-    for (let i = 0; i < (nDark || 12); i++) {
-      const gx = bx + (rh(i + 1) - 0.5) * 34;
-      const grt = py + rh(i + 47) * TILE;
-      const gh = (base + rh(i + 20) * vari) * vs * hgt;
-      c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 31) - 0.5) * lean, grt - gh);
-    }
-    c.stroke();
-    if (drawLight) {
-      c.strokeStyle = light;
-      c.lineWidth = 1;
+    const nD = nDark || 12;
+    for (let bkt = 0; bkt < GRASS_TINT_LEVELS.length; bkt++) {
+      c.strokeStyle = tintHex(dark, GRASS_TINT_LEVELS[bkt]);
+      c.lineWidth = sw || 2;
       c.beginPath();
-      for (let i = 0; i < (nLight || 10); i++) {
-        const gx = bx + (rh(i + 41) - 0.5) * 34;
-        const grt = py + rh(i + 59) * TILE;
-        const gh = (base * 0.72 + rh(i + 53) * vari) * vs * hgt;
-        c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 67) - 0.5) * lean * 0.7, grt - gh);
+      for (let i = 0; i < nD; i++) {
+        if ((rh(i + 111) * GRASS_TINT_LEVELS.length | 0) !== bkt) continue;
+        const gx = bx + (rh(i + 1) - 0.5) * 34;
+        const grt = py + rh(i + 47) * TILE;
+        const gh = (base + rh(i + 20) * vari) * vs * hgt;
+        c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 31) - 0.5) * lean, grt - gh);
       }
       c.stroke();
     }
+    if (drawLight) {
+      const nL = nLight || 10;
+      for (let bkt = 0; bkt < GRASS_TINT_LEVELS.length; bkt++) {
+        c.strokeStyle = tintHex(light, GRASS_TINT_LEVELS[bkt]);
+        c.lineWidth = 1;
+        c.beginPath();
+        for (let i = 0; i < nL; i++) {
+          if ((rh(i + 211) * GRASS_TINT_LEVELS.length | 0) !== bkt) continue;
+          const gx = bx + (rh(i + 41) - 0.5) * 34;
+          const grt = py + rh(i + 59) * TILE;
+          const gh = (base * 0.72 + rh(i + 53) * vari) * vs * hgt;
+          c.moveTo(gx, grt); c.lineTo(gx + (rh(i + 67) - 0.5) * lean * 0.7, grt - gh);
+        }
+        c.stroke();
+      }
+    }
   };
   if (type === 'icegrass') {            // frozen grass: short, sparse, icy blue
-    grassMat('#6f93b8', '#c2ddf5', 15, 10, 5);
+    grassMat(GRASS_DARK.icegrass, '#c2ddf5', 15, 10, 5);
   } else if (type === 'savgrass') {     // savanna: warm dry yellow-green
-    grassMat('#7a5a20', '#a37a2c', 18, 12, 6);
+    grassMat(GRASS_DARK.savgrass, '#a37a2c', 18, 12, 6);
   } else if (type === 'tallgrass') {    // prairie open-ground grass
-    grassMat('#4c5a1e', '#74902c', 20, 14, 7);
+    grassMat(GRASS_DARK.tallgrass, '#74902c', 20, 14, 7);
   } else if (type === 'thickgrass') {   // dense forest undergrowth
-    grassMat('#2e5a22', '#4a8530', 24, 14, 6, 14, 11);
+    grassMat(GRASS_DARK.thickgrass, '#4a8530', 24, 14, 6, 14, 11);
   } else if (type === 'swampgrass') {   // murky swamp reeds
-    grassMat('#3a4020', '#50591f', 26, 14, 7, 14, 11);
+    grassMat(GRASS_DARK.swampgrass, '#50591f', 26, 14, 7, 14, 11);
   } else if (type === 'canyongrass') {  // canyon: scarce dry tufts, never a mat
     const cl = 1 + (rh(3) > 0.62 ? 1 : 0);   // 1-2 isolated clumps per tile
     for (let k = 0; k < cl; k++) {
       const cxx = bx + (rh(4 + k * 5) - 0.5) * 22;
       const cyy = py + 7 + rh(8 + k * 7) * (TILE - 14);
-      c.strokeStyle = '#7a5738';
-      c.lineWidth = 2;
-      c.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const gx = cxx + (rh(11 + i + k * 13) - 0.5) * 10;
-        const gh = 7 + rh(19 + i + k * 17) * 6;
-        c.moveTo(gx, cyy); c.lineTo(gx + (rh(29 + i + k * 9) - 0.5) * 4, cyy - gh);
-      }
-      c.stroke();
-      if (drawLight) {          // canyon light blades move with the wind, too
-        c.strokeStyle = '#a57950';
-        c.lineWidth = 1;
+      for (let bkt = 0; bkt < GRASS_TINT_LEVELS.length; bkt++) {
+        c.strokeStyle = tintHex(GRASS_DARK.canyongrass, GRASS_TINT_LEVELS[bkt]);
+        c.lineWidth = 2;
         c.beginPath();
-        for (let i = 0; i < 3; i++) {
-          const gx = cxx + (rh(37 + i + k * 23) - 0.5) * 8;
-          c.moveTo(gx, cyy); c.lineTo(gx + (rh(43 + i + k * 31) - 0.5) * 5, cyy - (5 + rh(47 + i + k * 11) * 4));
+        for (let i = 0; i < 4; i++) {
+          if ((rh(11 + i + k * 13 + bkt * 3) * GRASS_TINT_LEVELS.length | 0) !== bkt) continue;
+          const gx = cxx + (rh(11 + i + k * 13) - 0.5) * 10;
+          const gh = 7 + rh(19 + i + k * 17) * 6;
+          c.moveTo(gx, cyy); c.lineTo(gx + (rh(29 + i + k * 9) - 0.5) * 4, cyy - gh);
         }
         c.stroke();
       }
+      if (drawLight) {          // canyon light blades move with the wind, too
+        for (let bkt = 0; bkt < GRASS_TINT_LEVELS.length; bkt++) {
+          c.strokeStyle = tintHex('#a57950', GRASS_TINT_LEVELS[bkt]);
+          c.lineWidth = 1;
+          c.beginPath();
+          for (let i = 0; i < 3; i++) {
+            if ((rh(37 + i + k * 23 + bkt * 3) * GRASS_TINT_LEVELS.length | 0) !== bkt) continue;
+            const gx = cxx + (rh(37 + i + k * 23) - 0.5) * 8;
+            c.moveTo(gx, cyy); c.lineTo(gx + (rh(43 + i + k * 31) - 0.5) * 5, cyy - (5 + rh(47 + i + k * 11) * 4));
+          }
+          c.stroke();
+        }
+      }
     }
   } else if (type === 'drygrass') {     // desert: thin pale scruff
-    grassMat('#a07a3a', '#cfa65c', 12, 8, 4);
+    grassMat(GRASS_DARK.drygrass, '#cfa65c', 12, 8, 4);
   } else if (type === 'prairiegrass') { // impassable thicket: twice as thick as any grass mat
-    grassMat('#3a5420', '#5f7f2e', 42, 18, 10, 36, 28, 3);
+    grassMat(GRASS_DARK.prairiegrass, '#5f7f2e', 42, 18, 10, 36, 28, 3);
   } else if (type === 'tree') {                     // FOREST TREE - TOP DOWN
     c.fillStyle = 'rgba(0,0,0,0.22)';
     c.fillRect(bx - 12, by - 7, 24, 8);
@@ -1905,7 +1933,7 @@ function treeLoopFrames(type, s) {
   const spr = isBaobab ? bigTreeSprite(type, s, 'base') : bigTreeSprite(type, s);
   const canopySpr = isBaobab ? bigTreeSprite(type, s, 'canopy') : spr;
   const k = parseFloat(key.slice(key.indexOf(':') + 1));
-  const swayA = 0.010 + k * 0.002;
+  const swayA = (0.010 + k * 0.002) * (type === 'swamptree' ? 2.5 : type === 'tree' ? 1.5 : type === 'pine' ? 1.3 : 1);
   // Shadow: long shade cast down-right from the trunk base (SY is the base).
   const shL = 34 + k * 16, shDr = Math.round(shL * 0.45), shW = 5 + k * 5;
   // Pad each frame so the whole shadow fits (it reaches shL-9 below the base)
