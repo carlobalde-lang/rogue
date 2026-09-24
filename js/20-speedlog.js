@@ -117,7 +117,9 @@
 
     push('SHADOW SURVIVORS - PLAYER SPEED LOG');
     push('captured : ' + stamp());
-    push('SIM_STEP : ' + SIM_STEP + ' ms  (120 steps/s fixed timestep)');
+    const hz = game && game.dev && game.dev.simHz > 0 ? game.dev.simHz : 120;
+    const stepMs = 1000 / hz;
+    push('SIM_STEP : ' + stepMs.toFixed(3) + ' ms  (' + hz + ' steps/s fixed timestep)');
     push('window   : ' + VIEW_W + 'x' + VIEW_H + '  DPR=' + DPR.toFixed(2));
     if (game && game.player) push('playerSpeed at start : ' + game.player.speed + ' px/s');
     else push('playerSpeed at start : (logger started outside a run; speed is per-row)');

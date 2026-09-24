@@ -89,7 +89,8 @@ function createGameState() {
       difficultyOverride: 0,   // 0 = auto (computed), >0 = forced value
       waveIntervalMult: 1,
       eliteIntervalMult: 1,
-      bossIntervalMult: 1
+      bossIntervalMult: 1,
+      simHz: 60               // fixed-sim Hz (60 default: smoother catch-up; dev only)
     }
   };
 }

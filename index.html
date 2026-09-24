@@ -295,40 +295,6 @@ input[type="range"].vol-slider::-moz-range-thumb {
 }
 #pause-btn:hover { border-color: #fff; background: rgba(0,0,0,0.6); }
 #fps { color: #888; font-size: 12px; text-shadow: 1px 1px 3px #000; flex-shrink: 0; }
-/* --- Dev panel --- */
-#dev-btn {
-  position: fixed; left: 10px; bottom: 10px; z-index: 30;
-  width: 36px; height: 36px; border-radius: 8px; border: 1px solid #0cc;
-  background: rgba(0,0,0,0.6); color: #0cc; font-size: 13px; font-weight: bold;
-  cursor: pointer; pointer-events: all;
-}
-#dev-btn:hover { background: rgba(0,180,180,0.15); }
-#dev-panel {
-  position: fixed; left: 10px; bottom: 54px; z-index: 400;
-  width: 320px; max-height: 72vh; overflow-y: auto;
-  background: rgba(8,10,18,0.95); border: 1px solid #0cc;
-  border-radius: 10px; padding: 10px 12px; display: none; color: #ccc;
-  font-family: monospace; font-size: 12px; pointer-events: all;
-}
-#dev-panel.open { display: block; }
-.dev-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-.dev-header span { color: #0cc; font-weight: bold; font-size: 14px; letter-spacing: 1px; }
-#dev-close { background:none; border:none; color:#888; font-size:18px; cursor:pointer; padding:0 4px; }
-#dev-close:hover { color:#fff; }
-.dev-section { color: #0cc; font-weight: bold; font-size: 12px; margin: 8px 0 4px; border-bottom: 1px solid #0cc3; padding-bottom: 3px; }
-.dev-row { display:flex; align-items:center; gap: 6px; margin: 3px 0; }
-.dev-row label { width: 100px; flex-shrink: 0; color: #aaa; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.dev-row input[type=range] { flex: 1; min-width: 0; height: 3px; -webkit-appearance: none; appearance: none; background: #333; border-radius: 2px; outline: none; cursor: pointer; }
-.dev-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; background: #0cc; border-radius: 50%; }
-.dev-row input[type=range]::-moz-range-thumb { width: 10px; height: 10px; background: #0cc; border: none; border-radius: 50%; }
-.dev-val { width: 40px; text-align: right; color: #0ff; flex-shrink: 0; }
-.dev-check label { display:flex; align-items:center; gap:5px; cursor:pointer; }
-.dev-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
-.dev-actions button {
-  font-size: 11px; padding: 4px 8px; background: rgba(0,180,180,0.12);
-  border: 1px solid #0cc6; border-radius: 5px; color: #0cc; cursor: pointer;
-}
-.dev-actions button:hover { background: rgba(0,180,180,0.3); }
 canvas { touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; }
 body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 
@@ -517,8 +483,6 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   #guide-view .hub-card.full { max-width: 100%; }
   #guide-close { padding: 11px 26px; font-size: 15px; }
   #pause-panel { flex-direction: column; gap: 12px; max-height: 40vh; }
-  #dev-panel { width: calc(100vw - 20px); left: 10px; }
-  #dev-btn { width: 32px; height: 32px; }
   #pause-btn { width: 42px; height: 42px; bottom: 150px; font-size: 17px; }
 }
 
@@ -542,8 +506,6 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   .weapon-icon { width: 40px; height: 40px; font-size: 13px; flex-shrink: 0; }
   .weapon-level { width: 13px; height: 13px; font-size: 7px; }
   #pause-btn { width: 38px; height: 38px; bottom: 12px; right: 12px; font-size: 16px; }
-  #dev-btn { width: 30px; height: 30px; bottom: 8px; left: 8px; }
-  #dev-panel { bottom: 44px; max-height: 60vh; }
   #pause-panel { flex-direction: column; flex-wrap: wrap; max-height: 50vh; }
   #levelup-title { font-size: 22px; }
   #levelup-subtitle { font-size: 12px; margin-bottom: 10px; }
@@ -681,14 +643,6 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 
 <button id="pause-btn" title="Pause (P)">II</button>
 
-<button id="dev-btn" title="Dev Menu (F2)">⚙</button>
-<div id="dev-panel">
-  <div class="dev-header"><span>DEV MENU</span><button id="dev-close">×</button></div>
-  <div id="dev-fields"></div>
-  <div class="dev-section">ACTIONS</div>
-  <div class="dev-actions" id="dev-actions"></div>
-</div>
-
 <div id="hub-screen">
   <div id="hub-title">CENTRAL HUB</div>
   <div id="hub-wallet">💠 Umbra Shards: 0</div>
@@ -797,10 +751,6 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 <script src="js/19-guide.js"></script>
 <!-- Main loop, input, startup -->
 <script src="js/14-main.js"></script>
-<!-- Dev menu & FPS (builds panel on load) -->
-<script src="js/16-dev.js"></script>
-<!-- Speed logger (F3 / dev menu) -->
-<script src="js/20-speedlog.js"></script>
 <!-- Run log disabled in the public build: open index-runlog.html for telemetry. -->
 <!-- <script src="js/22-runlog.js"></script> -->
 </body>

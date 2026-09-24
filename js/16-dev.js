@@ -46,6 +46,7 @@
       { label: 'Boss Interv. x',  path: 'dev.bossIntervalMult',   min: 0,    max: 10,   step: 0.1 },
       { label: 'Enemy Cap',       path: 'dev.enemyCap',           min: 10,   max: 3000, step: 10 },
       { label: 'Diff Override',   path: 'dev.difficultyOverride', min: 0,    max: 200,  step: 1, note: '0 = auto' },
+      { label: 'Sim Hz',          path: 'dev.simHz',              min: 30,   max: 240,  step: 15,  note: 'default 60' },
     ]},
   ];
 

@@ -820,43 +820,51 @@ function updateEnemies(dt, dtSec) {
   g.enemyGrid.clear();
   for (const e of g.enemies) g.enemyGrid.insert(e);
 
-  // --- Enemy separation: push overlapping enemies apart so they don't
-  // clump into a jammed blob that gets stuck at walls and door gaps ---
-  for (let si = 0; si < g.enemies.length; si++) {
-    const a = g.enemies[si];
-    if (a.dead) continue;
-    g.enemyGrid.queryEach(a.x, a.y, a.radius * 2, b => {
-      if (b === a || b.dead) return;
-      const ddx = a.x - b.x;
-      const ddy = a.y - b.y;
-      const d2 = ddx * ddx + ddy * ddy;
-      const min = a.radius + b.radius;
-      if (d2 < min * min && d2 > 0.01) {
-        const d = Math.sqrt(d2);
-        const push = (min - d) * 0.5;
-        const ux = ddx / d, uy = ddy / d;
-        const ax2 = a.x + ux * push, ay2 = a.y + uy * push;
-        const bx2 = b.x - ux * push, by2 = b.y - uy * push;
-        // Apply push only if it doesn't shove anyone into a wall
-        if (!circleBlocked(ax2, ay2, a.radius * 0.4)) { a.x = ax2; a.y = ay2; }
-        if (!circleBlocked(bx2, by2, b.radius * 0.4)) { b.x = bx2; b.y = by2; }
-      }
-    });
-  }
+  // Separation + stuck-resolution are full O(n·k) passes over the swarm that
+  // only nudge entities by a few px — 120Hz iterations are invisible, so run
+  // them on alternating sim steps (60Hz) to halve the cost in dense crowds.
+  g._sepClock = (g._sepClock | 0) + 1;
+  if ((g._sepClock & 1) === 0) {
 
-  // --- Resolve enemies stuck inside walls (separation can push them in) ---
-  for (let i = 0; i < g.enemies.length; i++) {
-    const e = g.enemies[i];
-    if (e.dead) continue;
-    const hr = Math.max(3, Math.min(e.radius * 0.4, 10));
-    if (!circleBlocked(e.x, e.y, hr)) continue;
-    // Probe outward until the enemy's collision circle is clear
-    for (let k = 0; k < 16; k++) {
-      const a = (k / 16) * PI2;
-      const tx2 = e.x + Math.cos(a) * 6;
-      const ty2 = e.y + Math.sin(a) * 6;
-      if (!circleBlocked(tx2, ty2, hr)) { e.x = tx2; e.y = ty2; break; }
+    // --- Enemy separation: push overlapping enemies apart so they don't
+    // clump into a jammed blob that gets stuck at walls and door gaps ---
+    for (let si = 0; si < g.enemies.length; si++) {
+      const a = g.enemies[si];
+      if (a.dead) continue;
+      g.enemyGrid.queryEach(a.x, a.y, a.radius * 2, b => {
+        if (b === a || b.dead) return;
+        const ddx = a.x - b.x;
+        const ddy = a.y - b.y;
+        const d2 = ddx * ddx + ddy * ddy;
+        const min = a.radius + b.radius;
+        if (d2 < min * min && d2 > 0.01) {
+          const d = Math.sqrt(d2);
+          const push = (min - d) * 0.5;
+          const ux = ddx / d, uy = ddy / d;
+          const ax2 = a.x + ux * push, ay2 = a.y + uy * push;
+          const bx2 = b.x - ux * push, by2 = b.y - uy * push;
+          // Apply push only if it doesn't shove anyone into a wall
+          if (!circleBlocked(ax2, ay2, a.radius * 0.4)) { a.x = ax2; a.y = ay2; }
+          if (!circleBlocked(bx2, by2, b.radius * 0.4)) { b.x = bx2; b.y = by2; }
+        }
+      });
     }
+
+    // --- Resolve enemies stuck inside walls (separation can push them in) ---
+    for (let i = 0; i < g.enemies.length; i++) {
+      const e = g.enemies[i];
+      if (e.dead) continue;
+      const hr = Math.max(3, Math.min(e.radius * 0.4, 10));
+      if (!circleBlocked(e.x, e.y, hr)) continue;
+      // Probe outward until the enemy's collision circle is clear
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * PI2;
+        const tx2 = e.x + Math.cos(a) * 6;
+        const ty2 = e.y + Math.sin(a) * 6;
+        if (!circleBlocked(tx2, ty2, hr)) { e.x = tx2; e.y = ty2; break; }
+      }
+    }
+
   }
 }
 

@@ -20,10 +20,18 @@ let fpsLast = performance.now();
 // distance per rendered frame stays uniform, so speed never pulses with the
 // per-frame jitter. The step guard drops the backlog after a big hitch (tab
 // switch) instead of freezing the frame.
-const SIM_STEP = 1000 / 120;       // ~8.333 ms per simulation step
+const SIM_STEP = 1000 / 120;       // ~8.333 ms per simulation step (default)
 const SIM_MAX_STEPS = 16;          // hard cap on catch-up steps per frame
 const SIM_ACC_MAX = 240;           // accumulator clamp (prevents spiral)
 let simAcc = 0;
+
+// Per-run sim rate override (dev-menu "Sim Hz"): lets the 120Hz fixed step be
+// lowered (e.g. 60Hz halves the whole sim CPU cost) without a rebuild. Default
+// 120Hz keeps the shipped behaviour exactly as before.
+function simStepMs() {
+  const hz = game && game.dev && game.dev.simHz > 0 ? game.dev.simHz : 120;
+  return 1000 / hz;
+}
 
 // Shared stats mirror for the speed logger (20-speedlog.js): the main loop
 // writes steps/alpha here every rendered frame.
@@ -36,9 +44,10 @@ function gameLoop(timestamp) {
 
   if (game && game.running) {
     simAcc = Math.min(simAcc + raw, SIM_ACC_MAX);
+    const stepMs = simStepMs();
     let steps = 0;
     if (!game.paused && !game.gameOver) {
-      while (simAcc >= SIM_STEP && steps < SIM_MAX_STEPS) {
+      while (simAcc >= stepMs && steps < SIM_MAX_STEPS) {
         // Snapshot camera + player BEFORE the step so the renderer can
         // interpolate between "just finished" and "about to happen" and render
         // fully continuous motion even between sim steps (needed so 120Hz steps
@@ -47,12 +56,12 @@ function gameLoop(timestamp) {
         const g = game;
         g._rpCamX = g.camera.x; g._rpCamY = g.camera.y;
         g._rpPx = g.player.x; g._rpPy = g.player.y;
-        update(SIM_STEP);
-        simAcc -= SIM_STEP;
+        update(stepMs);
+        simAcc -= stepMs;
         steps++;
       }
       if (steps >= SIM_MAX_STEPS) simAcc = 0;   // drop backlog after a heavy hitch
-      game.renderAlpha = simAcc / SIM_STEP;     // fraction of the next step elapsed
+      game.renderAlpha = simAcc / stepMs;       // fraction of the next step elapsed
     } else {
       simAcc = 0;                               // paused / game over: discard captured time
       if (game) game.renderAlpha = 0;
