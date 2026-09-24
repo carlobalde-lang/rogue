@@ -14,6 +14,7 @@
 //   runLog.onSpawn(kind, hp, dmg)      -> an enemy of `kind` entered the field
 //   runLog.onKill(kind, ttk, dmgUsed)  -> an enemy died (ttk in ms since spawn)
 //   runLog.onDamageTaken(dmg, src, kd) -> the player was hit (src + enemy kind)
+//   runLog.onRevive(chargesLeft)       -> the revive passive fired (charges left)
 //   runLog.tick(dt)                    -> per-sim-step window counters
 //   runLog.finish(reason)              -> build + save the JSON (game over)
 //
@@ -37,6 +38,8 @@
   let peakAlive = 0;
   let lowHpTime = 0;           // ms the player spent under 25% HP
   let minHpFrac = 1;
+  let revivesUsed = 0;         // how many times the revive passive triggered
+  const reviveEvents = [];     // { t, chargesLeft } for each revive
   const dmgBySrc = {};         // src -> { total, hits, dpsSum } (dpsSum from windows)
   const dmgOutBuckets = [];    // per window bucket: { startT, dmg, hits }
   const takenBySrc = {};       // src -> { total, hits, byKind: {} }
@@ -60,7 +63,8 @@
     winStart = g.time;
     samples.length = 0;
     totalDmg = 0; totalHits = 0; totalShield = 0; totalTaken = 0;
-    peakAlive = 0; lowHpTime = 0; minHpFrac = 1;
+    peakAlive = 0; lowHpTime = 0; minHpFrac = 1; revivesUsed = 0;
+    reviveEvents.length = 0;
     for (const k of Object.keys(dmgBySrc)) delete dmgBySrc[k];
     dmgOutBuckets.length = 0;
     for (const k of Object.keys(takenBySrc)) delete takenBySrc[k];
@@ -139,6 +143,15 @@
       const frac = g.player.hp / Math.max(1, g.player.maxHp);
       if (frac < minHpFrac) minHpFrac = frac;
     }
+  }
+
+  function onRevive(chargesLeft) {
+    if (!active) return;
+    revivesUsed++;
+    reviveEvents.push({
+      t: Math.round((game.time - runStart) / 1000),
+      chargesLeft: chargesLeft
+    });
   }
 
   // Called once per simulation step, after all subsystems ran.
@@ -290,6 +303,7 @@
         bySource: summarizeTaken(),
         peakEnemiesAlive: peakAlive,
         minHpFrac: round2(minHpFrac),
+        revivesUsed: revivesUsed,
         lowHpSeconds: Math.round(lowHpTime / 1000),
         avgAlive: round2(samples.length ? samples.reduce((a, r) => a + r.alive, 0) / samples.length : 0)
       },
@@ -302,6 +316,7 @@
       enemies: summarizeEnemies(),
       player: finalPlayerSnapshot(),
       recipes: Object.keys(g.recipesTriggered || {}),
+      reviveEvents: reviveEvents,
       timeline: samples
     };
   }
@@ -367,6 +382,7 @@
     onSpawn: onSpawn,
     onKill: onKill,
     onDamageTaken: onDamageTaken,
+    onRevive: onRevive,
     addSpawnType: addSpawnType,
     tick: tick,
     finish: finish

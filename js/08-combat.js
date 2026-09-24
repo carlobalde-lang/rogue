@@ -326,6 +326,7 @@ function resolvePlayerDeath() {
     p.revives--;
     p.hp = Math.max(1, Math.ceil(p.maxHp * 0.6));
     p.invulnTimer = 2000;
+    if (window.runLog) runLog.onRevive(p.revives);
     spawnFloatingText(p.x, p.y - 34, p.revives > 0 ? `REVIVE! (${p.revives} left)` : 'REVIVE! (last)', '#f6f');
     spawnParticles(p.x, p.y, '#f6f', 24, 8);
     Sound.play('levelup');

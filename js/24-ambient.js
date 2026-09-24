@@ -47,7 +47,7 @@ const AMB_COL = {
 //   drift   — crosses the cell in one direction
 const AMB_TYPES = {
   northeast: [{ id: 'needle',    p: 0.70, cat: 'fall' }, { id: 'snow',    p: 0.25, cat: 'fall' }],
-  west:      [{ id: 'firefly',   p: 0.08, cat: 'cluster' }]
+  west:      [{ id: 'firefly',   p: 0.04, cat: 'cluster' }]
 };
 
 function _ambDrawGlow(x, y, r, color, a, blur) {
@@ -328,7 +328,7 @@ function _ambFireflySwarm(cxo, cyo, gx, gy, vw, vh, camX, camY) {
     gate = Math.min(1, Math.max(0, gate));
   }
   if (gate <= 0.02) return;
-  const n = 1 + (_ambH(gx, gy, 50) * 2) | 0;
+  const n = 2 + (_ambH(gx, gy, 50) * 2) | 0;
   const cdx = Math.sin(t * 0.0006 + _ambH(gx, gy, 51) * 9) * 14;
   const cdy = Math.cos(t * 0.0005 + _ambH(gx, gy, 52) * 7) * 10;
   for (let i = 0; i < n; i++) {
