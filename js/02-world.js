@@ -2175,20 +2175,116 @@ function drawWallTile(c, px, py, lx, ly, cx, cy) {
   c.fillStyle = `rgb(${Math.min(255, wcol[0] + l)},${Math.min(255, wcol[1] + l - 4)},${Math.min(255, wcol[2] + l - 8)})`;
   c.fillRect(px, py, TILE, TILE);
 
-  // Neutral core keeps the classic broken-masonry ruin look.
+  // Neutral core keeps the broken-masonry ruin look, but every wall tile now
+  // picks one of three weathered faces (slab / cracked / crumbled) plus wear
+  // details like hairline cracks, chips and missing bricks, so walls read as
+  // varied and decayed instead of a single repeating block.
   if (bm === BIOME_CORE) {
-    c.fillStyle = 'rgba(255,255,255,0.14)';
+    // seed2() only ever covers [0, 0.5) (its xorshift clears bit 31), so the
+    // tile hashes are normalised back to [0, 1) here to spread the ruin faces
+    // and wear details across the full range without touching the shared seed.
+    const ru  = r  * 2;
+    const ru2 = seed2(cx * CHUNK + lx + 97, cy * CHUNK + ly + 61) * 2;
+    const ru3 = seed2(cx * CHUNK + lx + 193, cy * CHUNK + ly + 131) * 2;
+    // Shared sun edge + ground shadow keep every face anchored in the light.
+    c.fillStyle = 'rgba(255,255,255,0.12)';
     c.fillRect(px, py, TILE, 3);
     c.fillRect(px, py, 3, TILE);
-    c.fillStyle = 'rgba(0,0,0,0.30)';
-    c.fillRect(px, py + TILE - 12, TILE, 12);
-    c.fillRect(px + TILE - 5, py, 5, TILE);
-    c.strokeStyle = 'rgba(0,0,0,0.25)';
-    c.lineWidth = 1;
-    c.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1);
-    if (r > 0.8) {                        // collapsed / chipped bricks
-      c.fillStyle = 'rgba(0,0,0,0.30)';
-      c.fillRect(px + 6 + (r * 14 | 0), py + 18 + (r * 8 | 0), 7, 5);
+    c.fillStyle = 'rgba(0,0,0,0.26)';
+    c.fillRect(px, py + TILE - 9, TILE, 9);
+    c.fillRect(px + TILE - 4, py, 4, TILE);
+
+    if (ru < 0.34) {
+      // Faded ashlar slab: a worn mortar grid with staggered joints + pitting.
+      c.strokeStyle = 'rgba(0,0,0,0.28)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.moveTo(px + 1.5, py + 1.5); c.lineTo(px + TILE - 1.5, py + 1.5);
+      c.lineTo(px + TILE - 1.5, py + TILE - 1.5);
+      c.stroke();
+      const seam = py + 15;
+      c.beginPath(); c.moveTo(px, seam); c.lineTo(px + TILE, seam); c.stroke();
+      c.beginPath();
+      c.moveTo(px + 9, py + 2); c.lineTo(px + 9, seam); c.stroke();
+      c.beginPath();
+      c.moveTo(px + 23, seam); c.lineTo(px + 23, py + TILE - 2); c.stroke();
+      c.fillStyle = 'rgba(0,0,0,0.18)';
+      c.fillRect(px + 3 + (ru2 * 8 | 0), py + 21 + (ru3 * 6 | 0), 2, 2);
+      c.fillRect(px + 18 + (ru2 * 8 | 0), py + 6 + (ru3 * 6 | 0), 2, 2);
+      if (ru3 > 0.5) {                    // faded edge seam, only some slabs
+        c.strokeStyle = 'rgba(0,0,0,0.20)';
+        c.beginPath();
+        c.moveTo(px + TILE - 10, py + 23);
+        c.lineTo(px + TILE - 3, py + 23);
+        c.stroke();
+      }
+    } else if (ru < 0.7) {
+      // Cracked panel: hairline fracture jags across the tile, often branching.
+      c.strokeStyle = 'rgba(0,0,0,0.25)';
+      c.lineWidth = 1;
+      c.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
+      const x0 = 4 + (ru2 * 10 | 0);
+      c.strokeStyle = 'rgba(18,18,22,0.55)';
+      c.beginPath();
+      c.moveTo(px + x0, py + 1);
+      c.lineTo(px + x0 + 5, py + 7);
+      c.lineTo(px + x0 + 1, py + 13);
+      c.lineTo(px + x0 + 8, py + 19);
+      c.lineTo(px + x0 + 4, py + 25);
+      c.lineTo(px + x0 + 9, py + 31);
+      c.stroke();
+      if (ru3 > 0.45) {                   // secondary branch
+        c.beginPath();
+        c.moveTo(px + x0 + 1, py + 13);
+        c.lineTo(px + x0 + 6, py + 21);
+        c.lineTo(px + x0 + 3, py + 29);
+        c.stroke();
+      }
+      if (ru3 > 0.55) {                   // faint hairline at the base
+        c.strokeStyle = 'rgba(18,18,22,0.30)';
+        c.beginPath();
+        c.moveTo(px + 6, py + 30);
+        c.lineTo(px + 12, py + 26);
+        c.lineTo(px + 20, py + 29);
+        c.stroke();
+      }
+      c.fillStyle = 'rgba(15,15,18,0.45)'; // chipped top-right corner
+      c.beginPath();
+      c.moveTo(px + TILE - 2, py + 2);
+      c.lineTo(px + TILE - 8, py + 2);
+      c.lineTo(px + TILE - 2, py + 8);
+      c.closePath(); c.fill();
+    } else {
+      // Crumbled masonry: staggered brick seams with a fallen stone and rubble.
+      c.strokeStyle = 'rgba(0,0,0,0.25)';
+      c.lineWidth = 1;
+      c.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
+      const rows = [5, 13, 21];
+      const joints = ru2 > 0.5 ? [20, 10, 24] : [10, 22, 12];
+      for (let i = 0; i < 3; i++) {
+        const y0 = py + rows[i];
+        c.strokeStyle = 'rgba(0,0,0,0.30)';
+        c.beginPath();
+        c.moveTo(px + 1, y0); c.lineTo(px + TILE - 1, y0); c.stroke();
+        const bandH = (rows[i + 1] || TILE - 1) - rows[i] - 1;
+        c.beginPath();
+        c.moveTo(px + joints[i], y0 + 1); c.lineTo(px + joints[i], y0 + bandH);
+        c.stroke();
+        c.fillStyle = 'rgba(255,255,255,0.05)';   // glint on stone tops
+        c.fillRect(px + 2, y0 + 1, joints[i] - 3, 1);
+        c.fillRect(px + joints[i] + 3, y0 + 1, TILE - joints[i] - 5, 1);
+      }
+      // Fallen / missing brick leaves a dark socket with exposed mortar lips.
+      const gapRow = 4 + ((ru2 * 3) | 0) * 8;
+      const gapX = 4 + (ru3 * 14 | 0);
+      c.fillStyle = 'rgba(0,0,0,0.38)';
+      c.fillRect(px + gapX, py + gapRow, 7, 5);
+      c.fillStyle = 'rgba(255,255,255,0.06)';
+      c.fillRect(px + gapX - 1, py + gapRow, 1, 5);
+      c.fillRect(px + gapX, py + gapRow - 1, 7, 1);
+      c.fillStyle = 'rgba(0,0,0,0.22)';           // loose rubble at the base
+      c.fillRect(px + 6 + (ru2 * 10 | 0), py + 29, 3, 2);
+      c.fillRect(px + 20 + (ru3 * 8 | 0), py + 30, 2, 1);
     }
     return;
   }
