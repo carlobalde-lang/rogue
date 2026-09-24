@@ -34,6 +34,14 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const choose = arr => arr[randInt(0, arr.length - 1)];
 const wrapAngle = a => { while (a > Math.PI) a -= PI2; while (a < -Math.PI) a += PI2; return a; };
 
+// True on devices that primarily input through a coarse pointer (touch
+// phones/tablets). Used to skip the reactive grass trail on mobile — the
+// bend/trample effect is tuned for keyboard/mouse and wastes GPU on phones.
+const IS_MOBILE = (typeof navigator !== 'undefined')
+  && (('ontouchstart' in window)
+    || (navigator.maxTouchPoints > 0)
+    || (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches));
+
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);

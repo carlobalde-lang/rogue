@@ -282,30 +282,33 @@ function updatePlayer(dt, dtSec) {
   // --- Reactive grass trail: while the player walks, drop soft "pushes" onto
   // the ground at their feet (position + walk direction + force). Each push
   // decays exponentially, so the grass bends along the player's path and slowly
-  // springs back to the wind motion after they pass. ---
-  if (!game.grassPushes) game.grassPushes = [];
-  const gP = game.grassPushes;
-  const gspd = Math.hypot(p.velX, p.velY);
-  if (gspd > 90) {
-    const pf = Math.min(1, gspd / 240);
-    // Lead: place the push ~2 sprite diameters AHEAD of the player so the
-    // grass already bends as you step onto it, not a beat later. One push per
-    // sim frame keeps the reaction instant (no interval gating).
-    const lead = 40;
-    gP.push({
-      x: p.x + (p.velX / gspd) * lead, y: p.y + (p.velY / gspd) * lead,
-      z: (p.velX / gspd) * pf,
-      w: (p.velY / gspd) * pf
-    });
-    if (gP.length > 60) gP.shift();
-    // Persistent trample: the walked line stays flattened forever (directional
-    // soft mask), stamped under the feet - the path never springs back.
-    trampleStamp(p.x, p.y, p.velX / gspd, p.velY / gspd, pf);
-  }
-  const gDec = Math.exp(-dt / 800);
-  for (let i = gP.length - 1; i >= 0; i--) {
-    gP[i].z *= gDec; gP[i].w *= gDec;
-    if (Math.abs(gP[i].z) + Math.abs(gP[i].w) < 0.02) gP.splice(i, 1);
+  // springs back to the wind motion after they pass. Skipped on mobile: the
+  // push/trample effect is tuned for mouse+keyboard and eats GPU on phones. ---
+  if (!IS_MOBILE) {
+    if (!game.grassPushes) game.grassPushes = [];
+    const gP = game.grassPushes;
+    const gspd = Math.hypot(p.velX, p.velY);
+    if (gspd > 90) {
+      const pf = Math.min(1, gspd / 240);
+      // Lead: place the push ~2 sprite diameters AHEAD of the player so the
+      // grass already bends as you step onto it, not a beat later. One push per
+      // sim frame keeps the reaction instant (no interval gating).
+      const lead = 40;
+      gP.push({
+        x: p.x + (p.velX / gspd) * lead, y: p.y + (p.velY / gspd) * lead,
+        z: (p.velX / gspd) * pf,
+        w: (p.velY / gspd) * pf
+      });
+      if (gP.length > 60) gP.shift();
+      // Persistent trample: the walked line stays flattened forever (directional
+      // soft mask), stamped under the feet - the path never springs back.
+      trampleStamp(p.x, p.y, p.velX / gspd, p.velY / gspd, pf);
+    }
+    const gDec = Math.exp(-dt / 800);
+    for (let i = gP.length - 1; i >= 0; i--) {
+      gP[i].z *= gDec; gP[i].w *= gDec;
+      if (Math.abs(gP[i].z) + Math.abs(gP[i].w) < 0.02) gP.splice(i, 1);
+    }
   }
 
   // --- Flow field recompute (only when the player is 2+ tiles from the
