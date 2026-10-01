@@ -1,4 +1,6 @@
 :root { --gold: #d7bb80; --ink: #111724; --edge: #485168; }
+#reset-save-btn { margin-top: 28px; padding: 12px 18px; min-height: 44px; border: 1px solid #ad5964; background: #331c28; color: #f0b0b7; font: inherit; font-size: 13px; cursor: pointer; flex-shrink: 0; }
+#reset-save-btn:hover { background: #522631; }
 body { font-family: 'Segoe UI', sans-serif; background: var(--ink); }
 canvas { image-rendering: pixelated; }
 button, .choice-card, .hub-card { border-radius: 3px !important; }

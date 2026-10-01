@@ -3058,26 +3058,6 @@ function drawBossCompass(cx, cy, w, h) {
 
   ctx.save();
 
-  // A nearby bearing marker remains readable around the player, independently
-  // of the edge arrows and the exploration objective.
-  if (targets.length) {
-    const nearest = targets[0];
-    const markerR = Math.min(R - 24, 105);
-    const mx = px + Math.cos(nearest.ca) * markerR;
-    const my = py + Math.sin(nearest.ca) * markerR;
-    ctx.save(); ctx.translate(mx, my); ctx.rotate(nearest.ca);
-    ctx.fillStyle = '#f3d59b'; ctx.strokeStyle = '#101722'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0);
-    ctx.lineTo(-7, 8); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
-    const label = nearest.def.name.toUpperCase() + ' · ' + Math.round(nearest.d / TILE) + 'm';
-    ctx.font = 'bold 11px "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const labelW = ctx.measureText(label).width + 14;
-    const lx = clamp(mx, labelW / 2 + 8, w - labelW / 2 - 8);
-    const ly = clamp(my + 22, 14, h - 14);
-    ctx.fillStyle = '#101722'; ctx.fillRect(lx - labelW / 2, ly - 10, labelW, 20);
-    ctx.fillStyle = '#f3d59b'; ctx.fillText(label, lx, ly);
-  }
-
   // Corona rim + fixed wedge ticks.
   ctx.globalAlpha = 0.30;
   ctx.strokeStyle = 'rgba(225,228,238,0.5)';

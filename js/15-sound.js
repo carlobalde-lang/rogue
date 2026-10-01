@@ -1,5 +1,5 @@
 // ============================================================
-// PROCEDURAL AUDIO: SFX + CHILL BACKGROUND MUSIC (Web Audio API)
+// PROCEDURAL AUDIO: SFX + CINEMATIC DARK-FANTASY SCORE (Web Audio API)
 // All audio is synthesized in-code — no files needed, so it
 // works from file:// and stays tiny.
 //   SFX:    Sound.play('shoot'); Sound.play('gem');
@@ -14,6 +14,9 @@ const Sound = (() => {
   let sfxGain = null;
   let sfxFilter = null;
   let musicGain = null;
+  let musicBus = null;
+  const musicWaves = new Map();
+  const musicSources = new Set();
   let noiseBuf = null;
   let muted = false;
   let lastAny = 0;
@@ -43,6 +46,16 @@ const Sound = (() => {
     musicGain = ctx.createGain();
 
     musicGain.connect(master);
+    // One shared, filtered echo gives the score space without per-note effects.
+    const echo = ctx.createDelay(1);
+    const echoFilter = ctx.createBiquadFilter();
+    const feedback = ctx.createGain(), wet = ctx.createGain();
+    echo.delayTime.value = 0.31;
+    echoFilter.type = 'lowpass'; echoFilter.frequency.value = 2300;
+    feedback.gain.value = 0.18; wet.gain.value = 0.13;
+    musicGain.connect(echo); echo.connect(echoFilter);
+    echoFilter.connect(feedback); feedback.connect(echo);
+    echoFilter.connect(wet); wet.connect(master);
 
     // SFX pass through a warm lowpass.
     // IMPORTANT: sfxGain is NOT also connected directly to master.
@@ -946,935 +959,86 @@ const Sound = (() => {
   // BIOME SONG DEFINITIONS
   // ============================================================
 
-  const BIOME_SONGS = {
-
-    // ----------------------------------------------------------
-    // CORE / RUINS
-    // Dark mysterious bell melody.
-    // ----------------------------------------------------------
-
-    core: {
-      id: 'core',
-      name: 'Ruins',
-
-      root: 110,
-      scale: SCALES.minor,
-
-      bpm: 82,
-
-      chords: [
-        0, 0, 8, 5,
-        10, 0, 8, 11
-      ],
-
-      chordQualities: [
-        'minor7',
-        'minor7',
-        'major',
-        'major',
-        'minor',
-        'minor',
-        'minor7',
-        'dominant'
-      ],
-
-      melodyType: 'bell',
-      padType: 'sine',
-      bassType: 'triangle',
-
-      melody: [
-
-        // Bar 1 — domanda, ingresso deciso, primo salto verso l'alto
-        [
-          M(0, 7, 3, 1.2),
-          M(4, 9, 2),
-          M(7, 10, 3, 1.1),
-          M(12, 12, 2, 1.3)
-        ],
-
-        // Bar 2 — la domanda sale, picco di tensione, resta sospesa
-        [
-          M(0, 10, 2),
-          M(3, 12, 2, 1.1),
-          M(6, 14, 3, 1.3),
-          M(11, 10, 2)
-        ],
-
-        // Bar 3 — risposta: discesa per gradi con nota di passaggio
-        [
-          M(0, 9, 2),
-          M(2, 7, 1),
-          M(4, 5, 2),
-          M(8, 4, 2, 1.1),
-          M(12, 5, 2)
-        ],
-
-        // Bar 4 — cadenza, si posa quasi sulla tonica
-        [
-          M(0, 7, 2),
-          M(4, 5, 1),
-          M(6, 4, 1),
-          M(8, 2, 2),
-          M(12, 2, 4, 1.2)
-        ],
-
-        // Bar 5 — nuova sotto-frase, sparsa e sospesa (respiro)
-        [
-          M(0, 4, 2),
-          M(6, 5, 1),
-          M(8, 7, 3, 1.1),
-          M(13, 9, 2)
-        ],
-
-        // Bar 6 — riprende slancio verso il secondo climax
-        [
-          M(0, 7, 2),
-          M(3, 9, 1),
-          M(4, 10, 2, 1.1),
-          M(9, 12, 2),
-          M(13, 10, 2)
-        ],
-
-        // Bar 7 — salita finale
-        [
-          M(0, 9, 2, 1.1),
-          M(4, 11, 2),
-          M(8, 12, 2, 1.2),
-          M(12, 14, 3, 1.3)
-        ],
-
-        // Bar 8 — climax assoluto del brano, poi discesa che richiude il loop
-        [
-          M(0, 14, 3, 1.4),
-          M(4, 12, 2),
-          M(8, 9, 2),
-          M(12, 7, 4, 1.2)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [12],
-        hat: [2, 6, 10, 14]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // FROZEN GRASS
-    // Sparse crystalline melody.
-    // ----------------------------------------------------------
-
-    north: {
-      id: 'north',
-      name: 'Frozen Grass',
-
-      root: 146.83,
-      scale: SCALES.minor,
-
-      bpm: 72,
-
-      melodyType: 'glass',
-      padType: 'sine',
-      bassType: 'sine',
-
-      chords: [
-        0, 0, 8, 5,
-        10, 0, 8, 10
-      ],
-
-      melody: [
-
-        // Bar 1 — domanda, sale verso una tensione sospesa
-        [
-          M(0, 7, 3),
-          M(5, 9, 2),
-          M(9, 10, 3),
-          M(14, 12, 1)
-        ],
-
-        // Bar 2 — la tensione continua a salire, poi si allenta
-        [
-          M(0, 10, 3),
-          M(5, 12, 2),
-          M(9, 9, 3),
-          M(14, 7, 1)
-        ],
-
-        // Bar 3 — risposta, discesa per gradi
-        [
-          M(0, 9, 2),
-          M(4, 7, 2),
-          M(8, 5, 2),
-          M(12, 4, 3)
-        ],
-
-        // Bar 4 — cadenza verso una nota più stabile
-        [
-          M(0, 5, 3),
-          M(5, 4, 2),
-          M(9, 3, 2),
-          M(13, 2, 2)
-        ],
-
-        // Bar 5 — sotto-frase sparsa, respiro
-        [
-          M(0, 4, 4),
-          M(8, 5, 3),
-          M(13, 7, 2)
-        ],
-
-        // Bar 6 — nuovo slancio verso il climax
-        [
-          M(0, 9, 3),
-          M(5, 10, 2),
-          M(9, 12, 2),
-          M(13, 10, 2)
-        ],
-
-        // Bar 7 — climax cristallino
-        [
-          M(0, 12, 3),
-          M(5, 14, 2),
-          M(9, 10, 3)
-        ],
-
-        // Bar 8 — discesa finale che richiude il loop
-        [
-          M(0, 9, 3),
-          M(5, 7, 2),
-          M(9, 5, 2),
-          M(13, 3, 3)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [],
-        hat: [4, 12]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // TAIGA
-    // Fast plucked woodland motif.
-    // ----------------------------------------------------------
-
-    northeast: {
-      id: 'northeast',
-      name: 'Taiga',
-
-      root: 164.81,
-      scale: SCALES.dorian,
-
-      bpm: 84,
-
-      melodyType: 'pluck',
-      padType: 'triangle',
-      bassType: 'triangle',
-
-      chords: [
-        0, 0, 3, 10,
-        5, 8, 10, 0
-      ],
-
-      melody: [
-
-        // Bar 1 — motivo plucked, apertura
-        [
-          M(0, 4, 1),
-          M(2, 4, 1),
-          M(4, 7, 2),
-          M(8, 9, 1),
-          M(10, 7, 1),
-          M(12, 4, 2)
-        ],
-
-        // Bar 2 — sale un po' più in alto
-        [
-          M(0, 4, 1),
-          M(2, 4, 1),
-          M(4, 7, 2),
-          M(8, 12, 1),
-          M(10, 9, 1),
-          M(12, 7, 2)
-        ],
-
-        // Bar 3 — continua a salire invece di richiudersi subito
-        [
-          M(0, 2, 2),
-          M(4, 4, 1),
-          M(6, 7, 1),
-          M(8, 9, 2),
-          M(12, 11, 2)
-        ],
-
-        // Bar 4 — discende dal nuovo picco
-        [
-          M(0, 12, 1),
-          M(2, 9, 1),
-          M(4, 7, 2),
-          M(8, 4, 2),
-          M(12, 2, 2)
-        ],
-
-        // Bar 5 — anticipa il climax
-        [
-          M(0, 5, 2),
-          M(4, 7, 2),
-          M(8, 9, 2),
-          M(12, 14, 2)
-        ],
-
-        // Bar 6 — ridiscende brevemente
-        [
-          M(0, 12, 1),
-          M(2, 9, 1),
-          M(4, 7, 2),
-          M(8, 5, 2),
-          M(12, 4, 2)
-        ],
-
-        // Bar 7 — climax vero e proprio
-        [
-          M(0, 4, 1),
-          M(2, 7, 1),
-          M(4, 9, 2),
-          M(8, 12, 2),
-          M(12, 14, 2)
-        ],
-
-        // Bar 8 — risoluzione discendente
-        [
-          M(0, 12, 2),
-          M(4, 9, 2),
-          M(8, 7, 2),
-          M(12, 4, 4)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [4, 12],
-        hat: [2, 6, 10, 14]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // SAVANNA
-    // Bright major marimba theme.
-    // ----------------------------------------------------------
-
-    east: {
-      id: 'east',
-      name: 'Savanna',
-
-      root: 220,
-      scale: SCALES.major,
-
-      bpm: 96,
-
-      melodyType: 'marimba',
-      padType: 'triangle',
-      bassType: 'triangle',
-
-      chords: [
-        0, 5, 7, 0,
-        9, 5, 0, 7
-      ],
-
-      melody: [
-
-        // Bar 1 — tema marimba, apertura luminosa
-        [
-          M(0, 0, 1, 1.2),
-          M(2, 2, 1),
-          M(4, 4, 2, 1.1),
-          M(8, 7, 1),
-          M(10, 4, 1),
-          M(12, 2, 2)
-        ],
-
-        // Bar 2 — variazione, sale un poco
-        [
-          M(0, 0, 1),
-          M(2, 2, 1),
-          M(4, 4, 2),
-          M(8, 9, 1, 1.1),
-          M(10, 7, 1),
-          M(12, 4, 2)
-        ],
-
-        // Bar 3 — continua a salire invece di richiudere subito
-        [
-          M(0, 4, 1),
-          M(2, 5, 1),
-          M(4, 7, 2, 1.2),
-          M(8, 9, 1),
-          M(10, 11, 1),
-          M(12, 9, 2)
-        ],
-
-        // Bar 4 — risposta, discende verso la tonica
-        [
-          M(0, 9, 2),
-          M(4, 7, 2),
-          M(8, 4, 2),
-          M(12, 2, 3)
-        ],
-
-        // Bar 5 — nuovo slancio, più ampio del primo
-        [
-          M(0, 2, 1),
-          M(2, 4, 1),
-          M(4, 7, 2),
-          M(8, 9, 2),
-          M(12, 11, 2)
-        ],
-
-        // Bar 6 — sale ancora, preparando il climax
-        [
-          M(0, 9, 1),
-          M(2, 7, 1),
-          M(4, 9, 2),
-          M(8, 11, 2),
-          M(12, 12, 2)
-        ],
-
-        // Bar 7 — rincorsa finale
-        [
-          M(0, 7, 1),
-          M(2, 9, 1),
-          M(4, 11, 2),
-          M(8, 12, 2),
-          M(12, 14, 2)
-        ],
-
-        // Bar 8 — climax e risoluzione
-        [
-          M(0, 14, 2),
-          M(4, 9, 2),
-          M(8, 7, 2),
-          M(12, 4, 4)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [12],
-        hat: [3, 7, 11, 15]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // CANYON
-    // Slow cinematic flute phrase.
-    // ----------------------------------------------------------
-
-    southeast: {
-      id: 'southeast',
-      name: 'Canyon',
-
-      root: 110,
-      scale: SCALES.minor,
-
-      bpm: 78,
-
-      melodyType: 'flute',
-      padType: 'sine',
-      bassType: 'triangle',
-
-      chords: [
-        0, 0, 8, 10,
-        0, 8, 10, 0
-      ],
-
-      melody: [
-
-        // Bar 1 — frase lenta di apertura
-        [
-          M(0, 0, 3),
-          M(5, 3, 1),
-          M(8, 5, 3),
-          M(13, 3, 2)
-        ],
-
-        // Bar 2 — ripete e sale un poco
-        [
-          M(0, 0, 3),
-          M(5, 3, 1),
-          M(8, 7, 3),
-          M(13, 5, 2)
-        ],
-
-        // Bar 3 — continua a salire
-        [
-          M(0, 5, 2),
-          M(4, 7, 2),
-          M(8, 10, 3),
-          M(13, 8, 2)
-        ],
-
-        // Bar 4 — primo picco, poi respiro
-        [
-          M(0, 12, 2),
-          M(4, 10, 2),
-          M(8, 8, 3),
-          M(13, 7, 2)
-        ],
-
-        // Bar 5 — sotto-frase più intima
-        [
-          M(0, 3, 3),
-          M(5, 5, 2),
-          M(9, 8, 3)
-        ],
-
-        // Bar 6 — rincorsa verso il climax
-        [
-          M(0, 5, 2),
-          M(4, 8, 2),
-          M(8, 10, 2),
-          M(12, 12, 3)
-        ],
-
-        // Bar 7 — climax cinematico
-        [
-          M(0, 14, 2),
-          M(4, 10, 2),
-          M(8, 7, 3),
-          M(13, 5, 2)
-        ],
-
-        // Bar 8 — chiusura che richiude il loop
-        [
-          M(0, 3, 3),
-          M(5, 5, 2),
-          M(9, 3, 2),
-          M(13, 0, 3)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [12],
-        hat: [4, 12]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // DESERT
-    // Phrygian reed melody.
-    // ----------------------------------------------------------
-
-    south: {
-      id: 'south',
-      name: 'Desert',
-
-      root: 146.83,
-      scale: SCALES.phrygian,
-
-      bpm: 88,
-
-      melodyType: 'reed',
-      padType: 'sine',
-      bassType: 'sine',
-
-      chords: [
-        0, 0, 8, 10,
-        0, 8, 10, 0
-      ],
-
-      melody: [
-
-        // Bar 1 — motivo frigio con la seconda minore caratteristica
-        [
-          M(0, 0, 2),
-          M(3, 1, 1),
-          M(4, 3, 2),
-          M(8, 5, 2),
-          M(12, 3, 2)
-        ],
-
-        // Bar 2 — ripete e sale un poco
-        [
-          M(0, 0, 2),
-          M(3, 1, 1),
-          M(4, 3, 2),
-          M(8, 7, 2),
-          M(12, 5, 2)
-        ],
-
-        // Bar 3 — continua a salire
-        [
-          M(0, 3, 1),
-          M(2, 5, 1),
-          M(4, 7, 2),
-          M(8, 10, 1),
-          M(10, 8, 1),
-          M(12, 7, 2)
-        ],
-
-        // Bar 4 — tensione più alta
-        [
-          M(0, 12, 2),
-          M(4, 10, 2),
-          M(8, 8, 2),
-          M(12, 7, 2)
-        ],
-
-        // Bar 5 — sotto-frase, sale ancora
-        [
-          M(0, 1, 2),
-          M(4, 3, 2),
-          M(8, 5, 2),
-          M(12, 8, 2)
-        ],
-
-        // Bar 6 — rincorsa verso il climax
-        [
-          M(0, 5, 1),
-          M(2, 7, 1),
-          M(4, 10, 2),
-          M(8, 8, 2),
-          M(12, 7, 2)
-        ],
-
-        // Bar 7 — climax, poi discesa
-        [
-          M(0, 14, 2),
-          M(4, 10, 2),
-          M(8, 8, 2),
-          M(12, 5, 2)
-        ],
-
-        // Bar 8 — cadenza con la seconda minore che richiude il loop
-        [
-          M(0, 1, 2),
-          M(4, 3, 2),
-          M(8, 1, 2),
-          M(12, 0, 4)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 6, 8, 14],
-        snare: [8],
-        hat: [2, 10, 14]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // PRAIRIE
-    // Gentle open Dorian melody.
-    // ----------------------------------------------------------
-
-    southwest: {
-      id: 'southwest',
-      name: 'Prairie',
-
-      root: 196,
-      scale: SCALES.dorian,
-
-      bpm: 80,
-
-      melodyType: 'soft',
-      padType: 'sine',
-      bassType: 'sine',
-
-      chords: [
-        0, 3, 10, 5,
-        0, 3, 10, 5
-      ],
-
-      melody: [
-
-        // Bar 1 — salita gentile
-        [
-          M(0, 0, 2),
-          M(4, 3, 2),
-          M(8, 5, 2),
-          M(12, 7, 2)
-        ],
-
-        // Bar 2 — risposta discendente
-        [
-          M(0, 7, 2),
-          M(4, 5, 2),
-          M(8, 3, 2),
-          M(12, 2, 2)
-        ],
-
-        // Bar 3 — nuova salita, un grado più in alto
-        [
-          M(0, 3, 2),
-          M(4, 5, 2),
-          M(8, 7, 2),
-          M(12, 9, 2)
-        ],
-
-        // Bar 4 — prosegue invece di rispecchiare la bar 2
-        [
-          M(0, 9, 2),
-          M(4, 7, 2),
-          M(8, 5, 2),
-          M(12, 3, 3)
-        ],
-
-        // Bar 5 — variazione della bar 1, non identica
-        [
-          M(0, 2, 2),
-          M(4, 5, 2),
-          M(8, 7, 2),
-          M(12, 9, 2)
-        ],
-
-        // Bar 6 — piccolo picco, il momento più alto del brano
-        [
-          M(0, 11, 2),
-          M(4, 9, 2),
-          M(8, 7, 2),
-          M(12, 5, 2)
-        ],
-
-        // Bar 7 — si riavvicina alla frase iniziale
-        [
-          M(0, 2, 2),
-          M(4, 3, 2),
-          M(8, 5, 2),
-          M(12, 7, 2)
-        ],
-
-        // Bar 8 — cadenza finale
-        [
-          M(0, 5, 2),
-          M(4, 3, 2),
-          M(8, 2, 2),
-          M(12, 0, 4)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [8],
-        hat: [3, 11]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // FOREST
-    // Haunting harmonic-minor choir.
-    // ----------------------------------------------------------
-
-    west: {
-      id: 'west',
-      name: 'Forest',
-
-      root: 110,
-      scale: SCALES.harmonicminor,
-
-      bpm: 74,
-
-      melodyType: 'choir',
-      padType: 'sine',
-      bassType: 'triangle',
-
-      chords: [
-        0, 8, 10, 7,
-        0, 8, 10, 7
-      ],
-
-      melody: [
-
-        // Bar 1 — frase corale di apertura
-        [
-          M(0, 7, 3),
-          M(5, 8, 1),
-          M(8, 10, 3),
-          M(13, 8, 2)
-        ],
-
-        // Bar 2 — sale un poco di più
-        [
-          M(0, 7, 3),
-          M(5, 8, 1),
-          M(8, 12, 3),
-          M(13, 10, 2)
-        ],
-
-        // Bar 3 — prima tensione, senza toccare ancora il vero climax
-        [
-          M(0, 10, 2),
-          M(4, 12, 2),
-          M(8, 12, 3),
-          M(13, 10, 2)
-        ],
-
-        // Bar 4 — respiro, discesa
-        [
-          M(0, 10, 2),
-          M(4, 8, 2),
-          M(8, 7, 3),
-          M(13, 5, 2)
-        ],
-
-        // Bar 5 — riprende la frase corale
-        [
-          M(0, 7, 3),
-          M(5, 8, 1),
-          M(8, 10, 3),
-          M(13, 12, 2)
-        ],
-
-        // Bar 6 — seconda tensione, ancora sotto il picco assoluto
-        [
-          M(0, 10, 2),
-          M(4, 12, 2),
-          M(8, 10, 3),
-          M(13, 8, 2)
-        ],
-
-        // Bar 7 — rincorsa finale
-        [
-          M(0, 7, 2),
-          M(4, 10, 2),
-          M(8, 12, 2),
-          M(12, 14, 2)
-        ],
-
-        // Bar 8 — unico vero climax del brano, poi risoluzione
-        [
-          M(0, 12, 2),
-          M(4, 10, 2),
-          M(8, 8, 2),
-          M(12, 7, 4)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [8],
-        hat: [4, 12]
-      }
-
-    },
-
-    // ----------------------------------------------------------
-    // SWAMP
-    // Slow, whispery and slightly unsettling.
-    // ----------------------------------------------------------
-
-    northwest: {
-      id: 'northwest',
-      name: 'Swamp',
-
-      root: 123.47,
-      scale: SCALES.minor,
-
-      bpm: 68,
-
-      melodyType: 'whisper',
-      padType: 'sine',
-      bassType: 'sine',
-
-      chords: [
-        0, 0, 8, 5,
-        0, 8, 5, 0
-      ],
-
-      melody: [
-
-        // Bar 1 — motivo minimale, quasi immobile
-        [
-          M(0, 0, 2),
-          M(4, 2, 1),
-          M(6, 3, 2),
-          M(12, 2, 2)
-        ],
-
-        // Bar 2 — variazione leggerissima
-        [
-          M(0, 0, 2),
-          M(4, 2, 1),
-          M(6, 5, 2),
-          M(12, 3, 2)
-        ],
-
-        // Bar 3 — inizia a salire
-        [
-          M(0, 3, 2),
-          M(4, 5, 1),
-          M(6, 7, 2),
-          M(12, 8, 2)
-        ],
-
-        // Bar 4 — salto inatteso, il primo momento inquietante
-        [
-          M(0, 10, 2),
-          M(4, 7, 1),
-          M(6, 5, 2),
-          M(12, 3, 2)
-        ],
-
-        // Bar 5 — torna alla calma iniziale
-        [
-          M(0, 0, 2),
-          M(4, 2, 1),
-          M(6, 3, 2),
-          M(12, 5, 2)
-        ],
-
-        // Bar 6 — sale verso il momento più teso del brano
-        [
-          M(0, 5, 2),
-          M(4, 8, 1),
-          M(6, 10, 2),
-          M(12, 8, 2)
-        ],
-
-        // Bar 7 — eco del salto inquietante
-        [
-          M(0, 10, 2),
-          M(4, 7, 1),
-          M(6, 5, 2),
-          M(12, 3, 2)
-        ],
-
-        // Bar 8 — si dissolve verso la tonica
-        [
-          M(0, 3, 2),
-          M(4, 2, 1),
-          M(8, 0, 4)
-        ]
-
-      ],
-
-      perc: {
-        kick: [0, 8],
-        snare: [4, 12],
-        hat: [2, 10]
-      }
-
-    }
+  // Original score: "The Last Light". A sixteen-bar question, answer,
+  // development and return; the same motif binds the nine landscapes.
+  // Pitches and chord roots are semitone offsets, never scale-array indices.
+  const SCORE_THEME = [
+    [M(0,0,4,0.85), M(6,7,2), M(8,3,4), M(14,2,2,0.7)],
+    [M(0,0,6), M(8,-2,2,0.7), M(12,0,3,0.8)],
+    [M(0,8,4), M(6,7,2,0.8), M(8,3,6)],
+    [M(0,5,4), M(6,3,2), M(8,2,6,0.75)],
+    [M(0,0,3), M(4,3,3), M(8,7,4,1.05), M(14,5,2)],
+    [M(0,3,6), M(8,2,3), M(12,0,3,0.8)],
+    [M(0,2,3), M(4,5,3), M(8,7,4), M(14,11,2,0.75)],
+    [M(0,7,8,0.9)],
+    [M(0,0,4,0.8), M(6,7,2), M(8,10,4), M(14,7,2)],
+    [M(0,5,6), M(8,3,3), M(12,2,3,0.75)],
+    [M(0,8,4), M(6,10,2), M(8,12,6,1.05)],
+    [M(0,10,6), M(8,7,4), M(14,5,2)],
+    [M(0,7,3), M(4,10,3), M(8,12,4,1.12), M(14,14,2)],
+    [M(0,15,6,1.08), M(8,14,2), M(12,12,3)],
+    [M(0,11,4), M(6,7,2), M(8,5,3), M(12,2,3,0.7)],
+    [M(0,0,10,0.8)]
+  ];
+  const SCORE_LANDSCAPES = {
+    core: { name:'The Last Light — Ruins', root:146.832, bpm:76, lead:'horn', pad:'strings', mode:'minor', pulse:[0,3,7,3], drums:[0,10] },
+    north: { name:'Under Frozen Stars', root:164.814, bpm:64, lead:'glass', pad:'choir', mode:'minor', octave:12, pulse:[0,7,12,7], drums:[0] },
+    northeast: { name:'The Ancient Pines', root:130.813, bpm:72, lead:'flute', pad:'strings', mode:'dorian', pulse:[0,7,3,7], drums:[0,8] },
+    east: { name:'Across the Golden Plain', root:146.832, bpm:88, lead:'marimba', pad:'strings', mode:'major', pulse:[0,7,4,7], drums:[0,6,10] },
+    southeast: { name:'Stone Remembers', root:110, bpm:68, lead:'horn', pad:'choir', mode:'minor', pulse:[0,7,12,7], drums:[0,10] },
+    south: { name:'Ashes of the Crown', root:130.813, bpm:104, lead:'horn', pad:'strings', mode:'minor', pulse:[0,7,3,7], drums:[0,6,8,14] },
+    southwest: { name:'The Drowned Cathedral', root:123.471, bpm:62, lead:'choir', pad:'choir', mode:'phrygian', pulse:[0,1,7,3], drums:[0] },
+    west: { name:'Where the Forest Breathes', root:146.832, bpm:74, lead:'flute', pad:'strings', mode:'dorian', pulse:[0,3,7,9], drums:[0,10] },
+    northwest: { name:'Whispers Beneath the Mire', root:110, bpm:66, lead:'reed', pad:'choir', mode:'phrygian', pulse:[0,7,1,7], drums:[0,12] }
   };
+  const BIOME_SONGS = Object.fromEntries(Object.entries(SCORE_LANDSCAPES).map(([id,c]) => {
+    const major = c.mode === 'major';
+    const chords = major ? [0,0,9,9,5,5,7,7,0,9,5,5,2,7,7,0]
+      : c.mode==='dorian' ? [0,0,10,10,5,5,7,7,0,10,5,5,2,7,7,0]
+      : c.mode==='phrygian' ? [0,0,1,1,5,5,7,7,0,10,8,5,1,7,7,0]
+      : [0,0,8,8,5,5,7,7,0,10,8,5,2,7,7,0];
+    const qualities = chords.map(n => major ? (n===9||n===2?'minor':'major')
+      : n===7?'dominant':n===8||n===10||n===1||(c.mode==='dorian'&&n===5)?'major':n===2?'minor7':'minor');
+    const pitch = n => {
+      const pc=((n%12)+12)%12, octave=n-pc;
+      if(major)return octave+({3:4,8:9,10:11,11:11}[pc]??pc);
+      if(c.mode==='dorian'&&pc===8)return octave+9;
+      if(c.mode==='phrygian'&&pc===2)return octave+1;
+      return n;
+    };
+    return [id, { ...c,id,scale:Array.from({length:25},(_,i)=>i),
+      melodyType:c.lead,padType:c.pad,bassType:'triangle',chords,chordQualities:qualities,
+      melody:SCORE_THEME.map((bar,i)=>bar.map(n=>({...n,note:pitch(n.note)+(c.octave||0),accent:n.accent*(i>=12?1:0.9)}))),
+      perc:{kick:c.drums,snare:id==='south'?[12]:[],hat:id==='south'||id==='east'?[2,6,10,14]:[6,14]}
+    }];
+  }));
 
   // ============================================================
   // MUSIC SYNTH HELPERS
   // ============================================================
+
+  function trackMusicSource(source, nodes) {
+    musicSources.add(source);
+    source.onended = () => {
+      musicSources.delete(source);
+      source.disconnect();
+      nodes.forEach(node => node.disconnect());
+    };
+  }
+
+  function openMusicBus() {
+    if (!ctx) return;
+    const old = musicBus;
+    if (old) {
+      old.gain.cancelScheduledValues(ctx.currentTime);
+      old.gain.setTargetAtTime(0, ctx.currentTime, 0.16);
+      setTimeout(() => old.disconnect(), 1800);
+    }
+    musicBus = ctx.createGain();
+    musicBus.gain.setValueAtTime(0, ctx.currentTime);
+    musicBus.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.65);
+    musicBus.connect(musicGain);
+  }
 
   function mTone(
     f0,
@@ -1890,7 +1054,15 @@ const Sound = (() => {
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
 
-    osc.type = type;
+    if (['strings', 'horn', 'choir'].includes(type)) {
+      if (!musicWaves.has(type)) {
+        const partials = type === 'horn' ? [0,1,0.55,0.30,0.16,0.06]
+          : type === 'choir' ? [0,1,0.18,0.32,0.08,0.04]
+          : [0,1,0.42,0.23,0.14,0.08,0.04];
+        musicWaves.set(type, ctx.createPeriodicWave(new Float32Array(partials.length), new Float32Array(partials)));
+      }
+      osc.setPeriodicWave(musicWaves.get(type));
+    } else osc.type = type;
 
     osc.frequency.setValueAtTime(
       Math.max(1, f0),
@@ -1914,7 +1086,7 @@ const Sound = (() => {
       Math.max(0.0001, vol),
       Math.max(
         t0 + dur - release,
-        t0 + attack
+        t0 + Math.min(attack, dur * 0.35)
       )
     );
 
@@ -1924,8 +1096,9 @@ const Sound = (() => {
     );
 
     osc.connect(g);
-    g.connect(musicGain);
+    g.connect(musicBus || musicGain);
 
+    trackMusicSource(osc, [g]);
     osc.start(t0);
     osc.stop(t0 + dur + 0.05);
   }
@@ -1961,6 +1134,8 @@ const Sound = (() => {
 
       choir: 'sine',
 
+      horn: 'horn',
+
       whisper: 'triangle'
     };
 
@@ -1971,7 +1146,7 @@ const Sound = (() => {
       instrument === 'pluck' ||
       instrument === 'marimba'
         ? 0.008
-        : 0.035;
+        : instrument === 'horn' ? 0.12 : instrument === 'choir' ? 0.20 : 0.055;
 
     const release =
       instrument === 'bell' ||
@@ -2070,8 +1245,9 @@ const Sound = (() => {
     );
 
     osc.connect(g);
-    g.connect(musicGain);
+    g.connect(musicBus || musicGain);
 
+    trackMusicSource(osc, [g]);
     osc.start(t0);
     osc.stop(t0 + 0.24);
   }
@@ -2105,8 +1281,9 @@ const Sound = (() => {
 
     src.connect(filter);
     filter.connect(g);
-    g.connect(musicGain);
+    g.connect(musicBus || musicGain);
 
+    trackMusicSource(src, [filter, g]);
     src.start(t0);
     src.stop(t0 + 0.08);
   }
@@ -2141,8 +1318,9 @@ const Sound = (() => {
 
     src.connect(filter);
     filter.connect(g);
-    g.connect(musicGain);
+    g.connect(musicBus || musicGain);
 
+    trackMusicSource(src, [filter, g]);
     src.start(t0);
     src.stop(t0 + 0.14);
   }
@@ -2163,7 +1341,7 @@ const Sound = (() => {
     const root =
       sTone(
         song.root,
-        song.scale[degree] || degree
+        degree
       );
 
     const quality =
@@ -2175,7 +1353,7 @@ const Sound = (() => {
     const third =
       sTone(
         root,
-        quality === 'major' ||
+        quality === 'major' || quality === 'major7' ||
         quality === 'dominant'
           ? 4
           : 3
@@ -2187,16 +1365,8 @@ const Sound = (() => {
         7
       );
 
-    const seventh =
-      sTone(
-        root,
-        song.chordQualities &&
-        song.chordQualities[
-          chordIndex % song.chordQualities.length
-        ] === 'dominant'
-          ? 10
-          : 10
-      );
+    const seventh = sTone(root, quality === 'major7' ? 11 :
+      quality === 'minor' || quality === 'major' ? 12 : 10);
 
     return {
       root,
@@ -2255,7 +1425,7 @@ const Sound = (() => {
     const f =
       sTone(
         song.root * 0.5,
-        song.scale[degree] || degree
+        degree
       );
 
     mTone(
@@ -2325,7 +1495,7 @@ const Sound = (() => {
       (
         musicIntensityTarget -
         musicIntensitySmooth
-      ) * 0.035;
+      ) * 0.18;
   }
 
   // ============================================================
@@ -2354,27 +1524,13 @@ const Sound = (() => {
       musicStepDuration(song);
 
     const leadVolume =
-      0.075 +
-      intensity * 0.045;
+      0.052 +
+      intensity * 0.025;
 
     bar.forEach(note => {
       if (!note) return;
 
-      const degree =
-        song.scale[
-          note.note % song.scale.length
-        ];
-
-      const octave =
-        Math.floor(
-          note.note / song.scale.length
-        );
-
-      const frequency =
-        sTone(
-          song.root * 2,
-          degree + octave * 12
-        );
+      const frequency = sTone(song.root * 2, note.note);
 
       const noteStart =
         startTime +
@@ -2469,16 +1625,13 @@ const Sound = (() => {
   ) {
     if (!song || !ctx) return;
 
-    updateMusicIntensity();
-
     const intensity =
       musicIntensitySmooth;
 
     const barDur =
       musicBarDuration(song);
 
-    const chordIndex =
-      barIndex % 8;
+    const chordIndex = barIndex % song.chords.length;
 
     // Harmony.
     mPad(
@@ -2510,6 +1663,22 @@ const Sound = (() => {
       startTime,
       intensity
     );
+
+    // A restrained string pulse leaves room for the theme during exploration;
+    // combat adds subdivisions instead of simply turning everything up.
+    const chord = chordFrequencies(song, chordIndex);
+    if (intensity > 0.18 || barIndex % 16 >= 8) {
+      const steps = intensity > 0.65 && !IS_MOBILE ? [0,2,4,6,8,10,12,14] : [0,4,8,12];
+      const stepDur = musicStepDuration(song);
+      steps.forEach((step, i) => mTone(sTone(chord.root, song.pulse[i % song.pulse.length]),
+        startTime + step * stepDur, stepDur * 1.5,
+        0.009 + intensity * 0.010, 'strings', 0.025, 0.07));
+    }
+    // Low brass answers the upper melody in the development and climax.
+    if (barIndex % 16 >= 8 && barIndex % 2 === 0) {
+      mLead(chord.fifth, startTime + barDur * 0.5, barDur * 0.42,
+        0.013 + intensity * 0.010, 'horn', 0.9);
+    }
 
     // Percussion layer.
     if (intensity > 0.18) {
@@ -2549,7 +1718,7 @@ const Sound = (() => {
       const bm = playerBiome();
       const song = getMusicSong(bm);
 
-      if (song && song.id !== currentSong.id) {
+      if (song && (!currentSong || song.id !== currentSong.id)) {
         changeMusic(bm);
       }
     }
@@ -2564,9 +1733,13 @@ const Sound = (() => {
     if (!currentSong) return;
 
     syncMusicState();
+    updateMusicIntensity();
 
     const now =
       ctx.currentTime;
+
+    // Browser backgrounding must not replay a backlog of expired bars.
+    if (musicNextTime < now - 0.25) musicNextTime = now + 0.04;
 
     while (
       musicNextTime <
@@ -2629,6 +1802,7 @@ const Sound = (() => {
     currentSong =
       song;
 
+    openMusicBus();
     musicBar = 0;
     musicPhrase = 0;
     musicBeat = 0;
@@ -2658,6 +1832,7 @@ const Sound = (() => {
     currentSong =
       song;
 
+    openMusicBus();
     musicBar = 0;
     musicPhrase = 0;
     musicBeat = 0;
@@ -2670,6 +1845,12 @@ const Sound = (() => {
 
   function stopMusic() {
     stopMusicScheduler();
+    if (ctx) {
+      for (const source of musicSources) {
+        try { source.stop(ctx.currentTime + 0.12); } catch (e) {}
+      }
+      if (musicBus) musicBus.gain.setTargetAtTime(0, ctx.currentTime, 0.035);
+    }
 
     currentSongId = null;
     currentSong = null;
@@ -2754,7 +1935,9 @@ const Sound = (() => {
         songId: currentSongId,
         intensity: musicIntensitySmooth,
         targetIntensity: musicIntensityTarget,
-        bar: musicBar
+        bar: musicBar,
+        activeVoices: musicSources.size,
+        title: currentSong ? currentSong.name : null
       };
     }
 
@@ -2782,7 +1965,7 @@ const Sound = (() => {
       const dx = e.x - px;
       const dy = e.y - py;
 
-      if (
+      if (!e.dead &&
         dx * dx + dy * dy <
         122500
       ) {
@@ -2792,7 +1975,7 @@ const Sound = (() => {
 
     return Math.min(
       1,
-      count / 30
+      Math.max(count / 30, game.guardian ? 0.85 : 0)
     );
   }
 

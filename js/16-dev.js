@@ -108,10 +108,7 @@
           saveMeta(); refreshMetaUI(); updateMetaStarts();
       }},
       { label: 'Reset All Stats', requires: 'any', fn: () => {
-          if (!confirm('Reset ALL progress?\nThis wipes unlocks, Umbra Shards and the best-runs leaderboard.')) return;
-          try { localStorage.removeItem(META_KEY); } catch (e) {}
-          try { localStorage.removeItem(BEST_RUNS_KEY); } catch (e) {}
-          loadMeta(); refreshMetaUI(); updateMetaStarts(); renderBestRuns();
+          resetSavedProgress();
       }},
     ]},
   ];

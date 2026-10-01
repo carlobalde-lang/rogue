@@ -184,6 +184,22 @@ function saveMeta() {
   try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {}
 }
 
+function resetSavedProgress() {
+  if (!confirm('Cancellare il salvataggio e azzerare tutte le statistiche?\n\nPerderai Umbra Shards, potenziamenti, personaggi e armi sbloccati, biomi purificati e migliori partite.\n\nQuesta operazione non può essere annullata.')) return false;
+  try {
+    localStorage.removeItem(META_KEY);
+    localStorage.removeItem(BEST_RUNS_KEY);
+  } catch (e) {
+    alert('Non è stato possibile cancellare il salvataggio. Riprova.');
+    return false;
+  }
+  loadMeta();
+  refreshMetaUI();
+  updateMetaStarts();
+  renderBestRuns();
+  return true;
+}
+
 function metaChar(id) { return META_CHARS.find(c => c.id === id); }
 function metaUpgrade(id) { return META_UPGRADES.find(u => u.id === id); }
 function metaEsc(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -619,4 +635,5 @@ function initMeta() {
 }
 
 document.addEventListener('DOMContentLoaded', initMeta);
+document.getElementById('reset-save-btn')?.addEventListener('click', resetSavedProgress);
 if (document.readyState === 'complete' || document.readyState === 'interactive') initMeta();
