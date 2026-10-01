@@ -17,11 +17,19 @@ const {chromium}=(()=>{try{return require('playwright');}catch{return require(pa
       for(let i=0;i<250;i++){spawnEnemy('runner');const e=game.enemies.at(-1);e.x=p.x+Math.cos(i)*i*3;e.y=p.y+Math.sin(i)*i*3;}
       const cx=game.camera.x,cy=game.camera.y;drawTrees(cx,cy,VIEW_W,VIEW_H);
       for(const layer of visibleTreeLayers){
-        const px=p.x-cx,py=p.y-cy;
-        const expected=(px>layer.x-16&&px<layer.x+layer.image.width+16&&py>layer.y-20&&py<layer.y+layer.cut+20)
-          ||game.enemies.some(e=>!e.dead&&dist(e,p)<320&&e.x-cx>layer.x-e.radius&&e.x-cx<layer.x+layer.image.width+e.radius&&e.y-cy>layer.y-e.radius&&e.y-cy<layer.y+layer.cut+e.radius);
-        check(layer.fade===expected,'Canopy visibility changed');
+        const drawImage=ctx.drawImage;let alpha;
+        try{ctx.drawImage=function(){alpha=this.globalAlpha;};drawTreeCanopy(layer);}
+        finally{ctx.drawImage=drawImage;}
+        check(alpha===1,'Tree canopy should remain opaque');
       }
+      const originalCanopy=underTreeCanopy,originalMage=drawTopDownMage;
+      const savedChar=p.charId;p.charId='aeloria';p.invulnTimer=0;
+      try{
+        let alpha;
+        drawTopDownMage=function(){alpha=ctx.globalAlpha;};
+        underTreeCanopy=()=>true;render();check(Math.abs(alpha-0.36)<0.001,'Player should fade behind canopy');
+        underTreeCanopy=()=>false;render();check(alpha===1,'Player should be opaque outside canopy');
+      }finally{underTreeCanopy=originalCanopy;drawTopDownMage=originalMage;p.charId=savedChar;}
       for(let i=0;i<80;i++)getChunkCanvas(100+i,100);
       const ring=(Math.max(Math.ceil(VIEW_W/CHUNK_PX),Math.ceil(VIEW_H/CHUNK_PX))>>1)+2;
       const sample=chunkCanvasCache.values().next().value;

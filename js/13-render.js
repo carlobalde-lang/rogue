@@ -4964,7 +4964,7 @@ function render() {
   // Fade the whole silhouette (cape + body) for the invulnerability blink and
   // while standing under a tree crown, so the tree reads as passing in front
   // of the player instead of the player stamping over it.
-  let plAlpha = 1;
+  let plAlpha = underTreeCanopy(plx, ply) ? 0.36 : 1;
   if (pl.invulnTimer > 0 && Math.floor(g.time / 80) % 2 === 0) {
     plAlpha = Math.min(plAlpha, 0.45);
   }
@@ -5062,10 +5062,12 @@ function render() {
   }
   const actors = g.enemies.filter(e => !e.dead && e.x - cx > -100 && e.x - cx < w + 100 && e.y - cy > -100 && e.y - cy < h + 100)
     .map(e => ({ y: e.y, draw: () => drawDepthEnemy(e) }));
-  actors.push({ y: g.player.y + 14, draw: drawDepthPlayer });
   for (const tree of visibleTreeLayers) actors.push({ y: tree.rootY, draw: () => drawTreeCanopy(tree) });
   actors.sort((a, b) => a.y - b.y);
   for (const actor of actors) actor.draw();
+  // Match the original canopy effect: keep the tree opaque and show the
+  // character's attenuated silhouette above it so movement stays readable.
+  drawDepthPlayer();
   drawHostileSignals(cx, cy, w, h);
 
   // --- Particles ---

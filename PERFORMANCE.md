@@ -1,5 +1,12 @@
 # Controllo prestazioni — 1 ottobre 2026
 
+Aggiornamento successivo: ripristinato l'effetto originale del personaggio
+semitrasparente sotto le chiome, mantenendo gli alberi opachi. I controlli
+alberi/nemici descritti nel benchmark sono stati eliminati; i numeri sotto
+documentano la versione misurata prima di questo ripristino. Il test prestazioni
+verifica ora anche chiome opache e opacità del personaggio pari a 0,36 sotto
+gli alberi e 1 fuori dalla chioma.
+
 Verifica con Edge headless, scena nel bioma ovest, mappa e casualità controllate,
 sei armi di livello 3 e gruppi iniziali di 60, 250 e 800 nemici. Desktop:
 1280×800, DPR 1. Mobile emulato: 390×844, DPR 2, touch, CPU rallentata 4×.

@@ -171,16 +171,6 @@ function drawEvolutionZones(cx, cy) {
 let visibleTreeLayers = [];
 drawTrees = function(cx, cy, w, h) {
   visibleTreeLayers = [];
-  // Test the player distance once per enemy, rather than once per crown.
-  const player = game.player;
-  const nearbyEnemies = game.enemies.filter(e => !e.dead && dist2(e, player) < 320 * 320);
-  let nearLeft = Infinity, nearTop = Infinity, nearRight = -Infinity, nearBottom = -Infinity;
-  for (const e of nearbyEnemies) {
-    nearLeft = Math.min(nearLeft, e.x - cx - e.radius);
-    nearRight = Math.max(nearRight, e.x - cx + e.radius);
-    nearTop = Math.min(nearTop, e.y - cy - e.radius);
-    nearBottom = Math.max(nearBottom, e.y - cy + e.radius);
-  }
   const step = TREE_SWAY_N * 0.00065 / PI2;
   ctx.save(); ctx.imageSmoothingEnabled = false;
   for (let yy = Math.floor(cy / CHUNK_PX) - 1; yy <= Math.floor((cy + h) / CHUNK_PX) + 1; yy++) {
@@ -195,13 +185,6 @@ drawTrees = function(cx, cy, w, h) {
         const layer = { image, cut, x: Math.round(x - loop._dx), y: Math.round(y - loop._dy), rootY: tree.y };
         ctx.drawImage(image, 0, cut, image.width, image.height - cut,
           layer.x, layer.y + cut, image.width, image.height - cut);
-        const px = game.player.x - cx, py = game.player.y - cy;
-        layer.fade = px > layer.x - 16 && px < layer.x + image.width + 16
-          && py > layer.y - 20 && py < layer.y + cut + 20;
-        if (!layer.fade && layer.x < nearRight && layer.x + image.width > nearLeft
-          && layer.y < nearBottom && layer.y + cut > nearTop) layer.fade = nearbyEnemies.some(e => e.x - cx > layer.x - e.radius
-          && e.x - cx < layer.x + image.width + e.radius
-          && e.y - cy > layer.y - e.radius && e.y - cy < layer.y + cut + e.radius);
         visibleTreeLayers.push(layer);
       }
     }
@@ -210,7 +193,7 @@ drawTrees = function(cx, cy, w, h) {
 };
 
 function drawTreeCanopy(tree) {
-  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = tree.fade ? 0.28 : 1;
+  ctx.save(); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 1;
   ctx.drawImage(tree.image, 0, 0, tree.image.width, tree.cut,
     tree.x, tree.y, tree.image.width, tree.cut);
   ctx.restore();
