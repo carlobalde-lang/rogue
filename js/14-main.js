@@ -236,6 +236,8 @@ function prewarmTick() {
 
 function startGame() {
   game = createGameState();
+  trampleTiles.clear(); trampleRev++;
+  if (WG.trample) { WG.trample.key = ''; WG.trample.lastRev = -1; }
   if (typeof resetSpawnQueue === 'function') resetSpawnQueue();   // no leftover horde at run start
   // World tile (8,8) in chunk 0 is the ruins heart: this run's spawn point
   // (same spot doWarpToSpawn() returns to). Start standing right on it.

@@ -175,7 +175,7 @@ function fireWeapons() {
         createProjectile(
           tip.x, tip.y,
           Math.cos(a) * stats.speed, Math.sin(a) * stats.speed,
-          stats.dmg, 7, '#aef3ff', 2500, 3, 0, 'cross', true
+          stats.dmg, 7, '#aef3ff', 2500, evolved('mysticgaze') ? 8 : 3, 0, 'cross', true
         );
         Sound.play('shootAlt');
         p.attackPulse = 1;
@@ -237,6 +237,19 @@ function fireWeapons() {
           });
           spawnParticles(target.x, target.y, '#ff0', 5, 3);
         }
+        if (evolved('stormcaller')) {
+          const struck = new Set(nearby.slice(0, stats.count));
+          for (const origin of [...struck]) {
+            const branches = g.enemyGrid.query(origin.x, origin.y, 150)
+              .filter(e => !e.dead && !struck.has(e) && dist(origin, e) <= 150)
+              .sort((a, b) => dist(origin, a) - dist(origin, b)).slice(0, 2);
+            for (const target of branches) {
+              struck.add(target); damageEnemy(target, stats.dmg * 0.45);
+              g.lightningEffects.push({ x1: origin.x, y1: origin.y, x2: target.x, y2: target.y,
+                life: 180, maxLife: 180, color: '#bcecff' });
+            }
+          }
+        }
         Sound.play('lightning');
         p.attackPulse = 1;
         break;
@@ -249,6 +262,7 @@ function fireWeapons() {
             damageEnemy(e, stats.dmg);
           }
         }
+        if (evolved('inferno')) addEvolutionZone(p.x, p.y, stats.area * 0.65, stats.dmg * 0.2, '#f2a968', 'fireBlast');
         spawnParticles(p.x, p.y, '#f80', 20, 6);
         spawnParticles(p.x, p.y, '#ff0', 15, 8);
         if (GFX.shockwaves) {
@@ -294,7 +308,8 @@ function fireWeapons() {
           const eid = e._id || (e._id = Math.random());
           if (!w.hitCooldown[eid] || now - w.hitCooldown[eid] > 120) {
             w.hitCooldown[eid] = now;
-            damageEnemy(e, stats.dmg, p.x, p.y, true);   // silent: saw plays its own hit sound
+            damageEnemy(e, stats.dmg, p.x, p.y, true);
+            if (evolved('spikedjaw')) repelEnemy(e, p.x, p.y, 12);   // silent: saw plays its own hit sound
             Sound.play('sawHit');
           }
         }
@@ -333,7 +348,7 @@ function fireWeapons() {
             boomTip.x, boomTip.y,
             Math.cos(a) * stats.speed, Math.sin(a) * stats.speed,
             stats.dmg, 6, '#7fde7f', 3500, 99, 0, 'circle', true,
-            { boomerang: true, maxOut: 240 + w.level * 25 }
+            { boomerang: true, maxOut: (240 + w.level * 25) * (evolved('zephyr') ? 1.4 : 1) }
           );
         }
         Sound.play('shoot');
@@ -446,6 +461,7 @@ function fireWeapons() {
           damageEnemy(e, stats.dmg * bonus, p.x, p.y);
           struck.push(e);
         }
+        if (evolved('souldrinker')) addEvolutionZone(p.x + Math.cos(ta) * reach * 0.5, p.y + Math.sin(ta) * reach * 0.5, reach * 0.35, stats.dmg * 0.2, '#dc7897', 'bloodScythe');
         // Crimson slash arc sweeping in front of the player
         g.particles.push({
           x: p.x, y: p.y, radius: Math.max(20, reach),
@@ -500,7 +516,7 @@ function fireWeapons() {
         const nearby = g.enemyGrid.query(p.x, p.y, 500).filter(e => !e.dead);
         if (nearby.length === 0) break;
         nearby.sort((a, b) => dist(p, a) - dist(p, b));
-        const bounces = 3 + Math.floor(w.level / 3);   // slow, unbounded growth
+        const bounces = 3 + Math.floor(w.level / 3) + (evolved('scourge') ? 3 : 0);   // slow, unbounded growth
         for (let i = 0; i < stats.count && i < nearby.length; i++) {
           const t = nearby[i];
           // Aim from the staff tip to the target so the first glass flight is
@@ -512,7 +528,7 @@ function fireWeapons() {
             shardTip.x, shardTip.y,
             Math.cos(a) * stats.speed, Math.sin(a) * stats.speed,
             stats.dmg, 7, '#bcd0ff', 2600, 0, 0, 'shard', true,
-            { bounces: bounces, bounceRange: 200 }
+            { bounces: bounces, bounceRange: evolved('scourge') ? 300 : 200 }
           );
           spawnParticles(shardTip.x, shardTip.y, '#bcd0ff', 5, 3.5);
         }
@@ -547,6 +563,7 @@ function updateShieldOrbit() {
           const eid = e._id || (e._id = Math.random());
           if (!w.hitCooldown[eid] || g.time - w.hitCooldown[eid] > 300) {
             damageEnemy(e, stats.dmg);
+            if (evolved('aegis')) repelEnemy(e, p.x, p.y, 18);
             w.hitCooldown[eid] = g.time;
             spawnParticles(ox, oy, '#ffa', 3, 2);
             Sound.play('shieldHit');
@@ -635,6 +652,7 @@ function updateClouds(dt, dtSec) {
       for (const e of nb) {
         if (e.dead || dist(c, e) > c.radius + e.radius) continue;
         damageEnemy(e, c.dmg, c.x, c.y, undefined, c.src || 'poisonCloud');
+        if (evolved('bloom')) applySlow(e, 0.65, 650);
       }
     }
   }
@@ -660,8 +678,9 @@ function updateTurrets(dt, dtSec) {
       if (t.fireTimer <= 0) {
         t.fireTimer = t.rate;
         const a = t.aim + rand(-0.06, 0.06);
-        createProjectile(t.x, t.y, Math.cos(a) * 7, Math.sin(a) * 7,
-          t.dmg, 4, '#ffc078', 1600, 0, 0, 'circle', false,
+        const fan = evolved('bastion') ? [-0.2, 0, 0.2] : [0];
+        for (const offset of fan) createProjectile(t.x, t.y, Math.cos(a + offset) * 7, Math.sin(a + offset) * 7,
+          t.dmg / (fan.length > 1 ? 1.8 : 1), 4, '#ffc078', 1600, 0, 0, 'circle', false,
           { src: t.src || 'turret' });
         Sound.play('shootAlt');
       }
@@ -675,7 +694,14 @@ function updateRifts(dt, dtSec) {
   for (let i = g.rifts.length - 1; i >= 0; i--) {
     const r = g.rifts[i];
     r.life -= dt;
-    if (r.life <= 0) { g.rifts.splice(i, 1); continue; }
+    if (r.life <= 0) {
+      if (evolved('aberrance')) {
+        for (const e of g.enemyGrid.query(r.x, r.y, r.radius + 30))
+          if (!e.dead && dist(r, e) <= r.radius + e.radius) damageEnemy(e, r.dmg * 3, r.x, r.y, true, 'voidRift');
+        addEvolutionZone(r.x, r.y, r.radius, r.dmg * 0.2, '#bfa4f5', 'voidRift');
+      }
+      g.rifts.splice(i, 1); continue;
+    }
     const nb = g.enemyGrid.query(r.x, r.y, r.radius + 40);
     for (const e of nb) {
       if (e.dead) continue;

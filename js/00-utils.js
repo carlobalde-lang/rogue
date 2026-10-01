@@ -2,7 +2,7 @@
 // CORE UTILITIES & CANVAS SETUP
 // ============================================================
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d'); // Temporarily redirected while baking shadow sprites.
 
 // Logical (CSS pixel) view size + DPR-aware hi-res backing store so high-DPI
 // phones render crisp instead of upscaled. Game math stays in CSS pixels.

@@ -16,14 +16,18 @@ const RARITY_DEFS = {
   legendary: { name: 'Legendary', label: 'LEGENDARY', weight: 0.07, bonus: 3, stacks: 2, color: '#ffd24d' }
 };
 
-function rollRarityKey() {
-  let r = Math.random();
-  for (const key of Object.keys(RARITY_DEFS)) {
-    const w = RARITY_DEFS[key].weight;
-    if (r < w) return key;
-    r -= w;
-  }
-  return 'common';
+// Luck improves uncommon odds with a bounded, normalized distribution.
+function rarityWeights(luck = 0) {
+  const bonus = Math.min(1, Math.max(0, Number(luck) || 0));
+  return Object.entries(RARITY_DEFS).map(([key, def], tier) => ({
+    key, weight: def.weight * (1 + bonus * tier)
+  }));
+}
+function rollRarityKey(luck = 0) {
+  const weights = rarityWeights(luck);
+  let roll = Math.random() * weights.reduce((total, item) => total + item.weight, 0);
+  for (const item of weights) { roll -= item.weight; if (roll < 0) return item.key; }
+  return 'legendary';
 }
 
 // --- Weapon definitions — add new weapons here ---

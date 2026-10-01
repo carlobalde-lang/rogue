@@ -1,0 +1,36 @@
+:root { --gold: #d7bb80; --ink: #111724; --edge: #485168; }
+body { font-family: 'Segoe UI', sans-serif; background: var(--ink); }
+canvas { image-rendering: pixelated; }
+button, .choice-card, .hub-card { border-radius: 3px !important; }
+button:focus-visible, input:focus-visible, .choice-card:focus-visible { outline: 3px solid #ffe0a0; outline-offset: 4px; }
+#start-screen, #loading-screen { background: radial-gradient(ellipse at 50% 25%, #253148 0%, #101522 48%, #080b12 100%); }
+#start-subtitle { color: #b5b8c7; letter-spacing: 2px; font-size: 15px; }
+#start-btn, #hub-play { background: linear-gradient(#a33d4a, #642a38); border-color: #de9c82; box-shadow: inset 0 0 0 2px #351e2b, 0 6px 18px #0006; }
+.settings-box, #best-runs, #pause-panel, .hub-card { background: #121a29eb; border: 1px solid var(--edge); box-shadow: inset 0 0 0 2px #080d17; }
+.settings-title, .br-title, #hub-title, #guide-title, .pause-col h3 { color: var(--gold); }
+.choice-card { background: linear-gradient(145deg, #253149, #121a29); text-align: left; padding: 22px 18px; }
+.choice-desc { color: #c0c7d8; font-size: 13px; line-height: 1.55; }
+.choice-card:hover, .choice-card.selected { transform: translateY(-4px); }
+.choice-name { font-size: 18px; }
+.choice-icon { text-align: center; margin: 10px 0 18px; }
+#ui-overlay { width: min(700px, 100%); padding: 12px 16px; gap: 6px; background: linear-gradient(110deg, #0a101aee, #0a101a99 75%, transparent); border-bottom: 1px solid #d7bb8030; }
+#timer { color: #f1dfbb; font-variant-numeric: tabular-nums; }
+#kills, #biome-label { color: #bdc5d7; }
+.bar-container { height: 14px; border-radius: 2px; border: 1px solid #6b5761; background: #0b101b; }
+.bar-fill { border-radius: 0; }
+#hp-bar { background: linear-gradient(90deg, #9d354d, #dd7274); }
+#xp-bar { background: linear-gradient(90deg, #426788, #8bc7d0); }
+#xp-bar-bg { border-color: #4e7185; }
+#weapon-icons { flex-wrap: wrap; }
+.weapon-icon { width: 46px; height: 46px; border: 1px solid #60687e; background: #121a29; box-shadow: inset 0 0 0 2px #080d17; }
+.weapon-icon.evolved { border-color: var(--gold); box-shadow: inset 0 0 0 2px #3c3024; }
+.weapon-icon.evolved::after { content: '◆'; position: absolute; top: -5px; right: -4px; font-size: 11px; color: #ffe0a0; }
+.weapon-level { background: #26364b; border-color: #a5b2c7; }
+#fps { display: none; }
+#dev-btn { display: block; }
+body.show-diagnostics #fps, body.show-diagnostics #dev-btn { display: block; }
+#exploration-objective { max-width: min(660px, 94vw); color: #ead4a7; font-size: 11px; line-height: 1.5; letter-spacing: .4px; padding-top: 4px; text-shadow: 0 1px 3px #000; }
+#pause-screen, #levelup-screen, #game-over-screen { background: #070c16e8; }
+@media (max-width: 700px) { #ui-overlay { padding: calc(6px + env(safe-area-inset-top)) 9px 6px; } .weapon-icon { width: 36px; height: 36px; } #exploration-objective { font-size: 10px; } }
+@media (orientation: landscape) and (max-height: 600px) { #ui-overlay { width: min(520px, 80vw); padding-top: calc(4px + env(safe-area-inset-top)); } .bar-container { height: 12px; } #exploration-objective { font-size: 9px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

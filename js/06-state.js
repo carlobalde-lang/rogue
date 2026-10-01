@@ -51,6 +51,7 @@ function createGameState() {
     warpCharges: {},      // ms spent standing on each cleared heart portal
     warpArmed: {},        // per-portal: true only after stepping off and back on
     warpOpen: false,
+    evolutionZones: [], routeEvents: {}, explorationTarget: null,
     recipesTriggered: {}, // recipe id -> true (one-shot per run)
     discoveredBiomes: [], // biome ids explored this run (minimap)
     bossBarId: null,      // enemy ref id while its HP bar is huge

@@ -43,14 +43,16 @@ const GFX_HIGH = [30, 45, 40, 35];
 
 function applyGfxLevel() {
   const lvl = GFX.level;
+  const previousGrass = GFX.grass;
   GFX.glow       = lvl < 1;
   GFX.lightMode  = lvl >= 2 ? 0 : (lvl === 1 ? 1 : 2);
   GFX.fire       = lvl >= 2 ? 0 : (lvl === 1 ? 1 : 2);
   GFX.cape       = lvl < 2;
-GFX.compass   = lvl < 2;
+  GFX.compass   = true; // Navigation remains available at every quality level.
   GFX.shockwaves = lvl < 2;
   GFX.enemyFx    = lvl < 2;
   GFX.grass      = lvl < 3;
+  if (previousGrass !== GFX.grass) chunkCanvasCache.clear();
   GFX.particleCap  = [500, 300, 150, 60][lvl];
   const prevScale = GFX.pixelScale;
   GFX.pixelScale   = lvl < 3 ? 1 : 0.66;

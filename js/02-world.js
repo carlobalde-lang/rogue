@@ -1344,8 +1344,9 @@ function floorStyle(px, py) {
   const bm = owningBiomeAt(px, py);
   const def = BIOME_DEFS[bm] || BIOME_DEFS.core;
   const r = seed2(Math.floor(px / TILE), Math.floor(py / TILE));
-  const j = Math.floor(r * def.floorVar);
-  return [fr + j, fg + (j >> 1), fb + (j >> 1)];
+  const j = Math.floor(r * def.floorVar * 0.55);
+  // Quiet ground colours keep shadow silhouettes and hostile shots readable.
+  return [Math.round(fr * 0.88) + j, Math.round(fg * 0.9) + (j >> 1), Math.round(fb * 0.94) + (j >> 1)];
 }
 
 // Ambient light tint baked into the terrain: cold wedges look moon-washed,
@@ -2078,6 +2079,23 @@ function drawFloorTile(c, px, py, lx, ly, cx, cy) {
   // Climate accents: small ground details that make each wedge read at a glance
   const def = BIOME_DEFS[bm] || BIOME_DEFS.core;
   if (bm === BIOME_CORE) {
+    // Sparse old paving, moss and inscriptions instead of noisy floor grain.
+    if (r > 0.45 && r < 0.72) {
+      c.fillStyle = 'rgba(101,118,139,0.07)';
+      c.fillRect(px + 2, py + 2, 27, 27);
+      c.fillStyle = 'rgba(4,8,15,0.18)';
+      c.fillRect(px + 2, py + 29, 28, 2);
+      c.fillRect(px + 29, py + 2, 2, 27);
+    }
+    if (r > 0.92) {
+      c.fillStyle = 'rgba(93,116,82,0.18)';
+      c.fillRect(px + 4, py + 22, 9, 3); c.fillRect(px + 7, py + 19, 4, 3);
+    }
+    if (r > 0.73 && r < 0.75) {
+      c.fillStyle = 'rgba(102,155,167,0.18)';
+      c.fillRect(px + 14, py + 9, 2, 14); c.fillRect(px + 10, py + 12, 10, 2);
+      c.fillRect(px + 16, py + 19, 5, 2);
+    }
     if (r > 0.8) {
       c.fillStyle = 'rgba(0,0,0,0.18)';   // cracked ruin slabs
       c.fillRect(px + 2, py + 14, 8, 2);

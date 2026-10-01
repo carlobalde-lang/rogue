@@ -3050,12 +3050,33 @@ function drawBossCompass(cx, cy, w, h) {
       d: Math.hypot(dx, dy)
     });
   }
-  const targets = all.filter(e => !e.cleared).sort((a, b) => a.d - b.d);
+  // The compass describes geography, including already purified biomes.
+  const targets = all.slice().sort((a, b) => a.d - b.d);
 
   const R = Math.min(w, h) * 0.46;         // a big corona, near the screen edge
   const pulse = 0.5 + 0.5 * Math.sin(t * 0.004);
 
   ctx.save();
+
+  // A nearby bearing marker remains readable around the player, independently
+  // of the edge arrows and the exploration objective.
+  if (targets.length) {
+    const nearest = targets[0];
+    const markerR = Math.min(R - 24, 105);
+    const mx = px + Math.cos(nearest.ca) * markerR;
+    const my = py + Math.sin(nearest.ca) * markerR;
+    ctx.save(); ctx.translate(mx, my); ctx.rotate(nearest.ca);
+    ctx.fillStyle = '#f3d59b'; ctx.strokeStyle = '#101722'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -8); ctx.lineTo(-3, 0);
+    ctx.lineTo(-7, 8); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
+    const label = nearest.def.name.toUpperCase() + ' · ' + Math.round(nearest.d / TILE) + 'm';
+    ctx.font = 'bold 11px "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const labelW = ctx.measureText(label).width + 14;
+    const lx = clamp(mx, labelW / 2 + 8, w - labelW / 2 - 8);
+    const ly = clamp(my + 22, 14, h - 14);
+    ctx.fillStyle = '#101722'; ctx.fillRect(lx - labelW / 2, ly - 10, labelW, 20);
+    ctx.fillStyle = '#f3d59b'; ctx.fillText(label, lx, ly);
+  }
 
   // Corona rim + fixed wedge ticks.
   ctx.globalAlpha = 0.30;
@@ -3931,9 +3952,40 @@ const TRAMPLE_CELL = 4;
 const TRAMPLE_A = TILE / TRAMPLE_CELL;
 const GRASS_TRAMPLE_R = 12;
 const GRASS_TRAMPLE_STR = 1.0;
-const TRAMPLE_TILE_LR = 2048;
+const TRAMPLE_TILE_LR = IS_MOBILE ? 512 : 2048;
 const trampleTiles = new Map();
 let trampleRev = 0;
+
+function mobileGrassInterval() { return GFX.level >= 2 ? 120 : 80; }
+
+function updateMobileGrassTrail(player, dt) {
+  // No work while stationary or while animated grass is disabled.
+  if (!GFX.grass || Math.hypot(player.velX, player.velY) < 20) return;
+  player._grassTrailMs = (player._grassTrailMs || 0) + dt;
+  if (player._grassTrailX === undefined) {
+    player._grassTrailX = player.x; player._grassTrailY = player.y;
+    player._grassTrailMs = mobileGrassInterval();
+  }
+  if (player._grassTrailMs < mobileGrassInterval()) return;
+  const dx = player.x - player._grassTrailX, dy = player.y - player._grassTrailY;
+  const distance = Math.hypot(dx, dy);
+  if (distance < 3) return;
+  player._grassTrailMs = 0;
+  const tile = getTile(player.x, player.y);
+  if (tile !== T_TALLGRASS && !BIOME_GRASS[owningBiomeAt(player.x, player.y)]) {
+    player._grassTrailX = player.x; player._grassTrailY = player.y;
+    return;
+  }
+  const speed = Math.hypot(player.velX, player.velY), strength = Math.min(1, speed / 180);
+  // Short connected stamps keep a continuous trail. Teleports never draw a line.
+  const count = distance > 128 ? 1 : Math.min(3, Math.ceil(distance / 12));
+  for (let i = 1; i <= count; i++) {
+    const fraction = i / count;
+    trampleStamp(player._grassTrailX + dx * fraction, player._grassTrailY + dy * fraction,
+      player.velX / speed, player.velY / speed, strength);
+  }
+  player._grassTrailX = player.x; player._grassTrailY = player.y;
+}
 
 function getTrampleTile(tx, ty) {
   const key = tx + ',' + ty;
@@ -4257,6 +4309,9 @@ function render() {
   // --- Living hazard surfaces (lava bubbles, ripples, glints) ---
   drawTerrainAnimated(cx, cy, w, h);
 
+  drawExploration(cx, cy, w, h);
+  drawEvolutionZones(cx, cy);
+
   // --- Big canopy trees (world-space pass, over terrain/torches) ---
   drawTrees(cx, cy, w, h);
 
@@ -4268,9 +4323,6 @@ function render() {
 
   // --- Spawn signposts: wooden signs toward the eight biome hearts ---
   drawSpawnSignposts(cx, cy, w, h);
-
-  // --- Boss compass: big corona + edge arrows to the nearest hearts ---
-  drawBossCompass(cx, cy, w, h);
 
   // --- Pickups ---
   for (const pk of g.pickups) {
@@ -4405,8 +4457,8 @@ function render() {
   // dominates for boss/warden; unknown kinds fall back to the Shadowling.
   const t = g.time;
 
-  for (const e of g.enemies) {
-    if (e.dead) continue;
+  function drawDepthEnemy(e) {
+    if (e.dead) return;
 
     // Interpolated world position between the pre-step snapshot and now, so
     // enemies stay glued to the smooth terrain scroll instead of stepping at
@@ -4415,7 +4467,7 @@ function render() {
     const ey = (typeof e.prevY === 'number') ? lerp(e.prevY, e.y, ia) : e.y;
     const sx = ex - cx;
     const sy = ey - cy;
-    if (sx < -70 || sx > w + 70 || sy < -70 || sy > h + 70) continue;
+    if (sx < -70 || sx > w + 70 || sy < -70 || sy > h + 70) return;
 
     const R = e.radius;
     const eph = e.ph || 0;
@@ -4451,15 +4503,7 @@ function render() {
     // body via the shared "living shadow" helpers inside drawShadowBody.
     drawShadowBody(ctx, e, sx, sy, R, t, eph, { body, core, glint, deep, aura: `${ar},${ag},${ab}` });
 
-    // Hit flash overlay
-    if (e.flashTimer > 0) {
-      ctx.globalAlpha = 0.45 * (e.flashTimer / 100);
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(sx, sy, R * 1.15, 0, PI2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    }
+    // The living-shadow renderer flashes the actual silhouette on impact.
 
     // Frost overlay: briefly sluggish enemies glow cyan with a ring
     if (e.slowT > 0 && e.slowFactor !== undefined && e.slowFactor < 1) {
@@ -4504,7 +4548,7 @@ function render() {
       const barW = R * 2;
       const barH = 4;
       const barX = sx - barW / 2;
-      const barY = sy - R - 10;
+      const barY = sy - R * (e.type === 'boss' || e.type === 'warden' ? 1.95 : 1.65) - 10;
       ctx.fillStyle = '#300';
       ctx.fillRect(barX, barY, barW, barH);
       ctx.fillStyle = e.type === 'boss' ? '#f0f' : e.type === 'warden' ? '#af6' : '#fa0';
@@ -4637,7 +4681,12 @@ function render() {
     const sx = cpx - cx;
     const sy = cpy - cy;
     if (sx < -40 || sx > w + 40 || sy < -40 || sy > h + 40) continue;
-    const alpha = clamp(cp.life / cp.maxLife, 0, 1);
+    ctx.save(); ctx.strokeStyle = '#ffe1be'; ctx.lineWidth = 2;
+    ctx.fillStyle = '#a52e49'; ctx.beginPath();
+    ctx.moveTo(sx, sy - cp.radius - 4); ctx.lineTo(sx + cp.radius + 4, sy);
+    ctx.lineTo(sx, sy + cp.radius + 4); ctx.lineTo(sx - cp.radius - 4, sy);
+    ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    const alpha = Math.max(0.7, clamp(cp.life / cp.maxLife, 0, 1));
     const dir = Math.atan2(cp.vy || 0, cp.vx || 1);
     const ph = cp.ph != null ? cp.ph : 0;
     const segs = 6;
@@ -4898,6 +4947,7 @@ function render() {
     ctx.globalAlpha = 1;
   }
 
+  function drawDepthPlayer() {
   // --- Player (top-down pixel mage) ---
   const pl = g.player;
   const plx = (typeof g._rpPx === 'number') ? lerp(g._rpPx, pl.x, ia) : pl.x;
@@ -4914,7 +4964,7 @@ function render() {
   // Fade the whole silhouette (cape + body) for the invulnerability blink and
   // while standing under a tree crown, so the tree reads as passing in front
   // of the player instead of the player stamping over it.
-  let plAlpha = underTreeCanopy(plx, ply) ? 0.36 : 1;
+  let plAlpha = 1;
   if (pl.invulnTimer > 0 && Math.floor(g.time / 80) % 2 === 0) {
     plAlpha = Math.min(plAlpha, 0.45);
   }
@@ -4990,6 +5040,9 @@ function render() {
     break;
   }
 
+  ctx.save(); ctx.strokeStyle = '#dde5c4'; ctx.lineWidth = 2; ctx.globalAlpha = 0.65;
+  ctx.beginPath(); ctx.ellipse(px, py + 13, 17, 7, 0, 0, PI2); ctx.stroke(); ctx.restore();
+
   // Player: dispatches on the selected character's archetype.
   const charId = pl.charId || 'aeloria';
   ctx.globalAlpha = plAlpha;
@@ -5005,6 +5058,15 @@ function render() {
     drawCape(cx, cy);
     ctx.globalAlpha = 1;
   }
+
+  }
+  const actors = g.enemies.filter(e => !e.dead && e.x - cx > -100 && e.x - cx < w + 100 && e.y - cy > -100 && e.y - cy < h + 100)
+    .map(e => ({ y: e.y, draw: () => drawDepthEnemy(e) }));
+  actors.push({ y: g.player.y + 14, draw: drawDepthPlayer });
+  for (const tree of visibleTreeLayers) actors.push({ y: tree.rootY, draw: () => drawTreeCanopy(tree) });
+  actors.sort((a, b) => a.y - b.y);
+  for (const actor of actors) actor.draw();
+  drawHostileSignals(cx, cy, w, h);
 
   // --- Particles ---
   for (const pt of g.particles) {
@@ -5165,6 +5227,9 @@ function render() {
   // --- Weather overlays (falling precipitation + taiga gust streaks) ---
   drawStormOverlay();
   drawGustOverlay();
+
+  // Navigation is drawn above lighting, trees and weather, so it cannot be hidden.
+  drawBossCompass(cx, cy, w, h);
 
   // --- Guardian boss bar (when a biome heart is being defended) ---
   drawGuardianBossBar();

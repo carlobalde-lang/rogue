@@ -93,6 +93,8 @@ function updateUI() {
   document.getElementById('xp-bar').style.width = xpPct;
   document.getElementById('xp-text').textContent = `${p.xp}/${p.xpToLevel}`;
 
+  updateObjectiveUI();
+
   // Weapon icons
   const wi = document.getElementById('weapon-icons');
   if (wi.children.length !== p.weapons.length) {
@@ -109,6 +111,11 @@ function updateUI() {
       icons[i].querySelector('.weapon-level').textContent = p.weapons[i].level;
     }
   }
+  for (let i = 0; i < p.weapons.length; i++) {
+    const w = p.weapons[i], el = wi.children[i];
+    el.classList.toggle('evolved', !!w.evolution);
+    el.title = (w.evolution || WEAPON_DEFS[w.id].name) + ' · Level ' + w.level;
+  }
 }
 
 // ============================================================
@@ -122,7 +129,7 @@ function populatePausePanel() {
   const wHtml = [];
   for (const w of p.weapons) {
     const def = WEAPON_DEFS[w.id];
-    const nm = def ? pixelIconHTML('w', w.id, 20) + ' ' + escapeHtml(def.name) : w.id;
+    const nm = def ? pixelIconHTML('w', w.id, 20) + ' ' + escapeHtml(w.evolution || def.name) : w.id;
     wHtml.push(
       `<div class="pause-entry"><span class="pe-name">${nm}</span>` +
       `<span class="pe-value">Lv.${w.level}</span></div>`

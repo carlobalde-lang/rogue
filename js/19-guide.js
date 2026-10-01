@@ -62,6 +62,10 @@
   function renderOverview(el) {
     const howto = [
       'Move with <b>WASD</b> or the <b>arrow keys</b> (or drag on mobile).',
+      'Restore the optional route shrines: stay in their ring for 6 seconds to earn 8 shards, healing and XP.',
+      'Weapon recipes evolve attacks: check the Recipes tab for each new behavior.',
+      'Luck improves the rarity of your upgrade cards; the objective below your weapons guides you to the next heart.',
+      'Press F2 to open developer tools, or F4 to show performance diagnostics.',
       'Your weapons fire <b>automatically</b> — focus on dodging and positioning.',
       'Killed enemies drop <b>XP gems</b>. Level up to pick a new weapon, passive or upgrade.',
       'Carry a paired <b>weapon + passive</b> to unlock a <b>Recipe</b>: a one-time synergy bonus.',

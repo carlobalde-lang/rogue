@@ -41,6 +41,8 @@ function checkRecipes() {
     if (hasW && hasP) {
       g.recipesTriggered[r.id] = true;
       r.apply(p);
+      const weapon = p.weapons.find(w => w.id === r.weapon);
+      if (weapon) weapon.evolution = r.name;
       Sound.play('recipe');
       spawnFloatingText(p.x, p.y - 46, r.name + '!', '#ffd24d');
       spawnFloatingText(p.x, p.y - 32, r.desc, '#ffe9a8');
@@ -77,10 +79,7 @@ function gainXp(amount) {
     p.xp -= p.xpToLevel;
     p.level++;
     p.xpToLevel = Math.floor(10 + p.level * 5 + p.level * p.level * 0.5);
-    // Survivability: every level grants +5% Max HP (compounding) and heals the
-    // gained amount. Enemy damage scales with the difficulty term (which rises
-    // quadratically after level 15) while base Max HP is flat, so without this
-    // a late-game build that skipped Vitality gets two-shot by normal enemies.
+    // Every level grants +5% Max HP and heals the gained amount.
     const hpBefore = p.maxHp;
     p.maxHp = Math.max(hpBefore + 1, Math.round(hpBefore * 1.05));
     p.hp = Math.min(p.maxHp, p.hp + (p.maxHp - hpBefore));
@@ -154,7 +153,8 @@ function autoPick(choices) {
   }
   const top = choices.filter(c => (c.autoRank !== undefined ? c.autoRank : 2) === best);
   if (top.length === 1) return top[0];
-  const weights = top.map(c => (RARITY_DEFS[c.rarity] || RARITY_DEFS.common).weight);
+  const tier = { common: 1, rare: 2, epic: 3, legendary: 4 };
+  const weights = top.map(c => tier[c.rarity] || 1);
   const total = weights.reduce((s, w) => s + w, 0);
   let r = Math.random() * total;
   for (let i = 0; i < top.length; i++) {
@@ -236,12 +236,12 @@ function generateChoices() {
   for (const w of p.weapons) {
     if (!bannedW.has(w.id)) {
       const def = WEAPON_DEFS[w.id];
-      const rk = rollRarityKey();
+      const rk = rollRarityKey(p.luck);
       const rd = RARITY_DEFS[rk];
       const toLvl = w.level + 1 + rd.bonus;
       pool.push({
         key: w.id, icon: def.icon, name: def.name, rarity: rk,
-        desc: def.upgradeDesc(toLvl),
+        desc: def.upgradeDesc(toLvl) + (w.evolution ? ' · ' + w.evolution : ''),
         levelText: `Level ${w.level} → ${toLvl} · ${rd.name}`,
         autoRank: 0,
         apply: () => { w.level = Math.max(w.level, toLvl); }
@@ -255,7 +255,7 @@ function generateChoices() {
   for (const [id, def] of Object.entries(WEAPON_DEFS)) {
     if (!owned.has(id) && p.weapons.length < 6 && !bannedW.has(id) &&
         (!isChestWeapon(id) || metaWeaponUnlocked(id))) {
-      const rk = rollRarityKey();
+      const rk = rollRarityKey(p.luck);
       const rd = RARITY_DEFS[rk];
       const startLvl = 1 + rd.bonus;
       pool.push({
@@ -281,7 +281,7 @@ function generateChoices() {
       const ownedCount = p.passives.filter(n => n === def.name).length;
       if (ownedCount >= def.max) continue;
     }
-    const rk = rollRarityKey();
+    const rk = rollRarityKey(p.luck);
     const rd = RARITY_DEFS[rk];
     const stacks = rd.stacks;
     pool.push({

@@ -328,7 +328,7 @@ function wgRender(cx, cy, w, h, t) {
   // the window only scrolls in whole tiles) is built from the shared
   // trampleTiles cache; it's re-uploaded when it scrolls or a new footprint
   // landed. The vertex shader samples it per blade root.
-  const TR_S = 16;
+  const TR_S = IS_MOBILE ? 64 : 16; // Extra margin covers throttled camera scrolling.
   const tcols = Math.ceil((w + TR_S * 2) / TRAMPLE_CELL) + 1;
   const trows = Math.ceil((h + TR_S * 2) / TRAMPLE_CELL) + 1;
   let tb = WG.trample;
@@ -341,14 +341,18 @@ function wgRender(cx, cy, w, h, t) {
   }
   const mox = Math.floor((cx - TR_S) / TILE) * TILE;
   const moy = Math.floor((cy - TR_S) / TILE) * TILE;
-  tb.ox = mox; tb.oy = moy;
   const wkey = mox + ',' + moy;
-  if (wkey !== tb.key || trampleRev !== tb.lastRev) {
+  const changed = wkey !== tb.key || trampleRev !== tb.lastRev;
+  const now = game ? game.time : 0;
+  const refresh = !IS_MOBILE || !tb.key || now - (tb.lastUploadTime || 0) >= mobileGrassInterval()
+    || Math.abs(mox - tb.ox) > TILE || Math.abs(moy - tb.oy) > TILE;
+  if (changed && refresh) {
     const tctx = tb.ctx;
-    if (wkey !== tb.key) {
+    if (wkey !== tb.key || IS_MOBILE) {
       tb.key = wkey;
       tctx.clearRect(0, 0, tcols, trows);
     }
+    tb.ox = mox; tb.oy = moy;
     const t0x = Math.floor(mox / TILE), t0y = Math.floor(moy / TILE);
     const tCX = (tcols * TRAMPLE_CELL) / TILE, tCY = (trows * TRAMPLE_CELL) / TILE;
     for (let ty = t0y; ty < t0y + tCY + 1; ty++) {
@@ -360,18 +364,24 @@ function wgRender(cx, cy, w, h, t) {
       }
     }
     tb.lastRev = trampleRev;
+    tb.lastUploadTime = now;
     tb.needUpload = true;
   }
   if (tb.needUpload) {
     gl.bindTexture(gl.TEXTURE_2D, WG.trampleTex);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tb.cv);
+    if (tb.gpuCols === tcols && tb.gpuRows === trows) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, tb.cv);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tb.cv);
+      tb.gpuCols = tcols; tb.gpuRows = trows;
+    }
     tb.needUpload = false;
   }
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, WG.trampleTex);
   gl.uniform1i(L.u_trampleTex, 0);
-  gl.uniform2f(L.u_trampleOrigin, mox, moy);
+  gl.uniform2f(L.u_trampleOrigin, tb.ox, tb.oy);
   gl.uniform2f(L.u_trampleSize, tcols * TRAMPLE_CELL, trows * TRAMPLE_CELL);
   gl.uniform1f(L.u_trampleStr, GRASS_TRAMPLE_STR);
 

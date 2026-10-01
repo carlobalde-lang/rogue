@@ -575,6 +575,7 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
   #guide-actions { margin-top: 12px; }
 }
 </style>
+<link rel="stylesheet" href="css/polish.css">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -604,6 +605,7 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
     </div>
   </div>
   <div id="weapon-icons"></div>
+  <div id="exploration-objective" aria-live="off"></div>
 </div>
 
 <div id="levelup-screen">
@@ -796,6 +798,8 @@ body { overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
 <!-- Guide screen -->
 <script src="js/19-guide.js"></script>
 <!-- Main loop, input, startup -->
+<script src="js/25-polish.js"></script>
+<script src="js/26-living-shadows.js"></script>
 <script src="js/14-main.js"></script>
 <!-- Dev menu & FPS (builds panel on load) -->
 <script src="js/16-dev.js"></script>
