@@ -75,9 +75,11 @@ function gfxQualityTick(fps) {
 
   if (GFX._low >= 3 && GFX.level < GFX_LEVELS - 1) {
     GFX.level++;
+    GFX._low = 0; GFX._high = 0; GFX._samples = [];
     applyGfxLevel();
   } else if (GFX._high >= 6 && GFX.level > 0) {
     GFX.level--;
+    GFX._low = 0; GFX._high = 0; GFX._samples = [];
     applyGfxLevel();
   }
 }

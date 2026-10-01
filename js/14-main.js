@@ -85,10 +85,9 @@ function gameLoop(timestamp) {
     const fpsEl = document.getElementById('fps');
     const fpsNow = fpsFrames * 1000 / (now2 - fpsLast);
     if (fpsEl) fpsEl.textContent = Math.round(fpsNow) + ' FPS';
-    // Feed the adaptive quality system only during live gameplay;
-    // idle screens always report a healthy frame rate.
-    if (game && game.running) gfxQualityTick(fpsNow);
-    else gfxQualityTick(120);
+    // Measure quality only during live gameplay; pause/menu FPS must not
+    // trigger a recovery that immediately overloads the resumed game.
+    if (game && game.running && !game.paused && !game.gameOver) gfxQualityTick(fpsNow);
     fpsFrames = 0;
     fpsLast = now2;
   }

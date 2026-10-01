@@ -2508,7 +2508,9 @@ function getChunkCanvas(cx, cy) {
   const key = cx + ',' + cy;
   let cv = chunkCanvasCache.get(key);
   if (cv) {
-    // simple LRU touch: move to front is costly, keep insertion order & cap later
+    // Keep terrain currently on screen ahead of old exploration chunks.
+    chunkCanvasCache.delete(key);
+    chunkCanvasCache.set(key, cv);
     return cv;
   }
 
@@ -2552,11 +2554,12 @@ function getChunkCanvas(cx, cy) {
     for (let my = 13; my < CHUNK; my++) stampShadow(c, mx, my, cx - 1, cy - 1, -CHUNK_PX, -CHUNK_PX);
   chunkCanvasCache.set(key, cv);
 
-  // Keep the canvas cache bounded
-  if (chunkCanvasCache.size > 300) {
-    const keys = [...chunkCanvasCache.keys()];
-    for (let i = 0; i < keys.length - 200; i++) chunkCanvasCache.delete(keys[i]);
-  }
+  // Bound pixel storage, not only canvas count: DPR2 uses four times the bytes.
+  // Reserve enough entries for the streaming ring so it cannot evict itself.
+  const ring = (Math.max(Math.ceil(VIEW_W / CHUNK_PX), Math.ceil(VIEW_H / CHUNK_PX)) >> 1) + 2;
+  const budget = (IS_MOBILE ? 256 : 384) * 1024 * 1024;
+  const limit = Math.max((2 * ring + 1) ** 2 + 8, Math.floor(budget / (cv.width * cv.height * 4)));
+  while (chunkCanvasCache.size > limit) chunkCanvasCache.delete(chunkCanvasCache.keys().next().value);
   return cv;
 }
 
@@ -2601,6 +2604,8 @@ function rerollWorldSeed() {
   treeSpriteCache.clear();
   treeCache.clear();
   treeLoopCache.clear();
+  if (typeof grassLightCache !== 'undefined') grassLightCache.clear();
+  if (typeof WG !== 'undefined') WG.empty.clear();
   if (typeof clearTorchCache === 'function') clearTorchCache();
 }
 
