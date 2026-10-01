@@ -203,9 +203,10 @@ function wgInit() {
 }
 wgInit();
 
-function wgGrow(gi, need) {
-  let b = WG.buckets[gi];
-  if (!b) b = WG.buckets[gi] = { f32: new Float32Array(4096 * 4), n: 0 };
+function wgGrow(gi, need, dark = false) {
+  const buckets = dark ? WG.dbuckets : WG.buckets;
+  let b = buckets[gi];
+  if (!b) b = buckets[gi] = { f32: new Float32Array(4096 * 4), n: 0 };
   if (need * 4 > b.f32.length) {
     let cap = b.f32.length / 4;
     while (cap < need) cap *= 2;
@@ -268,7 +269,7 @@ function wgRender(cx, cy, w, h, t) {
       const blades = ent.d.length / 4;
       const dblades = ent.dd.length / 4;
       const b = wgGrow(ent.gi, (WG.buckets[ent.gi] ? WG.buckets[ent.gi].n : 0) + blades);
-      const db = wgGrow(ent.gi, (WG.dbuckets[ent.gi] ? WG.dbuckets[ent.gi].n : 0) + dblades);
+      const db = wgGrow(ent.gi, (WG.dbuckets[ent.gi] ? WG.dbuckets[ent.gi].n : 0) + dblades, true);
       const f = b.f32;
       const df = db.f32;
       const d = ent.d;

@@ -282,9 +282,8 @@ function updatePlayer(dt, dtSec) {
   // --- Reactive grass trail: while the player walks, drop soft "pushes" onto
   // the ground at their feet (position + walk direction + force). Each push
   // decays exponentially, so the grass bends along the player's path and slowly
-  // springs back to the wind motion after they pass. Mobile keeps only a
-  // distance-sampled persistent mask, avoiding the per-blade live pushes.
-  if (IS_MOBILE) updateMobileGrassTrail(p, dt);
+  // springs back to the wind motion after they pass. Skipped on mobile: the
+  // push/trample effect is tuned for mouse+keyboard and eats GPU on phones. ---
   if (!IS_MOBILE) {
     if (!game.grassPushes) game.grassPushes = [];
     const gP = game.grassPushes;
@@ -1454,8 +1453,10 @@ function update(dt) {
   g.time += dt;
 
   const lvl = g.player.level;
-  // Level pressure is linear and capped: collecting XP remains rewarding.
-  const lvlTerm = Math.min(Math.max(0, lvl - 1), 30) * 0.12;
+  // Base difficulty: time-based + linear level scaling (0.15/level).
+  // After level 15 the level term accelerates quadratically, making the
+  // horde reliably tougher in the late game.
+  const lvlTerm = lvl <= 15 ? lvl * 0.15 : 15 * 0.15 + (lvl - 15) * (lvl - 15) * 0.25;
   // Time term flattened from run-log telemetry: the old 1 + T*(1 + T/5)
   // (T = minutes) drove dm past ~17 by minute 8 on Normal while weapon DPS
   // still scales roughly linearly, turning every run into a pure attrition
@@ -1484,7 +1485,6 @@ function update(dt) {
   updateXpClustering(dtSec);
   updatePickups(dt, dtSec);
   updateEffects(dt, dtSec);
-  updateEvolutionZones(dt);
 
   // Cheap periodic systems: recipe discovery + minimap discoveries
   g.recipeTimer = (g.recipeTimer || 0) - dt;
@@ -1492,7 +1492,6 @@ function update(dt) {
     g.recipeTimer = 400;
     if (typeof checkRecipes === 'function') checkRecipes();
     updateDiscoveries();
-    updateExploration(400);
   }
 
   // Cap arrays for performance (particle cap scales down with quality)

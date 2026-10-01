@@ -185,12 +185,12 @@ function saveMeta() {
 }
 
 function resetSavedProgress() {
-  if (!confirm('Cancellare il salvataggio e azzerare tutte le statistiche?\n\nPerderai Umbra Shards, potenziamenti, personaggi e armi sbloccati, biomi purificati e migliori partite.\n\nQuesta operazione non può essere annullata.')) return false;
+  if (!confirm('Delete your save and reset all statistics?\n\nYou will lose Umbra Shards, upgrades, unlocked characters and weapons, purified hearts and best runs.\n\nThis cannot be undone.')) return false;
   try {
     localStorage.removeItem(META_KEY);
     localStorage.removeItem(BEST_RUNS_KEY);
   } catch (e) {
-    alert('Non è stato possibile cancellare il salvataggio. Riprova.');
+    alert('Unable to delete the save. Please try again.');
     return false;
   }
   loadMeta();
