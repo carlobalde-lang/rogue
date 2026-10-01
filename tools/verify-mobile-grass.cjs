@@ -49,6 +49,20 @@ require('fs').mkdirSync(path.join(root, 'artifacts'), { recursive: true });
         render();
         if (WG.ok) {
           const gl = WG.gl, sub = gl.texSubImage2D.bind(gl), image = gl.texImage2D.bind(gl);
+          assert(gl.getUniform(WG.prog, WG.loc.u_gpStr) > 0, 'Persistent mobile trail must have nonzero shader strength without live pushes');
+          const savedMask = [...trampleTiles.entries()];
+          const pixels = () => {
+            drawGrassWind(game.camera.x, game.camera.y, VIEW_W, VIEW_H, game.time);
+            const data = new Uint8Array(WG.canvas.width * WG.canvas.height * 4);
+            gl.readPixels(0, 0, WG.canvas.width, WG.canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+            return data;
+          };
+          trampleTiles.clear(); trampleRev++; WG.trample.key = '';
+          const unflattened = pixels();
+          for (const [key, value] of savedMask) trampleTiles.set(key, value);
+          trampleRev++; WG.trample.key = '';
+          const flattened = pixels();
+          assert(flattened.some((value, i) => value !== unflattened[i]), 'Mobile footprints must visibly change the rendered grass');
           let uploads = 0, allocations = 0;
           gl.texSubImage2D = (...args) => { uploads++; return sub(...args); };
           gl.texImage2D = (...args) => { allocations++; return image(...args); };

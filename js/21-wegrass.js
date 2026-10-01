@@ -307,6 +307,9 @@ function wgRender(cx, cy, w, h, t) {
   gl.uniform1f(L.u_scale, DPR * GFX.pixelScale);
   gl.uniform1f(L.u_time, t);
   gl.uniform1f(L.u_glintPx, GRASS_GLINT_PX);
+  // Persistent footprints also use this strength. Mobile has no live pushes,
+  // so initialize it even when the push array is empty.
+  gl.uniform1f(L.u_gpStr, GRASS_PUSH_STR);
   const gP = typeof game !== 'undefined' && game && game.grassPushes ? game.grassPushes : null;
   if (gP && gP.length) {
     const n = Math.min(gP.length, 40);
@@ -317,7 +320,6 @@ function wgRender(cx, cy, w, h, t) {
     }
     for (let i = n * 4; i < WG.gp.length; i++) WG.gp[i] = 0;
     gl.uniform1f(L.u_gpInvR2, 1 / (GRASS_PUSH_R * GRASS_PUSH_R));
-    gl.uniform1f(L.u_gpStr, GRASS_PUSH_STR);
     gl.uniform1i(L.u_gpCount, n);
     gl.uniform4fv(L.u_gp, WG.gp.subarray(0, 40 * 4));
   } else {
