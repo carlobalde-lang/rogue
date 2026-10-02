@@ -389,6 +389,10 @@ function ensureChunk(cx, cy) {
     }
   }
 
+  // Reserve a generous permanent combat clearing before caching collision tiles.
+  for(let ty=0;ty<CHUNK;ty++)for(let tx=0;tx<CHUNK;tx++) {
+    if(isBiomeArena(cx*CHUNK_PX+tx*TILE+TILE/2,cy*CHUNK_PX+ty*TILE+TILE/2,BIOME_ARENA_RADIUS+64))tiles[ty*CHUNK+tx]=T_FLOOR;
+  }
   chunkMap.set(key, tiles);
   return tiles;
 }
@@ -771,7 +775,8 @@ function biomeWeightsAt(px, py) {
 // weighted map → boundary tiles "mixing" between the two neighbouring biomes).
 function owningBiomeAt(px, py) {
   const pr = Math.hypot(px, py);
-  const r = seed2(Math.floor(px / TILE), Math.floor(py / TILE));
+  // The signed hash folds into [0, 0.5); normalize only this weighted pick.
+  const r = seed2(Math.floor(px / TILE), Math.floor(py / TILE)) * 2;
 
   // Heart purity: inside the solid heart disc the sector is fully dominant.
   // In the feather ring the heart is a probabilistic mix with the sector
@@ -823,6 +828,16 @@ function biomeBlendWeightsAt(px, py) {
     }
   }
   return biomeWeightsAt(px, py);
+}
+
+// Music follows continuous geography, never the randomized material of one tile.
+// Retaining the current region near ties creates a stable band at every border.
+function musicBiomeAt(px,py,current=BIOME_CORE){
+  const weights=biomeBlendWeightsAt(px,py);
+  let best=BIOME_CORE,bestWeight=-1;
+  for(const id in weights)if(weights[id]>bestWeight){best=id;bestWeight=weights[id];}
+  if(best!==current&&bestWeight<(weights[current]||0)+0.12)return current;
+  return best;
 }
 
 // Weighted average of a BIOME_DEFS[...][key] color array ('floor' or 'wall')
@@ -1156,6 +1171,9 @@ function chunkHazardMap(cx, cy) {
     }
   }
 
+  for(let ty=0;ty<CHUNK;ty++)for(let tx=0;tx<CHUNK;tx++) {
+    if(isBiomeArena(cx*CHUNK_PX+tx*TILE+TILE/2,cy*CHUNK_PX+ty*TILE+TILE/2,BIOME_ARENA_RADIUS+64))map2[ty*CHUNK+tx]=HAZARD_NONE;
+  }
   hazardMapCache.set(key, map2);
   if (hazardMapCache.size > 300) {
     const keys = [...hazardMapCache.keys()];
@@ -1247,6 +1265,23 @@ const BIOME_FEATHER_W = 1500;        // soft feather ring outside the disc
 // The biome hearts sit one full disc radius further out than the chest ring,
 // so the whole disc (not just its centre) stands clear of the core climate.
 const BIOME_CHEST_RADIUS = 19000 + BIOME_PURITY_R;
+const BIOME_ARENA_RADIUS = 256;
+const BIOME_ARENA_CENTERS = Object.fromEntries(BIOME_IDS.map((id,k) => {
+  const a=-Math.PI/2+k*Math.PI/4;
+  return [id,{x:Math.round(Math.cos(a)*BIOME_CHEST_RADIUS/TILE)*TILE+TILE/2,
+    y:Math.round(Math.sin(a)*BIOME_CHEST_RADIUS/TILE)*TILE+TILE/2}];
+}));
+const BIOME_ARENA_LIST = Object.values(BIOME_ARENA_CENTERS);
+function isBiomeArena(x,y,radius=BIOME_ARENA_RADIUS) {
+  // All arenas are far outside the ruins; skip biome lookup on ordinary frames.
+  const radial=x*x+y*y,margin=radius+TILE*2;
+  if(radial<(BIOME_CHEST_RADIUS-margin)**2||radial>(BIOME_CHEST_RADIUS+margin)**2)return false;
+  for(const p of BIOME_ARENA_LIST) {
+    const dx=x-p.x,dy=y-p.y;if(dx*dx+dy*dy<=radius*radius)return true;
+  }
+  return false;
+}
+
 
 // Inside the disc the sector is fully pure (owningBiomeAt), while the ring is
 // a *visual* device: heartFeatherAt() lets floor renderers blend the heart
@@ -1278,28 +1313,8 @@ const BIOME_CHEST_OPEN_MS = 600;     // hold time to open
 const chestCache = new Map();
 function chestPos(biomeId) {
   if (chestCache.has(biomeId)) return chestCache.get(biomeId);
-  const k = BIOME_IDS.indexOf(biomeId);
-  const ca = -Math.PI / 2 + k * Math.PI / 4;   // same sector centers as the wedges
-  const cx = Math.cos(ca) * BIOME_CHEST_RADIUS;
-  const cy = Math.sin(ca) * BIOME_CHEST_RADIUS;
-  // Snap onto a floor tile (spiral search) so the chest is always reachable
-  // even if the exact center landed inside a ruin wall.
-  let best = null;
-  outer:
-  for (let rad = 0; rad <= 12; rad++) {
-    for (let dy = -rad; dy <= rad; dy++) {
-      for (let dx = -rad; dx <= rad; dx++) {
-        if (Math.abs(dx) !== rad && Math.abs(dy) !== rad) continue;
-        const wx = Math.round(cx / TILE) * TILE + TILE * 0.5 + dx * TILE;
-        const wy = Math.round(cy / TILE) * TILE + TILE * 0.5 + dy * TILE;
-        if (getTile(wx, wy) === T_WALL || getTile(wx, wy) === T_CLIFF || getTile(wx, wy) === T_TREE || getTile(wx, wy) === T_TALLGRASS) continue;
-        if (tileHazardAt(wx, wy) !== HAZARD_NONE) continue;
-        best = { x: wx, y: wy };
-        break outer;
-      }
-    }
-  }
-  if (!best) best = { x: cx, y: cy };
+  const best = BIOME_ARENA_CENTERS[biomeId];
+  if (!best) throw new Error('Unknown biome heart: '+biomeId);
   chestCache.set(biomeId, best);
   return best;
 }
@@ -1343,7 +1358,8 @@ function floorStyle(px, py) {
   // texture doesn't itself get muddy at borders — only the base tone blends.
   const bm = owningBiomeAt(px, py);
   const def = BIOME_DEFS[bm] || BIOME_DEFS.core;
-  const r = seed2(Math.floor(px / TILE), Math.floor(py / TILE));
+  // The signed hash folds into [0, 0.5); normalize only this weighted pick.
+  const r = seed2(Math.floor(px / TILE), Math.floor(py / TILE)) * 2;
   const j = Math.floor(r * def.floorVar * 0.55);
   // Quiet ground colours keep shadow silhouettes and hostile shots readable.
   return [Math.round(fr * 0.88) + j, Math.round(fg * 0.9) + (j >> 1), Math.round(fb * 0.94) + (j >> 1)];
@@ -1821,8 +1837,14 @@ function bigTreeSprite(type, s, part) {
   c.save();
   c.translate(3 + 29 * k, ch - 3 - 45 * k);
   c.scale(k, k);
-  drawPropTile(c, type, -16, 0, 0, 1, undefined, part);
+  const variant=seed2(Math.round(k*10)*31,type.length*17)*2;
+  c.scale(variant<0.5?-1:1,1);
+  c.scale(0.92+variant*0.10,1);
+  drawPropTile(c, type, -16, 0, variant*0.25, 1, undefined, part);
   c.restore();
+  c.save();c.globalCompositeOperation='source-atop';c.globalAlpha=0.045;
+  c.fillStyle=seed2(Math.round(k*10)*31,type.length*17)*2<0.5?'#b4c590':'#548d96';
+  c.fillRect(0,0,cw,ch);c.restore();
   cv._ox = 3 + 29 * k;    // canvas coords of the tree base
   cv._oy = ch - 3 - 13 * k;
   treeSpriteCache.set(key, cv);
@@ -1860,6 +1882,7 @@ function getChunkTrees(cx, cy) {
       if (t !== T_FLOOR && t !== T_TREE) continue;
       const wx = cx * CHUNK_PX + tx * TILE;
       const wy = cy * CHUNK_PX + ty * TILE;
+      if(isBiomeArena(wx+TILE/2,wy+TILE/2,BIOME_ARENA_RADIUS+240))continue;
       const def = BIOME_DEFS[owningBiomeAt(wx, wy)];
       if (!def || !def.prop) continue;
       if (ownHazardAt(wx, wy) !== HAZARD_NONE) continue;
@@ -2017,6 +2040,7 @@ function stampBiomeGrass(c, lx, ly, cx, cy, ox, oy) {
   const py = ly * TILE + (oy || 0);
   const wx = cx * CHUNK_PX + lx * TILE;
   const wy = cy * CHUNK_PX + ly * TILE;
+  if(isBiomeArena(wx+TILE/2,wy+TILE/2)||(typeof scenerySpot==='function'&&scenerySpot(wx+TILE/2,wy+TILE/2)))return;
   const tt = getTile(wx + TILE * 0.5, wy + TILE * 0.5);
   if (tt !== T_FLOOR && tt !== T_TREE && tt !== T_TALLGRASS) return;
   if (ownHazardAt(wx, wy) !== HAZARD_NONE) return;
@@ -2030,7 +2054,7 @@ function stampBiomeGrass(c, lx, ly, cx, cy, ox, oy) {
   const temp = BIOME_TEMP[owningBiomeAt(wx, wy)] || 0.6;
   // The canyon keeps its grass down to scarce dry clumps (never a continuous
   // mat), so the rock lanes read as skeleton terrain.
-  const dens = temp === 0.9 ? 0.07 : grassDensity(temp);
+  const dens = (temp === 0.9 ? 0.07 : grassDensity(temp)) * (typeof grassPatchFactor==='function'?grassPatchFactor(cx*CHUNK+lx,cy*CHUNK+ly):1);
   if (gr >= dens) return;
   drawPropTile(c, gtype, px, py, gr, temp === 0.9 ? 1 : grassHeight(temp), GFX.grass);
 }
@@ -2604,8 +2628,10 @@ function rerollWorldSeed() {
   treeSpriteCache.clear();
   treeCache.clear();
   treeLoopCache.clear();
+  if(typeof clearTreeRowCache==='function')clearTreeRowCache();
+  if(typeof sceneryCanvasCache!=='undefined')sceneryCanvasCache.clear();
   if (typeof grassLightCache !== 'undefined') grassLightCache.clear();
-  if (typeof WG !== 'undefined') WG.empty.clear();
+  if (typeof WG !== 'undefined') { WG.empty.clear(); WG.geometryKey=null; }
   if (typeof clearTorchCache === 'function') clearTorchCache();
 }
 

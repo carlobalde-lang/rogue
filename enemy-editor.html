@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -128,9 +128,9 @@
 
 <header>
   <h1>Shadow Survivors <span class="sep">·</span> <em>Enemy Editor</em></h1>
-  <span class="badge">modulo: nemici</span>
+  <span class="badge">module: enemies</span>
   <span class="grow"></span>
-  <span class="hint" style="margin:0">editor procedurale → esporta codice per <code>01-defs.js</code> / <code>13-render.js</code></span>
+  <span class="hint" style="margin:0">procedural editor → export code for <code>01-defs.js</code> / <code>13-render.js</code></span>
 </header>
 
 <main>
@@ -138,46 +138,46 @@
   <div class="col-left">
 
     <div class="panel">
-      <h2>Carica nemico</h2>
+      <h2>Load enemy</h2>
       <div class="row">
-        <span class="label">Tipo</span>
+        <span class="label">Type</span>
         <select id="enemySel"></select>
       </div>
       <div class="row">
-        <span class="label">Forma</span>
+        <span class="label">Shape</span>
         <select id="formSel">
           <option value="blob">Blob / Shadowling</option>
-          <option value="fast">Velocista (Stalker)</option>
+          <option value="fast">Runner (Stalker)</option>
           <option value="tank">Tank / Warden</option>
           <option value="ranged">Caster (Shade)</option>
           <option value="boss">Boss (Shadow Lord)</option>
-          <option value="custom">Disegno libero (punti + cerchi)</option>
+          <option value="custom">Free drawing (points + circles)</option>
         </select>
       </div>
       <div class="row">
-        <span class="label">Raggio prev.</span>
+        <span class="label">Preview radius</span>
         <input id="radiusRange" type="range" min="24" max="130" step="1" value="80" style="flex:1">
         <span class="val" id="radiusVal" style="color:var(--accent2);font-family:Consolas,monospace;width:44px"></span>
       </div>
       <div class="row">
-        <span class="label">Animazione</span>
-        <button id="pauseBtn" class="small" style="flex:1">PAUSA</button>
-        <button id="phaseBtn" class="small">nuova fase</button>
+        <span class="label">Animation</span>
+        <button id="pauseBtn" class="small" style="flex:1">PAUSE</button>
+        <button id="phaseBtn" class="small">new phase</button>
       </div>
     </div>
 
     <div class="panel">
-      <h2>Paletta <b>(già nel gioco)</b></h2>
+      <h2>Palette <b>(used in game)</b></h2>
       <div class="color-row">
-        <span class="name">Corpo</span>
+        <span class="name">Body</span>
         <input type="color" id="cBody"><input type="text" class="hex" id="hBody" maxlength="9">
       </div>
       <div class="color-row">
-        <span class="name">Nucleo</span>
+        <span class="name">Core</span>
         <input type="color" id="cCore"><input type="text" class="hex" id="hCore" maxlength="9">
       </div>
       <div class="color-row">
-        <span class="name">Occhi</span>
+        <span class="name">Eyes</span>
         <input type="color" id="cGlint"><input type="text" class="hex" id="hGlint" maxlength="9">
       </div>
 
@@ -196,35 +196,35 @@
         <input id="aB" type="range" min="0" max="255" step="1" style="flex:1"><span class="val" id="aBV" style="font-family:Consolas,monospace;color:var(--accent2);width:34px"></span>
       </div>
       <div class="slider-row">
-        <div class="top"><span>Opacità aura</span><span class="val" id="aAlphaV"></span></div>
+        <div class="top"><span>Aura opacity</span><span class="val" id="aAlphaV"></span></div>
         <input id="aAlpha" type="range" min="0" max="0.5" step="0.01" value="0.18">
       </div>
       <div class="slider-row">
-        <div class="top"><span>Scala aura</span><span class="val" id="aScaleV"></span></div>
+        <div class="top"><span>Aura scale</span><span class="val" id="aScaleV"></span></div>
         <input id="aScale" type="range" min="1" max="4" step="0.1" value="2.2">
       </div>
     </div>
 
     <div class="panel" id="shapePanel">
-      <h2>Forma <b>(nuovo: funziona solo con export)</b></h2>
+      <h2>Shape <b>(requires export integration)</b></h2>
       <div id="shapeCtrls"></div>
       <div class="set">
-        <button id="resetFormBtn" class="small">Ripristina forma</button>
-        <button id="randPalBtn" class="small">Paletta casuale</button>
+        <button id="resetFormBtn" class="small">Reset shape</button>
+        <button id="randPalBtn" class="small">Random palette</button>
       </div>
     </div>
 
     <div class="panel" id="designPanel" style="display:none">
-      <h2>Disegno libero <b>(punti + forme)</b></h2>
+      <h2>Free drawing <b>(points + shapes)</b></h2>
       <div class="tools">
-        <button data-tool="select" class="tool on">Sposta</button>
-        <button data-tool="poly" class="tool">Aggiungi punto</button>
-        <button data-tool="circle" class="tool">Cerchio</button>
-        <button data-tool="ellipse" class="tool">Ellisse</button>
-        <button data-tool="erase" class="tool">Cancella</button>
+        <button data-tool="select" class="tool on">Move</button>
+        <button data-tool="poly" class="tool">Add point</button>
+        <button data-tool="circle" class="tool">Circle</button>
+        <button data-tool="ellipse" class="tool">Ellipse</button>
+        <button data-tool="erase" class="tool">Erase</button>
       </div>
       <div class="row" style="margin-top:10px">
-        <span class="label">Snap griglia</span>
+        <span class="label">Grid snap</span>
         <select id="snapSel" style="flex:1">
           <option value="0">No</option>
           <option value="0.1">0.1</option>
@@ -233,87 +233,87 @@
         </select>
       </div>
       <div class="row">
-        <span class="label">Liscio</span>
+        <span class="label">Smoothing</span>
         <select id="smoothSel" style="flex:1">
-          <option value="0">Spigoloso</option>
-          <option value="1" selected>Morbido</option>
-          <option value="2">Molto morbido</option>
+          <option value="0">Angular</option>
+          <option value="1" selected>Smooth</option>
+          <option value="2">Very smooth</option>
         </select>
       </div>
       <div class="set">
-        <button id="undoBtn" class="small">Annulla (Ctrl+Z)</button>
-        <button id="dupBtn" class="small">Duplica</button>
+        <button id="undoBtn" class="small">Undo (Ctrl+Z)</button>
+        <button id="dupBtn" class="small">Duplicate</button>
         <button id="flipHBtn" class="small">Flip H</button>
         <button id="flipVBtn" class="small">Flip V</button>
-        <button id="rotBtn" class="small">Ruota 15°</button>
+        <button id="rotBtn" class="small">Rotate 15°</button>
       </div>
 
       <hr style="margin:12px 0;border:none;border-top:1px solid var(--line)">
 
       <div class="row">
-        <span class="label">Stile di</span>
+        <span class="label">Style of</span>
         <b id="selInfo" style="flex:1;color:var(--accent2);text-transform:capitalize">—</b>
       </div>
       <div class="row">
-        <span class="label">Riempimento</span>
+        <span class="label">Fill</span>
         <select id="fillSel" style="flex:1" disabled>
-          <option value="body">Corpo</option>
-          <option value="core">Nucleo</option>
-          <option value="glint">Occhi</option>
-          <option value="none">Nessuno</option>
-          <option value="hex">Esadecimale…</option>
+          <option value="body">Body</option>
+          <option value="core">Core</option>
+          <option value="glint">Eyes</option>
+          <option value="none">None</option>
+          <option value="hex">Hexadecimal…</option>
         </select>
         <input type="color" id="fillHex" value="#7a4cff" style="display:none;width:34px;height:26px;padding:0">
       </div>
       <div class="row">
-        <span class="label">Opacità</span>
+        <span class="label">Opacity</span>
         <input id="fillARange" type="range" min="5" max="100" step="5" value="100" style="flex:1" disabled>
         <span class="val" id="fillAVal" style="font-family:Consolas,monospace">100%</span>
       </div>
       <div class="row">
-        <span class="label">Bordo</span>
+        <span class="label">Outline</span>
         <select id="strokeSel" style="flex:1" disabled>
-          <option value="none">Nessuno</option>
-          <option value="body">Corpo</option>
-          <option value="core">Nucleo</option>
-          <option value="glint">Occhi</option>
-          <option value="hex">Esadecimale…</option>
+          <option value="none">None</option>
+          <option value="body">Body</option>
+          <option value="core">Core</option>
+          <option value="glint">Eyes</option>
+          <option value="hex">Hexadecimal…</option>
         </select>
         <input type="color" id="strokeHex" value="#ffffff" style="display:none;width:34px;height:26px;padding:0">
       </div>
       <div class="row">
-        <span class="label">Spessore</span>
+        <span class="label">Width</span>
         <input id="strokeWRange" type="range" min="1" max="10" step="0.5" value="2" style="flex:1" disabled>
         <span class="val" id="strokeWVal" style="font-family:Consolas,monospace">2</span>
       </div>
       <div class="row" id="rotRow" style="display:none">
-        <span class="label">Rotazione</span>
+        <span class="label">Rotation</span>
         <input id="rotRange" type="range" min="0" max="360" step="5" value="0" style="flex:1" disabled>
         <span class="val" id="rotVal" style="font-family:Consolas,monospace">0°</span>
       </div>
       <div class="row">
-        <span class="label">Ordine</span>
-        <button id="backBtn" class="small" disabled>Dietro</button>
-        <button id="frontBtn" class="small" disabled>Davanti</button>
-        <button id="behindBtn" class="small" disabled>Dietro corpo</button>
+        <span class="label">Order</span>
+        <button id="backBtn" class="small" disabled>Back</button>
+        <button id="frontBtn" class="small" disabled>Front</button>
+        <button id="behindBtn" class="small" disabled>Behind body</button>
       </div>
       <div class="set">
-        <button id="clearBtn" class="small">Svuota disegno</button>
-        <button id="sampleBtn" class="primary small">Carica esempio</button>
+        <button id="clearBtn" class="small">Clear drawing</button>
+        <button id="sampleBtn" class="primary small">Load example</button>
       </div>
       <p class="hint" style="margin:10px 0 0">
-        Trascina punti e forme. Sul <b>bordo</b> di una forma lo ridimensioni; per le
-        ellissi c'è la <b>maniglia di rotazione</b> in alto. <b>Frecce</b>: sposta di
-        poco, <b>Ctrl+Z</b>: annulla. Clicca dentro il poligono per stilizzarlo.
-        Coordinate in <code>unità di raggio</code> del nemico.
+        Drag points and shapes. Drag a shape's <b>edge</b> to resize it.
+        Ellipses have a <b>rotation handle</b> at the top. Use <b>arrow keys</b>
+        to nudge and <b>Ctrl+Z</b> to undo. Click inside the polygon to edit its style.
+        Coordinates use the enemy's <code>radius units</code>.
       </p>
     </div>
 
     <div class="panel">
-      <h2>Identità export</h2>
-      <div class="row"><span class="label">Key</span><input id="outKey" type="text" value="myenemy" placeholder="es. myenemy"></div>
-      <div class="row"><span class="label">Nome</span><input id="outName" type="text" value="My Enemy" style="flex:1"></div>
-      <div class="row"><span class="label">Categoria</span>
+      <h2>Export identity</h2>
+      <div class="row"><span class="label">Key</span><input id="outKey" type="text" value="myenemy" placeholder="e.g. myenemy"></div>
+      <div class="row"><span class="label">Name</span><input id="outName" type="text" value="My Enemy" style="flex:1"></div>
+      <div class="row"><span class="label">Category</span>
         <select id="outCat">
           <option>normal</option><option>elite</option><option>warden</option><option>boss</option>
         </select>
@@ -326,35 +326,35 @@
     <div class="stage">
       <canvas id="preview" width="480" height="480" style="width:100%;max-width:560px;aspect-ratio:1"></canvas>
       <div class="stage-info">
-        Anteprima animata del nemico <b id="stageName"></b>
+        Animated enemy preview <b id="stageName"></b>
         <span id="stageForm" class="badge" style="margin-left:6px">blob</span>
         <span id="stageKey" class="badge" style="margin-left:6px"></span>
       </div>
     </div>
 
     <div class="panel">
-      <h2>Galleria nemici del gioco</h2>
+      <h2>Game enemy gallery</h2>
       <div class="gallery" id="gallery"></div>
     </div>
 
     <div class="panel">
-      <h2>Export codice</h2>
+      <h2>Export code</h2>
       <div class="tabs">
         <button data-tab="def" class="on">01-defs.js</button>
         <button data-tab="func">13-render.js</button>
-        <button data-tab="how">Come integrare</button>
+        <button data-tab="how">Integration guide</button>
       </div>
       <div class="set" style="margin-bottom:8px">
-        <button id="regenBtn" class="primary">Rigenera codice</button>
-        <button id="copyBtn">Copia</button>
-        <button id="pngBtn">Scarica PNG</button>
+        <button id="regenBtn" class="primary">Regenerate code</button>
+        <button id="copyBtn">Copy</button>
+        <button id="pngBtn">Download PNG</button>
       </div>
       <div data-pane="def">
-        <p class="hint">Sostituisce i campi visuali del nemico scelto in <code>js/01-defs.js</code>. La chiave <code>shape:</code> applica la forma personalizzata (attiva in gioco seguendo la tab "Come integrare").</p>
+        <p class="hint">Replace the selected enemy visual fields in <code>js/01-defs.js</code>. The <code>shape:</code> field stores the custom shape. Follow the Integration guide to enable it in game.</p>
         <textarea id="codeDef" class="code" readonly spellcheck="false"></textarea>
       </div>
       <div data-pane="func" style="display:none">
-        <p class="hint">Funzione completa <code>drawEnemy</code> + default per ogni forma: da incollare a livello top in <code>js/13-render.js</code>.</p>
+        <p class="hint">Complete <code>drawEnemy</code> function and shape defaults. Add them at the top level of <code>js/13-render.js</code>.</p>
         <textarea id="codeFunc" class="code big" readonly spellcheck="false"></textarea>
       </div>
       <div data-pane="how" style="display:none">
@@ -445,44 +445,44 @@ const FORM_RADIUS = { blob:80, fast:82, tank:95, ranged:84, boss:100, custom:90 
 /* ---------- slider configurabili per forma ---------- */
 const SHAPE_SLIDERS = {
   blob: [
-    ['lumps','Ondulazione corpo',0,0.2,0.01,2],
-    ['segments','Frammenti',6,18,1,0],
-    ['tendrils','Tentacoli',0,6,1,0],
-    ['tendrilLen','Lungh. tentacoli',0.3,2,0.05,2],
-    ['eyes','Numero occhi',0,4,1,0],
-    ['eyeSize','Dimensione occhi',0.2,3,0.1,1]
+    ['lumps','Body undulation',0,0.2,0.01,2],
+    ['segments','Segments',6,18,1,0],
+    ['tendrils','Tendrils',0,6,1,0],
+    ['tendrilLen','Tendril length',0.3,2,0.05,2],
+    ['eyes','Eye count',0,4,1,0],
+    ['eyeSize','Eye size',0.2,3,0.1,1]
   ],
   fast: [
-    ['nose','Naso (punta)',1,3,0.1,1],
-    ['tail','Lunghezza coda',0.4,3,0.1,1],
-    ['width','Larghezza',0.2,1,0.01,2],
-    ['tailW','Apertura coda',0.1,0.7,0.01,2],
-    ['spine','Spina dorsale',0,1,1,0],
-    ['eyeSize','Dimensione occhi',0.2,3,0.1,1],
-    ['angle','Angolo (in editor)',0,6.283,0.01,2]
+    ['nose','Nose length',1,3,0.1,1],
+    ['tail','Tail length',0.4,3,0.1,1],
+    ['width','Width',0.2,1,0.01,2],
+    ['tailW','Tail spread',0.1,0.7,0.01,2],
+    ['spine','Spine',0,1,1,0],
+    ['eyeSize','Eye size',0.2,3,0.1,1],
+    ['angle','Preview angle',0,6.283,0.01,2]
   ],
   tank: [
-    ['spikes','Picchi corona',0,9,1,0],
-    ['crownLen','Lungh. picchi',3,24,1,0],
-    ['coreSize','Nucleo petto',0.1,0.8,0.01,2],
-    ['studs','Stud spallacci',0,1,1,0]
+    ['spikes','Crown spikes',0,9,1,0],
+    ['crownLen','Spike length',3,24,1,0],
+    ['coreSize','Chest core',0.1,0.8,0.01,2],
+    ['studs','Shoulder studs',0,1,1,0]
   ],
   ranged: [
-    ['tendrils','Tentacoli',0,10,1,0],
-    ['tendrilLen','Lungh. tentacoli',0.5,2.5,0.05,2],
-    ['halo','Alone',0,1,1,0],
-    ['eyeSize','Dimensione occhio',0.2,3,0.1,1],
-    ['blink','Battito occhio',0,1,1,0]
+    ['tendrils','Tendrils',0,10,1,0],
+    ['tendrilLen','Tendril length',0.5,2.5,0.05,2],
+    ['halo','Halo',0,1,1,0],
+    ['eyeSize','Eye sizeo',0.2,3,0.1,1],
+    ['blink','Blinking',0,1,1,0]
   ],
   boss: [
-    ['horns','Corni',0,7,1,0],
-    ['hornLen','Lungh. corni',0.6,2.2,0.05,2],
-    ['hornCurl','Curvatura corni',0,0.8,0.01,2],
-    ['hornW','Spessore corni',0.05,0.4,0.01,2],
-    ['coreSize','Nucleo cuore',0.2,1,0.01,2],
-    ['lumps','Ondulazione',0,0.25,0.01,2],
-    ['shards','Schegge orbitali',0,12,1,0],
-    ['eyes','Numero occhi',0,4,1,0]
+    ['horns','Horns',0,7,1,0],
+    ['hornLen','Horn length',0.6,2.2,0.05,2],
+    ['hornCurl','Horn curl',0,0.8,0.01,2],
+    ['hornW','Horn width',0.05,0.4,0.01,2],
+    ['coreSize','Heart core',0.2,1,0.01,2],
+    ['lumps','Undulation',0,0.25,0.01,2],
+    ['shards','Orbiting shards',0,12,1,0],
+    ['eyes','Eye count',0,4,1,0]
   ]
 };
 
@@ -1151,10 +1151,10 @@ function defSnippet() {
   var L = [];
   L.push("  " + S.key + ": {");
   L.push("    name: '" + S.name + "', category: '" + S.cat + "',");
-  L.push("    // ...stat (radius/hp/speed/damage/xp) invariate...");
+  L.push("    // ...keep existing stats (radius/hp/speed/damage/xp)...");
   L.push("    body: '" + S.body + "', core: '" + S.core + "', glint: '" + S.glint + "',");
   L.push("    aura: [" + S.aura.join(', ') + "], auraAlpha: " + S.auraAlpha + ", auraScale: " + S.auraScale + ",");
-  L.push("    // forma personalizzata (usata da drawEnemy in 13-render.js)");
+  L.push("    // custom shape (used by drawEnemy in the renderer)");
   L.push("    shape: {");
   for (var i = 0; i < keys.length; i++) {
     var v = sh[keys[i]];
@@ -1173,7 +1173,7 @@ function funcSnippet() {
 "/* --------------------------------------------------------------------------\n" +
 "  SHADOW SURVIVORS — drawEnemy: render procedurale dei nemici (esportato dal\n" +
 "  tuo Enemy Editor). Incolla questo blocco a livello top-level in js/13-render.js\n" +
-"  (prima della funzione render()). Vedi la tab 'Come integrare' per attivarlo.\n" +
+"  (prima della funzione render()). Vedi la tab 'Integration guide' per attivarlo.\n" +
 "--------------------------------------------------------------------------- */\n\n";
   header += "var ENEMY_SHAPE_DEFAULTS = {\n";
   var forms = ['blob', 'fast', 'tank', 'ranged', 'boss', 'custom'];
@@ -1224,87 +1224,21 @@ function funcSnippet() {
 
 function howSnippet() {
   return [
-    "/* ====== COME INTEGRARE LA FORMA PERSONALIZZATA NEL GIOCO ====== */",
-    "",
-    "1) Apri js/01-defs.js e aggiungi la chiave `shape:` al def del nemico",
-    "   (viene generata nella tab '01-defs.js'):",
-    "",
-    "     " + S.key + ": {",
-    "       ...",
-    "       shape: { form: '" + S.form + "', ... }",
-    "     },",
-    "",
-    "2) Aggiungi `shape: def.shape` all'oggetto di spawn in js/07-entities.js",
-    "   (quando il nemico nasce, così e.shape è disponibile al render):",
-    "",
-    "     const base = {",
-    "       ...",
-    "       body: def.body, core: def.core, glint: def.glint,",
-    "       shape: def.shape,          // <-- aggiungi questa riga",
-    "     };",
-    "",
-    "3) Incolla il blocco della tab '13-render.js' a livello top-level in",
-    "   js/13-render.js (prima della funzione render()).",
-    "",
-    "4) Nel loop dei nemici (intorno a riga ~3147), trasforma il dispatch delle",
-    "   forme in un if personalizzato. CERCA:",
-    "",
-    "       if (form === 'boss') {",
-    "",
-    "   e SOSTITUISCI con:",
-    "",
-    "       if (e.shape) {",
-    "         drawEnemy(ctx, sx, sy, R, t, eph, enemyFace(e, enemyShapeParams(e)));",
-    "       }",
-    "       else if (form === 'boss') {",
-    "",
-    "   (il resto della catena if/else rimane com'è come ramo di fallback).",
-    "   `R`, `t`, `eph`, `sx`, `sy`, `ctx` sono già nello scope del loop.",
-    "",
-    "5) Nota: un nemico senza chiave shape continua a usare il render originale,",
-    "   quindi aggiungendola solo ai nemici che modifichi non rompi nulla.",
-    "",
-    "6) Suggerimenti:",
-    "   - La palette (body/core/glint/aura...) si può cambiare DENTRO il def,",
-    "     funziona già da subito senza passi 2-4 (è il vecchio sistema).",
-    "   - La forma 'fast' è disegnata 'di profilo': usa enemyFace() così punta",
-    "     sempre verso il player nel gioco, mentre qui nell'editor c'è lo",
-    "     slider 'Angolo (in editor)' solo per l'anteprima.",
-    "",
-    "7) MODALITÀ 'Disegno libero' (forma custom):",
-    "   - Seleziona 'Disegno libero (punti + cerchi)' nel selettore Forma e",
-    "     disegna: 'Aggiungi punto' per il contorno, 'Cerchio' / 'Ellisse' per",
-    "     gli occhi/decorazioni, 'Sposta' per trascinare, 'Cancella' per rimuovere.",
-    "   - Tieni premuto per adattare il raggio durante la creazione.",
-    "   - Clicca DENTRO il poligono in modalità 'Sposta' per selezionarlo",
-    "     e modificare il suo riempimento e bordo nel pannello Stile.",
-    "   - Seleziona una forma (cerchio/ellisse) e usa il pannello Stile per",
-    "     cambiare colore riempimento, opacità, colore/spessore bordo e rotazione.",
-    "   - Bottoni: 'Duplica' / 'Flip H / V' / 'Ruota 15°' + 'Dietro/Davanti' /",
-    "     'Dietro corpo' per l'ordine di disegno. Le forme dietro il corpo sono",
-    "     disegnate prima del poligono (utile per occhi nascosti sotto un cappuccio).",
-    "   - Le coordinate sono salvate in UNITÀ DI RAGGIO (1 = raggio di",
-    "     collisione), quindi il disegno si adatta alla grandezza del nemico",
-    "     in gioco (cambiata dal def.radius).",
-    "   - Griglia di snap opzionale (0.1 / 0.25 / 0.5).",
-    "   - La forma custom usa la stessa paletta del def (body/core/glint) e",
-    "     l'aura, quindi i colori li gestisci come sempre.",
-    "   - Nel def esportato la voce sarà:",
-    "",
-    "       shape: {",
-    "         form: 'custom',",
-    "         geom: {",
-    "           smooth: 1,",
-    "           poly: [[0,-1.3], ...],",
-    "           polyStyle: { fill:'body', stroke:'none', strokeW:2 },",
-    "           shapes: [",
-    "             {x:0.55,y:-0.3,r:0.28,fill:'glint'},",
-    "             {x:0,y:0.6,rx:0.66,ry:0.26,t:'e',fill:'core'},",
-    "             {x:0.9,y:0.1,r:0.13,fill:'glint',behind:true}",
-    "           ]",
-    "         }",
-    "       },",
-    ""
+    'CUSTOM ENEMY SHAPE INTEGRATION',
+    '',
+    '1. Export the enemy definition and add its shape field to js/01-defs.js.',
+    '2. Copy shape: def.shape into the spawn object in js/07-entities.js.',
+    '3. Add the exported drawEnemy function and helpers to your renderer.',
+    '4. Dispatch entities with e.shape to drawEnemy; retain the existing renderer as fallback.',
+    '   The current living-shadow renderer is in js/26-living-shadows.js.',
+    '',
+    'FREE DRAWING',
+    'Add point traces the polygon. Circle and Ellipse add eyes or details.',
+    'Move selects and drags shapes; Erase removes them. Hold while creating to adjust size.',
+    'Use the Style panel for fill, opacity, outline width and rotation.',
+    'Duplicate, flip and rotate shapes, then use Back/Front or Behind body for layering.',
+    'Coordinates use radius units: 1 equals the collision radius.',
+    'Optional grid snapping: 0.1 / 0.25 / 0.5. All colors use the exported palette.'
   ].join('\n');
 }
 
@@ -1340,9 +1274,9 @@ $('copyBtn').addEventListener('click', function () {
   var ta = pane === 'def' ? $('codeDef') : pane === 'func' ? $('codeFunc') : $('codeHow');
   ta.select();
   document.execCommand('copy');
-  this.textContent = 'COPIATO';
+  this.textContent = 'COPIED';
   var btn = this;
-  setTimeout(function () { btn.textContent = 'Copia'; }, 1400);
+  setTimeout(function () { btn.textContent = 'Copy'; }, 1400);
 });
 
 $('pngBtn').addEventListener('click', function () {
@@ -1378,7 +1312,7 @@ $('enemySel').addEventListener('change', function () {
 var paused = false;
 $('pauseBtn').addEventListener('click', function () {
   paused = !paused;
-  this.textContent = paused ? 'RIPRENDI' : 'PAUSA';
+  this.textContent = paused ? 'RESUME' : 'PAUSE';
 });
 $('phaseBtn').addEventListener('click', function () {
   numPhase = Math.random() * Math.PI * 2;
@@ -1800,8 +1734,8 @@ function updateStyleUI() {
   $('rotRow').style.display = isE ? '' : 'none';
   $('backBtn').disabled = !sh; $('frontBtn').disabled = !sh; $('behindBtn').disabled = !sh;
   $('selInfo').textContent = !S.sel ? '—'
-    : sh ? (isE ? 'Ellisse' : 'Cerchio')
-    : 'Poligono';
+    : sh ? (isE ? 'Ellipse' : 'Circle')
+    : 'Polygon';
   if (!t) return;
   setStyleControl(t.fill, $('fillSel'), $('fillHex'));
   $('fillARange').value = Math.round((t.fillA != null ? t.fillA : 1) * 100);
@@ -1814,7 +1748,7 @@ function updateStyleUI() {
     $('rotRange').value = Math.round(sh.rot || 0);
     $('rotVal').textContent = Math.round(sh.rot || 0) + '°';
   }
-  $('behindBtn').textContent = sh && sh.behind ? 'Davanti corpo' : 'Dietro corpo';
+  $('behindBtn').textContent = sh && sh.behind ? 'In front of body' : 'Behind body';
 }
 function applyStyleFromUI() {
   var t = selTarget();

@@ -167,28 +167,81 @@ function drawEvolutionZones(cx, cy) {
   ctx.restore();
 }
 
-// Cached trees are sliced into a planted trunk/shadow and a depth-sorted crown.
+// Nearby trees retain their sway. Distant trees sharing a root row are baked
+// together: identical depth ordering, fewer sprite draws and overlapping layers.
 let visibleTreeLayers = [];
+const treeRowCache=new Map();
+let treeRowCacheBytes=0,treeRowBuilds=0;
+const TREE_ROW_BYTE_BUDGET=(IS_MOBILE?32:128)*1048576;
+function clearTreeRowCache(){treeRowCache.clear();treeRowCacheBytes=0;treeRowBuilds=0;}
+function cachedTreeRow(trees,cx,cy){
+  const key=cx+':'+cy+':'+trees[0].y+':'+trees.map(t=>t.x).join(',');
+  let entry=treeRowCache.get(key);
+  if(entry){treeRowCache.delete(key);treeRowCache.set(key,entry);return entry;}
+  const parts=trees.map(tree=>{
+    const loop=treeLoopFrames(tree.type,tree.s);
+    const phase=(((tree.x%977)*137)+((tree.y%971)*61))%628;
+    const frame=((Math.floor(phase*.04)%loop._N)+loop._N)%loop._N;
+    const image=loop.frames[frame],cut=Math.max(1,Math.floor(loop._dy-12*tree.s));
+    return{image,cut,x:tree.x-loop._dx,y:tree.y-loop._dy};
+  });
+  const left=Math.floor(Math.min(...parts.map(p=>p.x))),right=Math.ceil(Math.max(...parts.map(p=>p.x+p.image.width)));
+  const top=Math.floor(Math.min(...parts.map(p=>p.y))),bottom=Math.ceil(Math.max(...parts.map(p=>p.y+p.cut)));
+  const baseTop=Math.floor(Math.min(...parts.map(p=>p.y+p.cut))),baseBottom=Math.ceil(Math.max(...parts.map(p=>p.y+p.image.height)));
+  const canopy=document.createElement('canvas'),base=document.createElement('canvas');
+  canopy.width=base.width=right-left;canopy.height=bottom-top;base.height=baseBottom-baseTop;
+  const crownPaint=canopy.getContext('2d'),basePaint=base.getContext('2d');
+  crownPaint.imageSmoothingEnabled=basePaint.imageSmoothingEnabled=false;
+  for(const p of parts){
+    crownPaint.drawImage(p.image,0,0,p.image.width,p.cut,p.x-left,p.y-top,p.image.width,p.cut);
+    basePaint.drawImage(p.image,0,p.cut,p.image.width,p.image.height-p.cut,p.x-left,p.y+p.cut-baseTop,p.image.width,p.image.height-p.cut);
+  }
+  entry={canopy,base,x:left,y:top,baseY:baseTop,bytes:(canopy.width*canopy.height+base.width*base.height)*4};
+  treeRowCache.set(key,entry);treeRowCacheBytes+=entry.bytes;treeRowBuilds++;
+  while(treeRowCacheBytes>TREE_ROW_BYTE_BUDGET&&treeRowCache.size>1){
+    const oldest=treeRowCache.keys().next().value,removed=treeRowCache.get(oldest);
+    treeRowCache.delete(oldest);treeRowCacheBytes-=removed.bytes;
+  }
+  return entry;
+}
 drawTrees = function(cx, cy, w, h) {
   visibleTreeLayers = [];
   const step = TREE_SWAY_N * 0.00065 / PI2;
+  // Quantized focus avoids rebuilding far groups for every pixel of movement.
+  const focusX=Math.round(game.player.x/128)*128,focusY=Math.round(game.player.y/128)*128;
+  let nearTrees=0,farTrees=0,groups=0;
   ctx.save(); ctx.imageSmoothingEnabled = false;
   for (let yy = Math.floor(cy / CHUNK_PX) - 1; yy <= Math.floor((cy + h) / CHUNK_PX) + 1; yy++) {
     for (let xx = Math.floor(cx / CHUNK_PX) - 1; xx <= Math.floor((cx + w) / CHUNK_PX) + 1; xx++) {
-      for (const tree of getChunkTrees(xx, yy)) {
-        const x = tree.x - cx, y = tree.y - cy;
-        if (x < -140 || x > w + 140 || y < -200 || y > h + 60) continue;
-        const phase = (((tree.x % 977) * 137) + ((tree.y % 971) * 61)) % 628;
-        const loop = treeLoopFrames(tree.type, tree.s);
-        const frame = ((Math.floor(game.time * step + phase * 0.04) % loop._N) + loop._N) % loop._N;
-        const image = loop.frames[frame], cut = Math.max(1, Math.floor(loop._dy - 12 * tree.s));
-        const layer = { image, cut, x: Math.round(x - loop._dx), y: Math.round(y - loop._dy), rootY: tree.y };
-        ctx.drawImage(image, 0, cut, image.width, image.height - cut,
-          layer.x, layer.y + cut, image.width, image.height - cut);
-        visibleTreeLayers.push(layer);
+      const list=getChunkTrees(xx,yy);
+      if(!list._rows){list._rows=new Map();for(const tree of list){if(!list._rows.has(tree.y))list._rows.set(tree.y,[]);list._rows.get(tree.y).push(tree);}}
+      for(const row of list._rows.values()){
+        const rootY=row[0].y-cy;
+        if(rootY < -200 || rootY > h+60 || row[row.length-1].x-cx < -140 || row[0].x-cx > w+140)continue;
+        const far=[];
+        for(const tree of row){
+          const x=tree.x-cx,y=tree.y-cy;
+          // Whole far rows remain cached as the camera scrolls; the viewport clips them.
+          if(Math.abs(tree.x-focusX)>384||Math.abs(tree.y-focusY)>384){far.push(tree);farTrees++;continue;}
+          if(x < -140 || x > w+140)continue;
+          nearTrees++;
+          const phase=(((tree.x%977)*137)+((tree.y%971)*61))%628;
+          const loop=treeLoopFrames(tree.type,tree.s);
+          const frame=((Math.floor(game.time*step+phase*.04)%loop._N)+loop._N)%loop._N;
+          const image=loop.frames[frame],cut=Math.max(1,Math.floor(loop._dy-12*tree.s));
+          const layer={image,cut,x:Math.round(x-loop._dx),y:Math.round(y-loop._dy),rootY:tree.y};
+          ctx.drawImage(image,0,cut,image.width,image.height-cut,layer.x,layer.y+cut,image.width,image.height-cut);
+          visibleTreeLayers.push(layer);
+        }
+        if(far.length){
+          const cached=cachedTreeRow(far,xx,yy);groups++;
+          ctx.drawImage(cached.base,Math.round(cached.x-cx),Math.round(cached.baseY-cy));
+          visibleTreeLayers.push({image:cached.canopy,cut:cached.canopy.height,x:Math.round(cached.x-cx),y:Math.round(cached.y-cy),rootY:far[0].y});
+        }
       }
     }
   }
+  WG.treeStats={nearTrees,farTrees,groups,layers:visibleTreeLayers.length,cacheBytes:treeRowCacheBytes,cacheBuilds:treeRowBuilds};
   ctx.restore();
 };
 

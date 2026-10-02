@@ -6,14 +6,14 @@
 // --- Rarity ladder for level-up choices ---
 // Each choice rolls a rarity: rarer versions are noticeably stronger.
 //   common    the baseline card
-//   rare      +1 level on weapons / new weapons (same strength otherwise)
-//   epic      +2 levels, passives take effect ×2
-//   legendary +3 levels, passives ×2, golden gradient border
+//   rare      +1 weapon level bonus, passive effect x1.35
+//   epic      +2 weapon level bonus, passive effect x1.75
+//   legendary +3 weapon level bonus, passive effect x2.25
 const RARITY_DEFS = {
   common:    { name: 'Common',    label: 'COMMON',    weight: 0.52, bonus: 0, stacks: 1, color: '#9aa0b6' },
-  rare:      { name: 'Rare',      label: 'RARE',      weight: 0.27, bonus: 1, stacks: 1, color: '#43a6f5' },
-  epic:      { name: 'Epic',      label: 'EPIC',      weight: 0.14, bonus: 2, stacks: 2, color: '#c25bff' },
-  legendary: { name: 'Legendary', label: 'LEGENDARY', weight: 0.07, bonus: 3, stacks: 2, color: '#ffd24d' }
+  rare:      { name: 'Rare',      label: 'RARE',      weight: 0.27, bonus: 1, stacks: 1.35, color: '#43a6f5' },
+  epic:      { name: 'Epic',      label: 'EPIC',      weight: 0.14, bonus: 2, stacks: 1.75, color: '#c25bff' },
+  legendary: { name: 'Legendary', label: 'LEGENDARY', weight: 0.07, bonus: 3, stacks: 2.25, color: '#ffd24d' }
 };
 
 // Luck improves uncommon odds with a bounded, normalized distribution.

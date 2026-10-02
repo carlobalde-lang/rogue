@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Satellite — mondo di gioco</title>
+<title>Satellite — game world</title>
 <style>
   body { margin:0; background:#0b0b10; color:#d8d8e0; font:14px/1.4 system-ui, sans-serif; overflow:hidden; }
   #wrap { position:fixed; inset:0; }
@@ -34,14 +34,14 @@
 <div id="wrap"><canvas id="map"></canvas></div>
 <canvas id="game" width="1" height="1" style="display:none"></canvas>
 <div id="bar">
-  <button class="btn" id="full">Vista completa</button>
+  <button class="btn" id="full">Full view</button>
   <button class="btn" id="zoomin">+</button>
   <button class="btn" id="zoomout">−</button>
   <div id="stat"></div>
 </div>
-<div id="hint">Trascina per muovere &middot; rotella per zoom</div>
+<div id="hint">Drag to pan &middot; scroll to zoom</div>
 <div id="legend"></div>
-<div id="prog">Generazione mappa<small id="progTxt"></small><div class="p"><i id="progBar"></i></div></div>
+<div id="prog">Generating map<small id="progTxt"></small><div class="p"><i id="progBar"></i></div></div>
 
 <script src="js/00-utils.js"></script>
 <script src="js/01-defs.js"></script>
@@ -217,20 +217,20 @@
 
   // ---- legend ----
   var LE = document.getElementById('legend');
-  var html = '<b>Legenda</b>';
+  var html = '<b>Legend</b>';
   BIOME_IDS.forEach(function (id) {
     var d = BIOME_DEFS[id];
     html += '<div class="lg"><span class="sw" style="background:rgb(' +
       d.floor[0] + ',' + d.floor[1] + ',' + d.floor[2] + ')"></span>' + d.name + '</div>';
   });
   var extras = [
-    ['#ff601c', 'Lava (deserto)'],
-    ['#82c3ff', 'Ghiaccio'],
-    ['#ecf6fc', 'Neve'],
-    ['#709632', 'Palude'],
-    ['#4898ac', 'Acqua'],
-    ['#101218', 'Muri / edifici'],
-    ['#050508', 'Fuori dal mondo']
+    ['#ff601c', 'Lava (desert)'],
+    ['#82c3ff', 'Ice'],
+    ['#ecf6fc', 'Snow'],
+    ['#709632', 'Swamp'],
+    ['#4898ac', 'Water'],
+    ['#101218', 'Walls / buildings'],
+    ['#050508', 'Outside the world']
   ];
   extras.forEach(function (x) {
     html += '<div class="lg"><span class="sw" style="background:' + x[0] + '"></span>' + x[1] + '</div>';

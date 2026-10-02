@@ -4051,6 +4051,7 @@ const grassLightCache = new Map();
 const GRASS_WIND_LR = 30000;
 function bakeGrassLight(tx, ty) {
   const wx = tx * TILE + TILE * 0.5, wy = ty * TILE + TILE * 0.5;
+  if(isBiomeArena(wx,wy)|| (typeof scenerySpot==='function'&&scenerySpot(wx,wy)))return null;
   const tt = getTile(wx, wy);
   if (tt !== T_FLOOR && tt !== T_TREE && tt !== T_TALLGRASS) return null;
   if (ownHazardAt(wx, wy) !== HAZARD_NONE) return null;
@@ -4063,7 +4064,7 @@ function bakeGrassLight(tx, ty) {
     const gtype = BIOME_GRASS[bm];
     if (gtype === undefined) return null;        // desert stays still
     const temp = BIOME_TEMP[bm] || 0.6;
-    if (gr >= (temp === 0.9 ? 0.07 : grassDensity(temp))) return null;
+    if (gr >= (temp === 0.9 ? 0.07 : grassDensity(temp)) * (typeof grassPatchFactor==='function'?grassPatchFactor(tx,ty):1)) return null;
     gi = GRASS_WIND_IDX[gtype];
     if (gi === undefined) return null;           // no animated light pass for it
     hgt = temp === 0.9 ? 1 : grassHeight(temp);
@@ -4282,6 +4283,7 @@ function render() {
 
   // --- Animated wind grass (baked blade cache, wave + sun glint) ---
   drawGrassWind(cx, cy, w, h, g.time);
+  if(typeof drawScenery==='function')drawScenery(cx,cy,w,h);
 
   // --- Torches with flickering fire ---
   if (GFX.fire > 0) drawTorches(cx, cy, w, h);

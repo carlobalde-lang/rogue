@@ -36,7 +36,7 @@ function wgInit() {
     c.height = Math.max(1, canvas.height);
     const gl = c.getContext('webgl', {
       alpha: true,
-      antialias: true,
+      antialias: false,
       depth: false,
       stencil: false,
       premultipliedAlpha: true,
@@ -61,6 +61,7 @@ function wgInit() {
       'uniform float u_windSpeed;',
       'uniform vec4 u_gp[40];',
       'uniform int u_gpCount;',
+      'uniform vec4 u_gpBounds;',
       'uniform float u_gpInvR2;',
       'uniform float u_gpStr;',
       'uniform sampler2D u_trampleTex;',
@@ -91,11 +92,13 @@ function wgInit() {
       '  float tipX = a_root.x + (le + k * gh) * lx;',
       '  float tipY = a_root.y - gh * fold + (le + k * gh) * ly;',
       '  vec2 psx = vec2(0.0);',
+      '  if (u_gpCount > 0 && a_root.x >= u_gpBounds.x && a_root.y >= u_gpBounds.y && a_root.x <= u_gpBounds.z && a_root.y <= u_gpBounds.w) {',
       '  for (int i = 0; i < 40; i++) {',
       '    if (i >= u_gpCount) break;',
       '    vec2 d = a_root.xy - u_gp[i].xy;',
       '    float w = exp(-dot(d, d) * u_gpInvR2);',
       '    psx += u_gp[i].zw * w;',
+      '  }',
       '  }',
       // Persistent trample mask: bilinear-sampled walk path. R holds the flatten
       // amount, G/B the direction scaled by it, so 2*G/B - R decodes to
@@ -166,6 +169,7 @@ function wgInit() {
       u_windSpeed: gl.getUniformLocation(prog, 'u_windSpeed'),
       u_gp: gl.getUniformLocation(prog, 'u_gp'),
       u_gpCount: gl.getUniformLocation(prog, 'u_gpCount'),
+      u_gpBounds: gl.getUniformLocation(prog, 'u_gpBounds'),
       u_gpInvR2: gl.getUniformLocation(prog, 'u_gpInvR2'),
       u_gpStr: gl.getUniformLocation(prog, 'u_gpStr'),
       u_trampleTex: gl.getUniformLocation(prog, 'u_trampleTex'),
@@ -203,9 +207,10 @@ function wgInit() {
 }
 wgInit();
 
-function wgGrow(gi, need) {
-  let b = WG.buckets[gi];
-  if (!b) b = WG.buckets[gi] = { f32: new Float32Array(4096 * 4), n: 0 };
+function wgGrow(gi, need, dark = false) {
+  const buckets = dark ? WG.dbuckets : WG.buckets;
+  let b = buckets[gi];
+  if (!b) b = buckets[gi] = { f32: new Float32Array(4096 * 4), n: 0 };
   if (need * 4 > b.f32.length) {
     let cap = b.f32.length / 4;
     while (cap < need) cap *= 2;
@@ -235,64 +240,70 @@ function wgRender(cx, cy, w, h, t) {
 
   const firstTx = Math.floor(cx / TILE) - 1, firstTy = Math.floor(cy / TILE) - 1;
   const lastTx = Math.floor((cx + w) / TILE) + 1, lastTy = Math.floor((cy + h) / TILE) + 1;
-  for (let i = 0; i < WG.buckets.length; i++) {
-    if (WG.buckets[i]) WG.buckets[i].n = 0;
-    if (WG.dbuckets[i]) WG.dbuckets[i].n = 0;
-  }
-  const _g0 = performance.now();
+  const geometryKey=[WORLD_SEED,GFX.level,firstTx,firstTy,lastTx,lastTy].join(':');
+  const rebuild=WG.geometryKey!==geometryKey||WG.geometryCacheSize!==grassLightCache.size;
+  if(rebuild){
+    for (let i = 0; i < WG.buckets.length; i++) {
+      if (WG.buckets[i]) WG.buckets[i].n = 0;
+      if (WG.dbuckets[i]) WG.dbuckets[i].n = 0;
+    }
+    const _g0 = performance.now();
 
-  for (let ty = firstTy; ty <= lastTy; ty++) {
-    for (let tx = firstTx; tx <= lastTx; tx++) {
-      if (GFX.level >= 2 && ((tx + ty) & 1)) continue;
-      const key = tx + ',' + ty;
-      let ent = grassLightCache.get(key);
-      if (ent === undefined) {
-        if (WG.empty.has(key)) continue;
-        ent = bakeGrassLight(tx, ty);
-        WG.bakes++;
-        if (ent) {
-          grassLightCache.set(key, ent);
-          if (grassLightCache.size > GRASS_WIND_LR) {
-            grassLightCache.delete(grassLightCache.keys().next().value);
+    for (let ty = firstTy; ty <= lastTy; ty++) {
+      for (let tx = firstTx; tx <= lastTx; tx++) {
+        if (GFX.level >= 2 && ((tx + ty) & 1)) continue;
+        const key = tx + ',' + ty;
+        let ent = grassLightCache.get(key);
+        if (ent === undefined) {
+          if (WG.empty.has(key)) continue;
+          ent = bakeGrassLight(tx, ty);
+          WG.bakes++;
+          if (ent) {
+            grassLightCache.set(key, ent);
+            if (grassLightCache.size > GRASS_WIND_LR) {
+              grassLightCache.delete(grassLightCache.keys().next().value);
+            }
+          } else {
+            WG.empty.add(key);
+            if (WG.empty.size > WG.emptyLR) {
+              WG.empty.delete(WG.empty.keys().next().value);
+            }
           }
         } else {
-          WG.empty.add(key);
-          if (WG.empty.size > WG.emptyLR) {
-            WG.empty.delete(WG.empty.keys().next().value);
-          }
+          WG.hits++;
         }
-      } else {
-        WG.hits++;
+        if (!ent) continue;
+        const blades = ent.d.length / 4;
+        const dblades = ent.dd.length / 4;
+        const b = wgGrow(ent.gi, (WG.buckets[ent.gi] ? WG.buckets[ent.gi].n : 0) + blades);
+        const db = wgGrow(ent.gi, (WG.dbuckets[ent.gi] ? WG.dbuckets[ent.gi].n : 0) + dblades, true);
+        const f = b.f32;
+        const df = db.f32;
+        const d = ent.d;
+        const dd = ent.dd;
+        const bx = tx * TILE, by = ty * TILE;
+        let o = b.n * 4;
+        for (let j = 0; j < d.length; j += 4) {
+          f[o] = bx + d[j];
+          f[o + 1] = by + d[j + 1];
+          f[o + 2] = d[j + 2];
+          f[o + 3] = d[j + 3];
+          o += 4;
+        }
+        b.n += blades;
+        let oo = db.n * 4;
+        for (let j = 0; j < dd.length; j += 4) {
+          df[oo] = bx + dd[j];
+          df[oo + 1] = by + dd[j + 1];
+          df[oo + 2] = dd[j + 2];
+          df[oo + 3] = dd[j + 3];
+          oo += 4;
+        }
+        db.n += dblades;
       }
-      if (!ent) continue;
-      const blades = ent.d.length / 4;
-      const dblades = ent.dd.length / 4;
-      const b = wgGrow(ent.gi, (WG.buckets[ent.gi] ? WG.buckets[ent.gi].n : 0) + blades);
-      const db = wgGrow(ent.gi, (WG.dbuckets[ent.gi] ? WG.dbuckets[ent.gi].n : 0) + dblades);
-      const f = b.f32;
-      const df = db.f32;
-      const d = ent.d;
-      const dd = ent.dd;
-      const bx = tx * TILE, by = ty * TILE;
-      let o = b.n * 4;
-      for (let j = 0; j < d.length; j += 4) {
-        f[o] = bx + d[j];
-        f[o + 1] = by + d[j + 1];
-        f[o + 2] = d[j + 2];
-        f[o + 3] = d[j + 3];
-        o += 4;
-      }
-      b.n += blades;
-      let oo = db.n * 4;
-      for (let j = 0; j < dd.length; j += 4) {
-        df[oo] = bx + dd[j];
-        df[oo + 1] = by + dd[j + 1];
-        df[oo + 2] = dd[j + 2];
-        df[oo + 3] = dd[j + 3];
-        oo += 4;
-      }
-      db.n += dblades;
     }
+    WG.geometryKey=geometryKey;WG.geometryCacheSize=grassLightCache.size;
+    WG.geometryBuilds=(WG.geometryBuilds||0)+1;
   }
   const _g1 = performance.now();
   const _t2 = performance.now();
@@ -313,7 +324,10 @@ function wgRender(cx, cy, w, h, t) {
   const gP = typeof game !== 'undefined' && game && game.grassPushes ? game.grassPushes : null;
   if (gP && gP.length) {
     const n = Math.min(gP.length, 40);
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     for (let i = 0; i < n; i++) {
+      minX=Math.min(minX,gP[i].x);minY=Math.min(minY,gP[i].y);
+      maxX=Math.max(maxX,gP[i].x);maxY=Math.max(maxY,gP[i].y);
       const o = i * 4;
       WG.gp[o] = gP[i].x; WG.gp[o + 1] = gP[i].y;
       WG.gp[o + 2] = gP[i].z; WG.gp[o + 3] = gP[i].w;
@@ -321,6 +335,8 @@ function wgRender(cx, cy, w, h, t) {
     for (let i = n * 4; i < WG.gp.length; i++) WG.gp[i] = 0;
     gl.uniform1f(L.u_gpInvR2, 1 / (GRASS_PUSH_R * GRASS_PUSH_R));
     gl.uniform1i(L.u_gpCount, n);
+    const margin=GRASS_PUSH_R*4; // Outside this band each Gaussian contribution is below exp(-16).
+    gl.uniform4f(L.u_gpBounds,minX-margin,minY-margin,maxX+margin,maxY+margin);
     gl.uniform4fv(L.u_gp, WG.gp.subarray(0, 40 * 4));
   } else {
     gl.uniform1i(L.u_gpCount, 0);
@@ -393,7 +409,7 @@ function wgRender(cx, cy, w, h, t) {
     let gb = WG.dglbuf[gi];
     if (!gb) gb = WG.dglbuf[gi] = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, gb);
-    gl.bufferData(gl.ARRAY_BUFFER, db.f32.subarray(0, db.n * 4), gl.DYNAMIC_DRAW);
+    if(rebuild)gl.bufferData(gl.ARRAY_BUFFER, db.f32.subarray(0, db.n * 4), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(L.a_root);
     gl.vertexAttribPointer(L.a_root, 2, gl.FLOAT, false, 16, 0);
     WG.ext.vertexAttribDivisorANGLE(L.a_root, 1);
@@ -415,7 +431,7 @@ function wgRender(cx, cy, w, h, t) {
     let gb = WG.glbuf[gi];
     if (!gb) gb = WG.glbuf[gi] = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, gb);
-    gl.bufferData(gl.ARRAY_BUFFER, b.f32.subarray(0, b.n * 4), gl.DYNAMIC_DRAW);
+    if(rebuild)gl.bufferData(gl.ARRAY_BUFFER, b.f32.subarray(0, b.n * 4), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(L.a_root);
     gl.vertexAttribPointer(L.a_root, 2, gl.FLOAT, false, 16, 0);
     WG.ext.vertexAttribDivisorANGLE(L.a_root, 1);

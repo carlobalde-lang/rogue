@@ -241,7 +241,7 @@ function generateChoices() {
       const toLvl = w.level + 1 + rd.bonus;
       pool.push({
         key: w.id, icon: def.icon, name: def.name, rarity: rk,
-        desc: def.upgradeDesc(toLvl) + (w.evolution ? ' · ' + w.evolution : ''),
+        desc: weaponUpgradeDescription(w,toLvl) + (w.evolution ? ' · ' + w.evolution : ''),
         levelText: `Level ${w.level} → ${toLvl} · ${rd.name}`,
         autoRank: 0,
         apply: () => { w.level = Math.max(w.level, toLvl); }
@@ -281,17 +281,24 @@ function generateChoices() {
       const ownedCount = p.passives.filter(n => n === def.name).length;
       if (ownedCount >= def.max) continue;
     }
-    const rk = rollRarityKey(p.luck);
+    let rk = rollRarityKey(p.luck);
     const rd = RARITY_DEFS[rk];
-    const stacks = rd.stacks;
+    // Finite charges cannot grant fractional effects or exceed their cap.
+    // Label capped cards by their actual value, rather than wasting a high tier.
+    const remaining = def.max === undefined ? Infinity : def.max - p.passives.filter(n => n === def.name).length;
+    const stacks = def.max === undefined ? rd.stacks : Math.min(remaining, Math.floor(rd.stacks));
+    if (def.max !== undefined) rk = stacks > 1 ? 'rare' : 'common';
     pool.push({
       key, passive: true, icon: def.icon, name: def.name, rarity: rk,
-      desc: def.desc + (stacks > 1 ? ` — applies ×${stacks}` : ''),
-      levelText: rd.name,
+      desc: def.max !== undefined ? def.desc + (stacks>1?' — grants '+stacks+' charges':'') : passiveStrengthDescription(def,stacks),
+      levelText: RARITY_DEFS[rk].name,
       weight: def.weight || 1,
       autoRank: 2,
       apply: () => {
-        for (let s = 0; s < stacks; s++) { def.apply(p); p.passives.push(def.name); }
+        if (def.max !== undefined) {
+          const available = Math.max(0,def.max-p.passives.filter(n => n===def.name).length);
+          for(let i=0;i<Math.min(stacks,available);i++){def.apply(p);p.passives.push(def.name);}
+        } else applyPassiveStrength(p, def, stacks);
       }
     });
   }
@@ -300,6 +307,38 @@ function generateChoices() {
   for (const item of pool) item._rk = -Math.log(1 - Math.random()) / (item.weight || 1);
   pool.sort((a, b) => a._rk - b._rk);
   return pool.slice(0, 3);
+}
+
+function applyPassiveStrength(p, def, strength) {
+  // Scale one baseline stat change linearly: +20% damage becomes +27%,
+  // +35%, +45%, rather than compounding several hidden applications.
+  const before = {};
+  for(const key of Object.keys(p))if(typeof p[key]==='number')before[key]=p[key];
+  def.apply(p);
+  for(const key of Object.keys(p)){
+    if(typeof p[key]!=='number')continue;
+    const old=before[key]??0;
+    if(p[key]!==old)p[key]=old+(p[key]-old)*strength;
+  }
+  p.maxHp=Math.max(30,Math.round(p.maxHp));p.hp=Math.min(p.maxHp,p.hp);
+  // Scale Glass Cannon's health cost as well as its reward, preserving risk.
+  p.passives.push(def.name);
+}
+
+function passiveStrengthDescription(def,strength){
+  const description=def.desc.replace(/([+-]?)(\d+(?:\.\d+)?)(%| Max HP| HP\/s| Armor)/g,
+    (_,sign,value,unit)=>sign+Number((Number(value)*strength).toFixed(2))+unit);
+  return description+(strength>1?' · '+strength+'× base effect':'');
+}
+
+function weaponUpgradeDescription(weapon,toLevel){
+  const before=getWeaponStats(weapon),after=getWeaponStats({...weapon,level:toLevel});
+  const parts=[],format=v=>Number(v.toFixed(1));
+  if(after.dmg>before.dmg)parts.push('+'+format(after.dmg-before.dmg)+' damage');
+  if(after.count>before.count)parts.push('+'+(after.count-before.count)+' attack count');
+  if(after.area>before.area)parts.push('+'+format(after.area-before.area)+' radius');
+  if(before.rate>0&&after.rate<before.rate)parts.push('-'+format((1-after.rate/before.rate)*100)+'% cooldown');
+  return parts.join(' · ');
 }
 
 // Proactive corner avoidance: if the desired heading hits a wall within the

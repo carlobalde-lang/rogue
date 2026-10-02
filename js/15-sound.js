@@ -1711,16 +1711,15 @@ const Sound = (() => {
   // MUSIC SCHEDULER
   // ============================================================
 
-  // Follow the player into a new biome and let nearby danger
-  // gradually lift the intensity layers.
+  // Confirm a continuous region for 1.5 seconds before changing the score.
+  // Game time freezes while paused; a fresh run clears this pending candidate.
+  let pendingMusicBiome=null,pendingMusicSince=0;
   function syncMusicState() {
-    if (typeof playerBiome === 'function') {
-      const bm = playerBiome();
-      const song = getMusicSong(bm);
-
-      if (song && (!currentSong || song.id !== currentSong.id)) {
-        changeMusic(bm);
-      }
+    if (typeof game !== 'undefined' && game && game.player && typeof musicBiomeAt==='function') {
+      const bm=musicBiomeAt(game.player.x,game.player.y,currentSongId||'core');
+      if(bm===(currentSongId||'core'))pendingMusicBiome=null;
+      else if(pendingMusicBiome!==bm){pendingMusicBiome=bm;pendingMusicSince=game.time;}
+      else if(game.time-pendingMusicSince>=1500){changeMusic(bm);pendingMusicBiome=null;}
     }
 
     if (typeof getIntensity === 'function') {
@@ -1789,6 +1788,7 @@ const Sound = (() => {
   // ============================================================
 
   function startMusic(songId = 'core') {
+    pendingMusicBiome=null;pendingMusicSince=0;
     init();
 
     if (!ctx) return;
@@ -1844,6 +1844,7 @@ const Sound = (() => {
   }
 
   function stopMusic() {
+    pendingMusicBiome=null;pendingMusicSince=0;
     stopMusicScheduler();
     if (ctx) {
       for (const source of musicSources) {
