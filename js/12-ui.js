@@ -93,7 +93,6 @@ function updateUI() {
   document.getElementById('xp-bar').style.width = xpPct;
   document.getElementById('xp-text').textContent = `${p.xp}/${p.xpToLevel}`;
 
-  updateObjectiveUI();
 
   // Weapon icons
   const wi = document.getElementById('weapon-icons');

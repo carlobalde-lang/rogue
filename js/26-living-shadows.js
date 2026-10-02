@@ -27,13 +27,26 @@ const SHADOW_PROFILES = {
   guardian:   { width: 1.08, height: 1.25, arms: 4, eyes: 3, horns: 5, sovereign: true }
 };
 
-function shadowAccent(hex) {
+// Subtle per-archetype undertones; generated once in the shared sprite cache.
+const SHADOW_TINTS = {
+  normal: '#77619b', swarmling: '#5856bd', runner: '#ae454e',
+  brute: '#38754f', shielded: '#4d668c', splitter: '#797043',
+  caster: '#b24bb4', leecher: '#923e68', frostling: '#49a1c6',
+  pinewraith: '#319b78', dunerunner: '#a37949', canyongolem: '#916052',
+  scorcher: '#ac583b', riverwisp: '#447f8b', dryadseer: '#8b9237',
+  boghaunt: '#8c6f32', elite: '#6849b6', warden: '#7c677e',
+  boss: '#ae3745', guardian: '#897451'
+};
+
+function shadowAccent(hex, kind) {
   const source = /^#[0-9a-f]{6}$/i.test(hex || '') ? hexRgb(hex) : [154, 126, 194];
-  // A pale supernatural gaze carries the biome colour; the body stays ink-black.
+  const tint = hexRgb(SHADOW_TINTS[kind] || SHADOW_TINTS.normal);
+  const shade = (scale, base) => 'rgb(' + tint.map(v => Math.round(v * scale + base)).join(',') + ')';
+  // Nearly black bodies, slightly coloured folds, and a pale supernatural gaze.
   return {
-    eyes: 'rgb(' + source.map(v => Math.round(v * .45 + 140)).join(',') + ')',
-    rim: 'rgb(' + source.map(v => Math.round(v * .18 + 37)).join(',') + ')',
-    vein: 'rgb(' + source.map(v => Math.round(v * .25 + 31)).join(',') + ')'
+    ink: shade(.19, 5), fold: shade(.30, 10), limb: shade(.23, 7), plate: shade(.32, 12),
+    eyes: 'rgb(' + tint.map((v, i) => Math.round(v * .65 + source[i] * .12 + 75)).join(',') + ')',
+    rim: shade(.35, 24), vein: shade(.40, 26)
   };
 }
 
@@ -81,7 +94,7 @@ function bakeLivingShadow(kind, frame, accent) {
   const cv = document.createElement('canvas'); cv.width = cv.height = SHADOW_SPAN / 2;
   const c = cv.getContext('2d'); c.scale(.5, .5); c.translate(SHADOW_SPAN / 2, SHADOW_SPAN / 2);
   c.lineCap = 'round'; c.lineJoin = 'round';
-  const colour = shadowAccent(accent);
+  const colour = shadowAccent(accent, kind);
 
   // The dark puddle binds the apparition to the world without a circular aura.
   c.fillStyle = 'rgba(3,4,10,.3)'; c.beginPath(); c.ellipse(0, R * .87, R * p.width * 1.12, 7, 0, 0, PI2); c.fill();
@@ -97,18 +110,18 @@ function bakeLivingShadow(kind, frame, accent) {
   for (let i = 0; i < p.arms; i++) {
     const side = i % 2 ? 1 : -1, y = -R * .28 + Math.floor(i / 2) * 12;
     shadowFilament(c, side * R * p.width * .74, y, side, phase + i * 1.6,
-      p.sovereign ? 31 + i * 4 : 18 + i * 3, '#161423', p.heavy ? 9 : 6);
+      p.sovereign ? 31 + i * 4 : 18 + i * 3, colour.limb, p.heavy ? 9 : 6);
     shadowFilament(c, side * R * p.width * .74, y - 2, side, phase + i * 1.6,
       p.sovereign ? 31 + i * 4 : 18 + i * 3, colour.rim, 2);
   }
 
   const body = offset => {
     shadowShape(c, p, phase, offset);
-    c.fillStyle = '#080912'; c.fill();
+    c.fillStyle = colour.ink; c.fill();
     c.strokeStyle = colour.rim; c.lineWidth = 2.2; c.stroke();
     c.save(); c.clip();
     // Sheets of darkness fold around a dense, nearly black heart.
-    c.fillStyle = '#171522';
+    c.fillStyle = colour.fold;
     c.beginPath(); c.moveTo(offset - R * p.width, -R * .8);
     c.quadraticCurveTo(offset + 10 + Math.sin(phase) * 4, -R * .25, offset - R * .45, R * 1.3);
     c.lineTo(offset - R * 1.3, R * 1.3); c.closePath(); c.fill();
@@ -117,7 +130,7 @@ function bakeLivingShadow(kind, frame, accent) {
     c.quadraticCurveTo(offset - 7, -9, offset - 11 + Math.sin(phase) * 4, R * .65); c.stroke();
     c.globalAlpha = 1;
     if (p.layered || p.heavy) {
-      c.strokeStyle = '#282332'; c.lineWidth = p.heavy ? 5 : 3;
+      c.strokeStyle = colour.plate; c.lineWidth = p.heavy ? 5 : 3;
       for (let i = 0; i < 2; i++) {
         c.beginPath(); c.moveTo(offset - R * .8, -R * .25 + i * 9);
         c.lineTo(offset, -R * .02 + i * 9); c.lineTo(offset + R * .8, -R * .25 + i * 9); c.stroke();
@@ -141,7 +154,7 @@ function bakeLivingShadow(kind, frame, accent) {
     const x = (i - (p.horns - 1) / 2) * (p.sovereign ? 13 : 15);
     const top = -R * p.height;
     const tip = top - 11 - (i % 2 ? 1 : 9) + Math.sin(phase + i) * 2;
-    c.fillStyle = '#0b0b15'; c.strokeStyle = colour.rim; c.lineWidth = 1.5;
+    c.fillStyle = colour.ink; c.strokeStyle = colour.rim; c.lineWidth = 1.5;
     c.beginPath(); c.moveTo(x - 7, top + 17); c.quadraticCurveTo(x - 8, top - 3, x + Math.sin(phase + i) * 4, tip);
     c.quadraticCurveTo(x + 6, top + 2, x + 7, top + 17); c.closePath(); c.fill(); c.stroke();
   }

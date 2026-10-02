@@ -110,36 +110,69 @@ function updateExploration(dt) {
   }
 }
 
+// Two cached pixel-art statues: sleeping stone and restored golden light.
+const shrineStatueCache=new Map();
+function shrineStatueSprite(restored){
+  const key=restored?'restored':'sleeping';
+  if(shrineStatueCache.has(key))return shrineStatueCache.get(key);
+  const image=document.createElement('canvas');image.width=96;image.height=112;
+  const c=image.getContext('2d');c.imageSmoothingEnabled=false;
+  c.fillStyle='rgba(5,9,15,.40)';c.beginPath();c.ellipse(49,92,33,9,0,0,PI2);c.fill();
+  // Stepped altar, weathered carved plinth and a small offering bowl.
+  c.fillStyle='#303a42';c.fillRect(18,83,60,10);c.fillRect(24,75,48,9);
+  c.fillStyle='#65716d';c.fillRect(20,81,56,4);c.fillRect(26,73,44,4);
+  c.fillStyle='#96a28b';c.fillRect(23,81,49,1);c.fillRect(28,73,38,2);
+  c.fillStyle='#414d4f';c.fillRect(32,64,32,10);
+  c.fillStyle=restored?'#efd18b':'#8e987c';
+  for(let x=29;x<70;x+=10){c.fillRect(x,86,1,4);c.fillRect(x+2,85,2,1);}
+  // A hooded guardian, folded robe, outstretched arms cradling a sacred ember.
+  c.fillStyle='#465255';c.beginPath();c.moveTo(40,35);c.lineTo(57,35);c.lineTo(64,67);c.lineTo(32,67);c.closePath();c.fill();
+  c.fillStyle='#71807a';c.beginPath();c.moveTo(42,36);c.lineTo(46,36);c.lineTo(42,64);c.lineTo(36,65);c.closePath();c.fill();
+  c.fillStyle='#354249';c.fillRect(47,42,3,23);c.fillRect(57,52,3,13);
+  c.fillStyle='#778580';c.fillRect(37,39,6,7);c.fillRect(55,39,6,7);
+  c.fillRect(31,44,8,5);c.fillRect(58,44,8,5);c.fillRect(33,49,11,4);c.fillRect(53,49,11,4);
+  c.fillStyle='#9baa95';c.fillRect(34,49,9,2);c.fillRect(54,49,8,2);
+  c.fillStyle='#536368';c.fillRect(38,21,20,17);c.fillRect(41,16,14,7);
+  c.fillStyle='#8e9b8b';c.fillRect(40,20,3,13);c.fillRect(42,17,10,2);
+  c.fillStyle='#27313c';c.fillRect(44,24,10,10);c.fillStyle='#64716f';c.fillRect(46,28,6,8);
+  c.fillStyle='#b3b99e';c.fillRect(47,28,4,2);
+  c.fillStyle='#37464c';c.fillRect(40,50,17,6);c.fillStyle='#9d977d';c.fillRect(39,49,19,2);
+  c.fillStyle=restored?'#ffe4a1':'#bc9c65';c.fillRect(46,43,5,5);c.fillRect(48,40,2,3);
+  // A broken halo and moss make the stone read as an ancient shrine.
+  c.strokeStyle=restored?'#d9b873':'#6d7c76';c.lineWidth=2;c.beginPath();c.arc(48,27,17,-Math.PI*.8,Math.PI*.15);c.stroke();
+  c.fillStyle='#465d44';c.fillRect(24,87,8,3);c.fillRect(63,77,6,2);c.fillRect(59,66,4,2);
+  shrineStatueCache.set(key,image);return image;
+}
+function nearbyShrineTargets(px,py){
+  return Object.entries(game.routeEvents||{}).filter(([,event])=>!event.done&&Number.isFinite(event.x)&&Number.isFinite(event.y))
+    .map(([id,event])=>({id,event,d:Math.hypot(event.x-px,event.y-py)}))
+    .filter(target=>target.d<=1200).sort((a,b)=>a.d-b.d);
+}
 function drawExploration(cx, cy, w, h) {
   for (const event of Object.values(game.routeEvents)) {
-    if (event.done) continue;
+    if(!Number.isFinite(event.x)||!Number.isFinite(event.y))continue;
     const x = event.x - cx, y = event.y - cy;
-    if (x < -80 || y < -80 || x > w + 80 || y > h + 80) continue;
-    ctx.save();
-    ctx.strokeStyle = '#dac18b'; ctx.lineWidth = 2;
-    ctx.strokeRect(Math.round(x) - 15, Math.round(y) - 15, 30, 30);
-    ctx.fillStyle = '#18242c'; ctx.fillRect(Math.round(x) - 9, Math.round(y) - 9, 18, 18);
-    ctx.fillStyle = '#d9c596'; ctx.fillRect(Math.round(x) - 3, Math.round(y) - 6, 6, 12);
-    ctx.beginPath(); ctx.arc(x, y, 42, -Math.PI / 2, -Math.PI / 2 + PI2 * event.progress / 6000); ctx.stroke();
-    ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff0c7'; ctx.fillText('RESTORE · 6s', x, y - 52);
-    ctx.fillText('+8 SHARDS · HEAL · XP', x, y + 62);
+    if (x < -96 || y < -96 || x > w + 96 || y > h + 112) continue;
+    ctx.save();ctx.imageSmoothingEnabled=false;
+    const active=!event.done&&dist(game.player,event)<=68;
+    if(!event.done){
+      ctx.fillStyle=active?'rgba(225,193,114,.09)':'rgba(172,157,114,.04)';
+      ctx.beginPath();ctx.arc(x,y,68,0,PI2);ctx.fill();
+      ctx.strokeStyle=active?'#b9a475':'#706a54';ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(x,y,68,0,PI2);ctx.stroke();
+      ctx.strokeStyle='#edd397';ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(x,y,68,-Math.PI/2,-Math.PI/2+PI2*Math.min(1,(event.progress||0)/6000));ctx.stroke();
+    }
+    ctx.globalAlpha=event.done ? 0.72 : 1;
+    ctx.drawImage(shrineStatueSprite(event.done),Math.round(x)-48,Math.round(y)-90);
+    if(!event.done){
+      ctx.font='bold 11px Segoe UI';ctx.textAlign='center';ctx.fillStyle='#fff0c7';
+      ctx.fillText('SHRINE',x,y-101);
+      ctx.fillText('RESTORE · '+Math.ceil((6000-(event.progress||0))/1000)+'s',x,y+83);
+      ctx.font='10px Segoe UI';ctx.fillStyle='#d9c596';ctx.fillText('+8 SHARDS · 15% HEAL · XP',x,y+97);
+    }
     ctx.restore();
   }
-}
-
-function updateObjectiveUI() {
-  const el = document.getElementById('exploration-objective');
-  if (!el) return;
-  const g = game, id = g.explorationTarget;
-  if (!id) { el.textContent = 'HEARTS PURIFIED · Survive the shadowlands'; return; }
-  const def = BIOME_DEFS[id], remaining = Math.ceil((g.heartTimers[id] ?? HEART_WAKE_MS) / 1000);
-  const reward = WEAPON_DEFS[def.weapon].name;
-  const event = Object.values(g.routeEvents).find(e => !e.done && dist(g.player, e) <= 90);
-  el.textContent = event ? 'RESTORE SHRINE · ' + Math.ceil((6000 - event.progress) / 1000) + 's · +8 shards + heal'
-    : g.guardian ? 'DEFEAT ' + def.name.toUpperCase() + ' GUARDIAN · Unlock ' + reward
-    : 'PURIFY ' + def.name.toUpperCase() + ' · ' + Math.round(dist(g.player, chestPos(id)) / TILE) + ' tiles · ' + reward
-      + (remaining < 30 ? ' · Awakening ' + remaining + 's' : '');
 }
 
 // Shared bounded cache used by the living-shadow animation renderer.

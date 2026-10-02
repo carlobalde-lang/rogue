@@ -593,7 +593,9 @@ function underTreeCanopy(wx, wy) {
 }
 
 const BIOME_CORE = 'core';
-const BIOME_IDS = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
+// Clockwise from geographic north: frozen, temperate, then hot climates.
+// IDs remain stable for weapons, saves and biome-specific terrain.
+const BIOME_IDS = ['north', 'west', 'southwest', 'east', 'south', 'southeast', 'northwest', 'northeast'];
 
 const BIOME_RADIUS_CORE = 8000;      // ~45s of walking: fully neutral ruins
 const BIOME_RADIUS_FULL = 30000;     // ~3min: the chosen climate is pure

@@ -141,27 +141,36 @@ function showLevelUp() {
   Sound.play('levelup');
 }
 
-// Pick the best option for AUTO mode: upgrading an owned weapon beats
-// taking a new one, which beats grabbing a passive. Within the same class the
-// rarer (and thus stronger) card wins, weighted by its drop odds.
+// AUTO balances early offense, recovery, defenses, and useful recipes.
 function autoPick(choices) {
   if (!choices || choices.length === 0) return null;
-  let best = Infinity;
+  const p = game.player;
+  const rarity = { common: 1, rare: 1.35, epic: 1.75, legendary: 2.25 };
+  const owned = new Set(p.weapons.map(w => w.id));
+  const wounded = p.hp < p.maxHp * 0.5;
+  let best = null, bestScore = -Infinity;
   for (const c of choices) {
-    const r = c.autoRank !== undefined ? c.autoRank : 2;
-    if (r < best) best = r;
+    let score = c.passive ? 22 : owned.has(c.key) ? 47 : p.weapons.length < 3 ? 62 : 30;
+    if (c.passive) {
+      if (c.key === 'vampirism') score = p.vamp < 0.1 ? 82 : p.vamp < 0.2 ? 42 : 27;
+      if (c.key === 'regen') score = p.regen < 0.25 ? 75 : p.regen < 0.75 ? 43 : 28;
+      if (c.key === 'revive') score = p.revives === 0 ? 72 : 30;
+      if (c.key === 'armor') score = p.armor < 3 ? 44 : 30;
+      if (c.key === 'maxHp') score = wounded ? 80 : 36;
+      if (c.key === 'damage' || c.key === 'cooldown') score = 40;
+      if (wounded && ['regen', 'vampirism', 'armor', 'revive'].includes(c.key)) score += 18;
+      if (c.key === 'glassCannon' && (wounded || p.maxHp < 150)) score = -100;
+    }
+    for (const recipe of RECIPES) {
+      if (game.recipesTriggered[recipe.id]) continue;
+      const ready = c.passive ? recipe.passive === c.key && owned.has(recipe.weapon)
+        : recipe.weapon === c.key && p.passives.includes(PASSIVE_DEFS[recipe.passive].name);
+      if (ready) score += 18;
+    }
+    score *= 0.75 + 0.25 * (rarity[c.rarity] || 1);
+    if (score > bestScore) { best = c; bestScore = score; }
   }
-  const top = choices.filter(c => (c.autoRank !== undefined ? c.autoRank : 2) === best);
-  if (top.length === 1) return top[0];
-  const tier = { common: 1, rare: 2, epic: 3, legendary: 4 };
-  const weights = top.map(c => tier[c.rarity] || 1);
-  const total = weights.reduce((s, w) => s + w, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < top.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return top[i];
-  }
-  return top[top.length - 1];
+  return best;
 }
 
 // Resolve every pending level-up at once, never pausing the run. The chosen

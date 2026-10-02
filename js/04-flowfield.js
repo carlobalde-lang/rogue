@@ -10,6 +10,7 @@ let ffDX = new Int8Array(FF_SIZE);
 let ffDY = new Int8Array(FF_SIZE);
 let ffQueue = new Int32Array(FF_SIZE);
 let ffWalkable = new Uint8Array(FF_SIZE);   // per-recompute walkability snapshot
+const ffVisible = new Uint8Array(FF_SIZE);
 let ffCX = 0;                      // player tile coords used for the field
 let ffCY = 0;
 let ffReady = false;
@@ -64,12 +65,12 @@ function updateFlowField(px, py) {
   const start = flowIndex(ffCX, ffCY);
   ffCost[start] = 0;
 
-  // BFS queue with 8 directions (orthogonal cost 10, diagonal 14).
+  // Equal-cost eight-way BFS visits each tile once, fitting the bounded queue.
   // Diagonal moves are only allowed when BOTH adjacent orthogonal tiles
   // are walkable, so enemies never corner-cut into walls and get stuck.
   const ndx = [1, 0, -1, 0, 1, 1, -1, -1];
   const ndy = [0, 1, 0, -1, 1, -1, 1, -1];
-  const ncost = [10, 10, 10, 10, 14, 14, 14, 14];
+  const ncost = [10, 10, 10, 10, 10, 10, 10, 10];
 
   let head = 0, tail = 0;
   ffQueue[tail++] = start;
@@ -111,6 +112,27 @@ function updateFlowField(px, py) {
     ffDX[i] = bestDX;
     ffDY[i] = bestDY;
   }
+  // Cache unobstructed routes once per field update, using the tile snapshot.
+  // In clear ground enemies chase the player directly rather than merging
+  // into the horizontal/vertical lanes of an eight-direction grid.
+  ffVisible.fill(0);
+  for (let idx = 0; idx < FF_SIZE; idx++) {
+    if (!alive[idx] || ffCost[idx] === MAX_COST) continue;
+    let x = idx % FF_DIM, y = (idx / FF_DIM) | 0;
+    const dx = Math.abs(FF_RAD - x), dy = Math.abs(FF_RAD - y);
+    const sx = x < FF_RAD ? 1 : -1, sy = y < FF_RAD ? 1 : -1;
+    let error = dx - dy, clear = true;
+    while (x !== FF_RAD || y !== FF_RAD) {
+      const twice = error * 2;
+      let nx = x, ny = y;
+      if (twice > -dy) { error -= dy; nx += sx; }
+      if (twice < dx) { error += dx; ny += sy; }
+      if (!alive[ny * FF_DIM + nx] || (nx !== x && ny !== y &&
+          (!alive[y * FF_DIM + nx] || !alive[ny * FF_DIM + x]))) { clear = false; break; }
+      x = nx; y = ny;
+    }
+    if (clear) ffVisible[idx] = 1;
+  }
   ffReady = true;
 }
 
@@ -126,5 +148,9 @@ function flowDirectionAt(px, py) {
   _ffDir.dx = ffDX[idx];
   _ffDir.dy = ffDY[idx];
   _ffDir.cost = ffCost[idx];
+  if (ffVisible[idx] && game && game.player) {
+    _ffDir.dx = game.player.x - px;
+    _ffDir.dy = game.player.y - py;
+  }
   return _ffDir;
 }

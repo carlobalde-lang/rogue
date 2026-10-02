@@ -3020,12 +3020,35 @@ function drawSpawnSignposts(cx, cy, w, h) {
 // BOSS COMPASS — a large corona with edge arrows to the nearest hearts
 // ============================================================
 // A big translucent corona is drawn around the player, its rim marking the
-// eight climate wedges (tinted per biome, dimmed once purified). For the three
-// NEAREST hearts still defended by a Guardian an arrow is drawn at the very
-// edge of the screen, pointing the way; the closest is the largest and is
-// tagged with the biome name and distance in metres (1 tile = 1 m). The rim is
+// eight climate wedges (tinted per biome, dimmed once purified). The two nearest
+// biome hearts have labeled arrows at the screen edge, with the closest larger.
+// A nearby unfinished shrine has a distinct gold marker (1 tile = 1 m). The rim is
 // a fixed compass (north = up); the arrows use the true bearing from the
 // player, so they stay correct wherever you wander.
+function compassEdgeTips(targets,px,py,w,h){
+  const tips=[];
+  for(const target of targets){
+    const dx=Math.cos(target.ca),dy=Math.sin(target.ca),inset=6;let distance=Infinity;
+    if(dx>1e-6)distance=Math.min(distance,(w-inset-px)/dx);
+    else if(dx<-1e-6)distance=Math.min(distance,(inset-px)/dx);
+    if(dy>1e-6)distance=Math.min(distance,(h-inset-py)/dy);
+    else if(dy<-1e-6)distance=Math.min(distance,(inset-py)/dy);
+    if(!Number.isFinite(distance)||distance<0)distance=0;
+    let x=px+dx*distance,y=py+dy*distance;
+    const collides=(cx,cy)=>tips.some(p=>Math.hypot(p.x-cx,p.y-cy)<54);
+    if(collides(x,y)){
+      const vertical=x<=inset+1||x>=w-inset-1,baseX=x,baseY=y;let found=false;
+      for(let step=1;step<=6&&!found;step++)for(const sign of [1,-1]){
+        const nextX=vertical?baseX:Math.max(inset,Math.min(w-inset,baseX+sign*step*60));
+        const nextY=vertical?Math.max(inset,Math.min(h-inset,baseY+sign*step*60)):baseY;
+        if(!collides(nextX,nextY)){x=nextX;y=nextY;found=true;break;}
+      }
+    }
+    tips.push({x,y});
+  }
+  return tips;
+}
+
 function drawBossCompass(cx, cy, w, h) {
   const g = game;
   const t = g.time;
@@ -3034,7 +3057,7 @@ function drawBossCompass(cx, cy, w, h) {
   const ply = (typeof g._rpPy === 'number') ? lerp(g._rpPy, g.player.y, ia) : g.player.y;
   const px = plx - cx, py = ply - cy;
 
-  // Every wedge heart, then the ones still guarded (closest to the player first).
+  // All biome hearts are geographic destinations, including purified ones.
   const all = [];
   for (let k = 0; k < 8; k++) {
     const id = BIOME_IDS[k];
@@ -3051,7 +3074,11 @@ function drawBossCompass(cx, cy, w, h) {
     });
   }
   // The compass describes geography, including already purified biomes.
-  const targets = all.slice().sort((a, b) => a.d - b.d);
+  const targets = all.slice().sort((a, b) => a.d - b.d).slice(0,2);
+  if(typeof nearbyShrineTargets==='function'){
+    const nearby=nearbyShrineTargets(plx,ply)[0];
+    if(nearby)targets.push({id:'shrine:'+nearby.id,shrine:true,d:nearby.d,def:{name:'Shrine',color:'#edd397'},ca:Math.atan2(nearby.event.y-ply,nearby.event.x-plx)});
+  }
 
   const R = Math.min(w, h) * 0.46;         // a big corona, near the screen edge
   const pulse = 0.5 + 0.5 * Math.sin(t * 0.004);
@@ -3074,24 +3101,20 @@ function drawBossCompass(cx, cy, w, h) {
     ctx.stroke();
   }
 
-  // Edge arrows for the nearest guarded hearts (farthest first, closest on top).
-  const n = Math.min(3, targets.length);
+  // Two biome bearings, plus the nearest optional shrine within 1200 pixels.
+  const labelRects=[];
+  const n = targets.length;
+  const edgeTips=compassEdgeTips(targets,px,py,w,h);
   for (let i = n - 1; i >= 0; i--) {
     const e = targets[i];
     const dx = Math.cos(e.ca), dy = Math.sin(e.ca);
     const primary = i === 0;
-    const L = primary ? 46 : 32;            // arrow length, tip toward the edge
-    const W = primary ? 17 : 12;            // arrow half-width
+    const shrine = !!e.shrine;
+    const L = shrine ? 24 : primary ? 46 : 32;            // arrow length, tip toward the edge
+    const W = shrine ? 10 : primary ? 17 : 12;            // arrow half-width
 
-    // Where this bearing meets the screen border (kept a few px inside).
-    const inset = 6;
-    let tt = Infinity;
-    if (dx > 1e-6) tt = Math.min(tt, (w - inset - px) / dx);
-    else if (dx < -1e-6) tt = Math.min(tt, (inset - px) / dx);
-    if (dy > 1e-6) tt = Math.min(tt, (h - inset - py) / dy);
-    else if (dy < -1e-6) tt = Math.min(tt, (inset - py) / dy);
-    if (!isFinite(tt) || tt < 0) tt = 0;
-    const tipx = px + dx * tt, tipy = py + dy * tt;
+    // Secondary markers slide along the edge when bearings overlap.
+    const tipx=edgeTips[i].x,tipy=edgeTips[i].y;
     const ax = tipx - dx * L, ay = tipy - dy * L;
 
     // Guide line from the corona out to the arrow.
@@ -3110,19 +3133,19 @@ function drawBossCompass(cx, cy, w, h) {
     ctx.globalAlpha = primary ? (0.7 + 0.3 * pulse) : 0.5;
     ctx.fillStyle = e.def.color;
     ctx.beginPath();
-    ctx.moveTo(0, -W);
-    ctx.lineTo(L, 0);
-    ctx.lineTo(0, W);
-    ctx.lineTo(L * 0.4, 0);
-    ctx.closePath();
-    ctx.fill();
+    if(shrine){
+      ctx.moveTo(L,0);ctx.lineTo(L*.5,-W);ctx.lineTo(0,0);ctx.lineTo(L*.5,W);
+    }else{
+      ctx.moveTo(0,-W);ctx.lineTo(L,0);ctx.lineTo(0,W);ctx.lineTo(L*.4,0);
+    }
+    ctx.closePath();ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.45)';
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
 
-    // Nearest-boss readout, just inside its arrow.
-    if (primary) {
+    // Every destination is labeled; keep boxes apart when bearings are close.
+    {
       const txt = e.def.name.toUpperCase() + '  ' + Math.round(e.d / TILE) + 'm';
       ctx.font = 'bold 12px "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
@@ -3132,7 +3155,16 @@ function drawBossCompass(cx, cy, w, h) {
       let ly = tipy - dy * (L + 22);
       lx = Math.max(tw / 2 + 8, Math.min(w - tw / 2 - 8, lx));
       ly = Math.max(12, Math.min(h - 12, ly));
-      ctx.globalAlpha = 0.9;
+      const overlaps=(x,y)=>labelRects.some(r=>Math.abs(x-r.x)<(tw+r.w)/2+6&&Math.abs(y-r.y)<25);
+      if(overlaps(lx,ly)){
+        const originalY=ly;let placed=false;
+        for(let step=1;step<=8&&!placed;step++)for(const sign of [1,-1]){
+          const candidate=Math.max(12,Math.min(h-12,originalY+sign*step*26));
+          if(!overlaps(lx,candidate)){ly=candidate;placed=true;break;}
+        }
+      }
+      labelRects.push({x:lx,y:ly,w:tw});
+      ctx.globalAlpha = primary ? 0.95 : 0.85;
       ctx.fillStyle = 'rgba(10,12,18,0.78)';
       ctx.fillRect(lx - tw / 2, ly - 10, tw, 20);
       ctx.strokeStyle = e.def.color;
@@ -5255,8 +5287,20 @@ function drawCape(cx, cy) {
   const p = game.player;
   const cap = p.cape;
   if (!cap || !cap.grid || cap.grid.length < 2) return;
-  if (Math.abs(Math.cos(p.renderAngle)) > 0.9) drawCapeRibbon(cx, cy, cap);
-  else drawCapeCloth(cx, cy, cap);
+  // Interpolate cloth on the same timeline as the body and camera.
+  const alpha = typeof game.renderAlpha === 'number' ? game.renderAlpha : 0;
+  const rendered = cap.render;
+  for (let j = 0; j < cap.W; j++) for (let i = 0; i < cap.L; i++) {
+    const pt = cap.grid[j][i], out = rendered.grid[j][i];
+    out.x = lerp(pt.renderPrevX, pt.x, alpha);
+    out.y = lerp(pt.renderPrevY, pt.y, alpha);
+  }
+  const sideways = Math.abs(Math.cos(p.renderAngle));
+  if (cap.ribbon === undefined) cap.ribbon = sideways > 0.9;
+  else if (sideways > 0.94) cap.ribbon = true;
+  else if (sideways < 0.86) cap.ribbon = false;
+  if (cap.ribbon) drawCapeRibbon(cx, cy, rendered);
+  else drawCapeCloth(cx, cy, rendered);
 }
 
 // --- Wide trapezoid cloth: the classic flag behind the back (vertical facing) ---

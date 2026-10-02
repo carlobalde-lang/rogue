@@ -31,8 +31,7 @@ button:focus-visible, input:focus-visible, .choice-card:focus-visible { outline:
 #fps { display: block; position: fixed; top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); z-index: 30; padding: 4px 7px; border-radius: 3px; background: #080d17cc; color: #d5e8bc; font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; }
 #dev-btn { display: block; }
 body.show-diagnostics #fps, body.show-diagnostics #dev-btn { display: block; }
-#exploration-objective { max-width: min(660px, 94vw); color: #ead4a7; font-size: 11px; line-height: 1.5; letter-spacing: .4px; padding-top: 4px; text-shadow: 0 1px 3px #000; }
 #pause-screen, #levelup-screen, #game-over-screen { background: #070c16e8; }
-@media (max-width: 700px) { #ui-overlay { padding: calc(6px + env(safe-area-inset-top)) 9px 6px; } .weapon-icon { width: 36px; height: 36px; } #exploration-objective { font-size: 10px; } }
-@media (orientation: landscape) and (max-height: 600px) { #ui-overlay { width: min(520px, 80vw); padding-top: calc(4px + env(safe-area-inset-top)); } .bar-container { height: 12px; } #exploration-objective { font-size: 9px; } }
+@media (max-width: 700px) { #ui-overlay { padding: calc(6px + env(safe-area-inset-top)) 9px 6px; } .weapon-icon { width: 36px; height: 36px; } }
+@media (orientation: landscape) and (max-height: 600px) { #ui-overlay { width: min(520px, 80vw); padding-top: calc(4px + env(safe-area-inset-top)); } .bar-container { height: 12px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

@@ -325,6 +325,8 @@ function updatePlayer(dt, dtSec) {
   p.hurtFlash = Math.max(0, p.hurtFlash - dt * 0.0035);   // ~285ms fade
   p.hurtShake = Math.max(0, p.hurtShake - dt * 0.002);
   p.hp = Math.min(p.maxHp, p.hp + p.regen * dtSec);
+  const vampCap = p.maxHp * VAMP_HEAL_RATE;
+  p.vampHealBudget = Math.min(vampCap, (p.vampHealBudget ?? vampCap) + vampCap * dtSec);
 
   // --- Lava burn: standing in a lava tile ticks damage on its own clock ---
   // (deliberately separate from damagePlayer's i-frame timer so enemies can
@@ -364,6 +366,13 @@ function capeNeckAnchor(p) {
   let face;                                            // cardinal FACE direction
   if (Math.abs(dx) > Math.abs(dy)) face = dx > 0 ? 0 : Math.PI;
   else face = dy > 0 ? Math.PI / 2 : -Math.PI / 2;
+  // Avoid swapping the collar axis every step near a diagonal heading.
+  if (p._capeFace !== undefined) {
+    const horizontal = Math.abs(Math.cos(p._capeFace)) > 0.5;
+    if (horizontal && Math.abs(dy) <= Math.abs(dx) * 1.15) face = dx >= 0 ? 0 : Math.PI;
+    if (!horizontal && Math.abs(dx) <= Math.abs(dy) * 1.15) face = dy >= 0 ? Math.PI / 2 : -Math.PI / 2;
+  }
+  p._capeFace = face;
   const back = face + Math.PI;
   const capeFront = Math.sin(p.renderAngle) < -0.5;
   const neckR = (capeFront ? -0.4 : 0.45) * p.radius;
@@ -398,7 +407,7 @@ function initCape() {
       const wf = j / (W - 1) - 0.5;
       const x = neckX + Math.cos(backAng) * (i * SEG_L) + Math.cos(perp) * (halfW * wf * 2);
       const y = neckY + Math.sin(backAng) * (i * SEG_L) + Math.sin(perp) * (halfW * wf * 2);
-      col.push({ x, y, px: x, py: y, i, j });
+      col.push({ x, y, px: x, py: y, renderPrevX: x, renderPrevY: y, i, j });
     }
     grid.push(col);
   }
@@ -415,16 +424,20 @@ function initCape() {
   }
 
   p.cape = { grid, L, W, SEG_L, NECK_W, TAIL_W };
+  p.cape.render = { L, W, NECK_W, grid: grid.map(col => col.map(pt => ({ x: pt.x, y: pt.y }))) };
 }
 
 function solveCape(a, b, rest) {
   const dx = a.x - b.x, dy = a.y - b.y;
   const d = Math.hypot(dx, dy) || 0.001;
   const diff = (d - rest) / d;
-  a.x -= dx * diff * 0.5;
-  a.y -= dy * diff * 0.5;
-  b.x += dx * diff * 0.5;
-  b.y += dy * diff * 0.5;
+  const weightA = a.i === 0 ? 0 : 1, weightB = b.i === 0 ? 0 : 1;
+  const total = weightA + weightB;
+  if (!total) return;
+  a.x -= dx * diff * weightA / total;
+  a.y -= dy * diff * weightA / total;
+  b.x += dx * diff * weightB / total;
+  b.y += dy * diff * weightB / total;
 }
 
 function updateCape(dtSec) {
@@ -433,6 +446,9 @@ function updateCape(dtSec) {
   if (!p.cape) initCape();
   const cap = p.cape;
   const { grid, W, L, NECK_W, TAIL_W, SEG_L } = cap;
+  for (const col of grid) for (const pt of col) {
+    pt.renderPrevX = pt.x; pt.renderPrevY = pt.y;
+  }
   const backAng = p.renderAngle + Math.PI;
   const perp = backAng + Math.PI / 2;
   const neck = capeNeckAnchor(p);
@@ -459,7 +475,7 @@ function updateCape(dtSec) {
   const vy0 = p.y - (p._capePrevY != null ? p._capePrevY : p.y);
   p._capePrevX = p.x; p._capePrevY = p.y;
   const dot = vx0 * Math.cos(p.renderAngle) + vy0 * Math.sin(p.renderAngle);
-  const windMag = 0.14 + clamp(dot / 4, -1, 1) * 0.30;
+  const windMag = 0.14 + clamp(dot / Math.max(0.001, dtSec * 240), -1, 1) * 0.30;
   const windX = Math.cos(backAng) * windMag;
   const windY = Math.sin(backAng) * windMag;
   const tNow = game.time;
@@ -477,15 +493,16 @@ function updateCape(dtSec) {
       const idealY = neckY + Math.sin(backAng) * (i * SEG_L) + Math.sin(perp) * (halfW * wf * 2);
       // Strong momentum lets it dash back and sway; the guide just keeps it
       // ballparked. Folds are prevented by clampBehind() below, not by pinning.
-      const ff = (pt.x - pt.px) * 0.88;
-      const fy = (pt.y - pt.py) * 0.88;
+      const damping = Math.pow(0.88, dtSec * 60);
+      const ff = (pt.x - pt.px) * damping;
+      const fy = (pt.y - pt.py) * damping;
       pt.px = pt.x; pt.py = pt.y;
       pt.x = pt.x + (idealX - pt.x) * spf + ff;
       pt.y = pt.y + (idealY - pt.y) * spf + fy;
       // base wind (stronger toward the tail) + travelling sin flutter
       const k = 2.0 * dtSec;
-      const flut = Math.sin(tNow * 0.045 + i * 0.9 + j * 0.35);
-      const amp = (0.8 + 2.2 * frac);
+      const flut = Math.sin(tNow * 0.006 + i * 0.9 + j * 0.35);
+      const amp = (0.4 + 1.2 * frac);
       pt.x += (windX * (0.25 + 0.75 * frac)
         + Math.cos(perp) * flut * amp) * k;
       pt.y += (windY * (0.25 + 0.75 * frac)
@@ -552,7 +569,7 @@ function updateSpawning(dt) {
   if (g.waveTimer <= 0) {
     spawnWave();
     if (window.runLog) runLog.addSpawnType('wave');
-    g.waveTimer = Math.max(800, 3000 - g.difficultyMult * 200) * (g.dev.waveIntervalMult || 1) * stormMult;
+    g.waveTimer = Math.max(1100, 3000 - g.difficultyMult * 100) * 0.85 * (g.dev.waveIntervalMult || 1) * stormMult;
   }
 
   g.eliteTimer -= dt;
@@ -560,7 +577,7 @@ function updateSpawning(dt) {
     const eliteCount = 1 + Math.floor(g.difficultyMult / 8);
     for (let i = 0; i < eliteCount; i++) spawnEnemy('elite');
     if (window.runLog) runLog.addSpawnType('elite', eliteCount);
-    g.eliteTimer = Math.max(5000, 20000 - g.difficultyMult * 800) * (g.dev.eliteIntervalMult || 1);
+    g.eliteTimer = Math.max(5000, 20000 - g.difficultyMult * 800) * 0.9 * (g.dev.eliteIntervalMult || 1);
   }
 
   // Warden: a mid-tier mini-boss, more frequent than a full boss. Difficulty
@@ -570,7 +587,7 @@ function updateSpawning(dt) {
     spawnEnemy('warden');
     if (window.runLog) runLog.addSpawnType('warden');
     spawnParticles(g.player.x, g.player.y, '#fa0', 20, 7);
-    g.wardenTimer = Math.max(30000, 90000 - g.difficultyMult * 1500) * (g.dev.eliteIntervalMult || 1);
+    g.wardenTimer = Math.max(30000, 90000 - g.difficultyMult * 1500) * 0.9 * (g.dev.eliteIntervalMult || 1);
   }
 
   g.bossTimer -= dt;
@@ -578,7 +595,7 @@ function updateSpawning(dt) {
     spawnEnemy('boss');
     if (window.runLog) runLog.addSpawnType('boss');
     spawnParticles(g.player.x, g.player.y, '#f0f', 30, 8);
-    g.bossTimer = Math.max(90000, 180000 - g.difficultyMult * 3000) * (g.dev.bossIntervalMult || 1);
+    g.bossTimer = Math.max(90000, 180000 - g.difficultyMult * 3000) * 0.9 * (g.dev.bossIntervalMult || 1);
   }
 }
 
@@ -587,6 +604,7 @@ function updateEnemies(dt, dtSec) {
   drainSpawnQueue();   // trickle pending wave spawns in instead of one burst
   const g = game;
   const p = g.player;
+  const recycleDistance = enemyRecycleDistance();
 
   for (let i = g.enemies.length - 1; i >= 0; i--) {
     const e = g.enemies[i];
@@ -595,8 +613,8 @@ function updateEnemies(dt, dtSec) {
 
     // Never visibly despawn enemies: if one drifts too far (large screens
     // can show the old 2000px removal radius), teleport it back to the
-    // spawn ring instead of removing it.
-    if (dist2(e, p) > 2600 * 2600) {
+    // spawn area instead of removing it; the radius encloses wide viewports.
+    if (dist2(e, p) > recycleDistance * recycleDistance) {
       const pos = findEnemySpawnPos();
       e.x = pos.x; e.y = pos.y;
       e.vx = 0; e.vy = 0;
@@ -808,6 +826,12 @@ function updateEnemies(dt, dtSec) {
       const evy = (e.y - e.prevY) / dtSec;
       e.vx = (e.vx || 0) * 0.6 + evx * 0.4;
       e.vy = (e.vy || 0) * 0.6 + evy * 0.4;
+    }
+
+    // Fast silhouettes face their actual movement, including turns at walls.
+    if (e.kind === 'runner' || e.kind === 'dunerunner') {
+      const dx = e.x - e.prevX, dy = e.y - e.prevY;
+      if (dx * dx + dy * dy > 0.0001) e.faceA = Math.atan2(dy, dx);
     }
 
     // Contact damage
@@ -1456,13 +1480,9 @@ function update(dt) {
   const lvl = g.player.level;
   // Level pressure is linear and capped: collecting XP remains rewarding.
   const lvlTerm = Math.min(Math.max(0, lvl - 1), 30) * 0.12;
-  // Time term flattened from run-log telemetry: the old 1 + T*(1 + T/5)
-  // (T = minutes) drove dm past ~17 by minute 8 on Normal while weapon DPS
-  // still scales roughly linearly, turning every run into a pure attrition
-  // wall. Gentler start + a later, softer spike:
-  //   1 min ~1.8   8 min ~11   15 min ~22   20 min ~30
+  // Increasing time pressure keeps strong builds from outscaling the horde.
   const minutes = g.time / 60000;
-  const timeTerm = 1 + minutes * (0.75 + minutes / 12);
+  const timeTerm = 1 + minutes * (0.95 + minutes / 9);
   g.difficultyMult = (g.dev.difficultyOverride > 0)
     ? g.dev.difficultyOverride
     : (timeTerm + lvlTerm) * (typeof difficultyScale === 'function' ? difficultyScale() : 1);
@@ -1505,7 +1525,8 @@ function update(dt) {
     // over consecutive frames so an overshoot never stalls one frame.
     const over = g.enemies.length - g.dev.enemyCap;
     const budget = Math.min(over, 24);
-    const far2 = 2100 * 2100;
+    const cullDistance = Math.max(2100, enemyRecycleDistance() - 500);
+    const far2 = cullDistance * cullDistance;
     let removed = 0;
     for (let i = 0; i < g.enemies.length && removed < budget; ) {
       const e = g.enemies[i];

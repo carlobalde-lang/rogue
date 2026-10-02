@@ -44,7 +44,7 @@ const { chromium } = (() => {
     assert(Object.keys(game.recipesTriggered).length === RECIPES.length, 'Recipes missing');
     assert(p.weapons.filter(w => w.evolution).length === RECIPES.length, 'Evolution labels missing');
     p.level = 30; update(16);
-    const expected = (1 + (game.time / 60000) * (0.75 + (game.time / 60000) / 12) + 29 * 0.12) * difficultyScale();
+    const expected = (1 + (game.time / 60000) * (0.95 + (game.time / 60000) / 9) + 29 * 0.12) * difficultyScale();
     assert(Math.abs(game.difficultyMult - expected) < 1e-8, 'Difficulty mismatch');
     const id = BIOME_IDS.find(id => BIOME_DEFS[id].weapon);
     game.explorationTarget = id;

@@ -9,7 +9,9 @@
 const SPAWN_PER_FRAME = 6;
 let _spawnQ = [], _spawnHead = 0, _spawnTail = 0;
 function queueSpawnEnemy(type, bias) {
-  if (_spawnTail >= _spawnQ.length) { _spawnHead = 0; _spawnTail = 0; }
+  if (_spawnHead >= _spawnTail) { _spawnHead = 0; _spawnTail = 0; }
+  // Keep pending work bounded even when the enemy cap is reached.
+  if (_spawnTail - _spawnHead >= Math.max(0, game.dev.enemyCap - game.enemies.length)) return;
   _spawnQ[_spawnTail++] = { type, bias };
 }
 function resetSpawnQueue() { _spawnHead = 0; _spawnTail = 0; _spawnQ.length = 0; }
@@ -33,19 +35,24 @@ function drainSpawnQueue() {
 function findEnemySpawnPos(bias) {
   const g = game;
   const p = g.player;
-  const rMin = Math.max(VIEW_W, VIEW_H) * 0.52 + 40;
-  const rMax = Math.max(VIEW_W, VIEW_H) * 0.82 + 120;
   const angle = bias
     ? bias.a + rand(-bias.spread, bias.spread)
     : rand(0, PI2);
-  const spawnDist = rand(rMin, rMax);
+  // Follow the viewport edge with a stable minimum combat radius.
+  const dx = Math.cos(angle), dy = Math.sin(angle), cam = g.camera;
+  const edgeX = dx > 0 ? cam.x + VIEW_W - p.x : p.x - cam.x;
+  const edgeY = dy > 0 ? cam.y + VIEW_H - p.y : p.y - cam.y;
+  const edge = Math.min(Math.max(0, edgeX) / Math.max(0.000001, Math.abs(dx)),
+    Math.max(0, edgeY) / Math.max(0.000001, Math.abs(dy)));
+  const spawnDist = Math.max(700, edge + 80) + rand(0, 280);
   let x = p.x + Math.cos(angle) * spawnDist;
   let y = p.y + Math.sin(angle) * spawnDist;
 
-  // Nudge spawn point along the ray toward the player until it's not in a wall
+  // Search outward so clearing an obstacle never moves the spawn on screen.
+  // Nudge spawn point along the ray away from the player until it's not in a wall
   // or inside one of the big impassable tree groves.
   if (getTile(x, y) === T_WALL || getTile(x, y) === T_TREE || getTile(x, y) === T_TALLGRASS || getTile(x, y) === T_CLIFF) {
-    const outA = angleTo({ x, y }, p);
+    const outA = angle;
     for (let step = 1; step <= 20; step++) {
       const sx = x + Math.cos(outA) * TILE * step;
       const sy = y + Math.sin(outA) * TILE * step;
@@ -53,6 +60,13 @@ function findEnemySpawnPos(bias) {
     }
   }
   return { x, y };
+}
+
+// Enclose off-screen spawns, wall searches, and camera lag.
+function enemyRecycleDistance() {
+  const p = game.player, cam = game.camera;
+  const lag = Math.hypot(cam.x + VIEW_W * 0.5 - p.x, cam.y + VIEW_H * 0.5 - p.y);
+  return Math.max(2600, Math.hypot(VIEW_W, VIEW_H) * 0.5 + lag + 1100);
 }
 
 // Spawn a specific enemy type. `type` is a key in ENEMY_DEFS.
@@ -152,7 +166,7 @@ function spawnSplitlings(x, y, maxHp, xp) {
 
 // A swarm of tiny, chunky pressure enemies (queued: drains over a few frames)
 function spawnSwarmlings() {
-  const n = 5 + randInt(0, 3);
+  const n = 8 + randInt(0, 4) + Math.min(12, Math.floor(game.difficultyMult * 0.5));
   for (let i = 0; i < n; i++) queueSpawnEnemy('swarmling');
 }
 
@@ -178,7 +192,8 @@ function spawnWave() {
     spawnSwarmlings();
     return;
   }
-  const count = Math.floor(5 + dm * 4 + dm * dm * 0.3);
+  // The working queue now delivers the entire wave, so use bounded growth.
+  const count = Math.min(64, Math.floor(7 + dm * 1.4 + Math.sqrt(Math.max(0, dm)) * 2));
   // Each wave sweeps in from a random broad front, so pressure never locks
   // onto the north/south/east/west approach lines.
   const bias = { a: rand(0, PI2), spread: rand(1.1, 2.2) };

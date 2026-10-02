@@ -62,10 +62,12 @@
   function renderOverview(el) {
     const howto = [
       'Move with <b>WASD</b> or the <b>arrow keys</b> (or drag on mobile).',
-      'Restore the optional route shrines: stay in their ring for 6 seconds to earn 8 shards, healing and XP.',
+      'Restore the optional route shrines: stay in their ring for 6 seconds, even across separate visits, to earn 8 shards, 15% healing and XP. Each shrine rewards you once per run.',
+      'The compass labels the two nearest biome hearts. A gold diamond marks the nearest unfinished shrine within 38 tiles.',
       'Weapon recipes evolve attacks: check the Recipes tab for each new behavior.',
       'Passive strength: Common 1×, Rare 1.35×, Epic 1.75×, Legendary 2.25×. Weapon upgrades grant 1, 2, 3 or 4 levels. Revive respects its two-charge limit.',
-        'Luck improves the rarity of your upgrade cards; the objective below your weapons guides you to the next heart.',
+        'Life Steal shares a recovery limit of 2.5% Max HP per second across all attacks.',
+        'Luck improves the rarity of your upgrade cards; the compass guides you to the two nearest biome hearts.',
       'Press F2 to open developer tools, or F4 to show performance diagnostics.',
       'Your weapons fire <b>automatically</b> — focus on dodging and positioning.',
       'Killed enemies drop <b>XP gems</b>. Level up to pick a new weapon, passive or upgrade.',

@@ -9,14 +9,17 @@ function effectiveArea(baseArea) {
   return baseArea * (1 + 0.4 * (am - 1));
 }
 
+const WEAPON_DAMAGE_SCALE = 0.80;
+
 function getWeaponStats(weapon) {
   const def = WEAPON_DEFS[weapon.id];
   const lvl = weapon.level;
   const g = game.player;
+  const damageMult = g.dmgMult * WEAPON_DAMAGE_SCALE;
   switch (weapon.id) {
     case 'magicBolt':
       return {
-        dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 2 * (lvl - 1)) * damageMult,
         speed: def.baseSpeed + lvl * 0.3,
         rate: def.baseRate * g.cdMult * Math.pow(0.92, lvl - 1),
         count: def.baseCount + Math.floor((lvl - 1) / 3),
@@ -24,14 +27,14 @@ function getWeaponStats(weapon) {
       };
     case 'holyShield':
       return {
-        dmg: (def.baseDmg + 3 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 3 * (lvl - 1)) * damageMult,
         speed: 0, rate: 0,
         count: def.baseCount + (lvl - 1),
         area: effectiveArea(def.baseArea + 10 * (lvl - 1))
       };
     case 'lightning':
       return {
-        dmg: (def.baseDmg + 4 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 4 * (lvl - 1)) * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: def.baseCount + Math.floor((lvl - 1) / 2),
@@ -39,7 +42,7 @@ function getWeaponStats(weapon) {
       };
     case 'fireBlast':
       return {
-        dmg: (def.baseDmg + 1 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 1 * (lvl - 1)) * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.94, lvl - 1),
         count: 1,
@@ -47,7 +50,7 @@ function getWeaponStats(weapon) {
       };
     case 'holyCross':
       return {
-        dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 2 * (lvl - 1)) * damageMult,
         speed: def.baseSpeed + lvl * 0.2,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: def.baseCount + lvl - 1,
@@ -55,13 +58,13 @@ function getWeaponStats(weapon) {
       };
     case 'chainSaw':
       return {
-        dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 2 * (lvl - 1)) * damageMult,
         speed: 0, rate: 0, count: 1,
         area: effectiveArea(def.baseArea + 6 * (lvl - 1))
       };
     case 'poisonCloud':
       return {
-        dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 2 * (lvl - 1)) * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: 1,
@@ -69,7 +72,7 @@ function getWeaponStats(weapon) {
       };
     case 'boomerang':
       return {
-        dmg: (def.baseDmg + 3 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 3 * (lvl - 1)) * damageMult,
         speed: def.baseSpeed + lvl * 0.3,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: 1 + Math.floor((lvl - 1) / 3),   // grows slowly, no hard cap
@@ -77,14 +80,14 @@ function getWeaponStats(weapon) {
       };
     case 'turret':
       return {
-        dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 2 * (lvl - 1)) * damageMult,
         speed: 0, rate: 0,
         count: lvl,             // how many turrets may coexist
         area: 0
       };
     case 'voidRift':
       return {
-        dmg: def.baseDmg * g.dmgMult,
+        dmg: def.baseDmg * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.85, lvl - 1),
         count: 1,
@@ -92,7 +95,7 @@ function getWeaponStats(weapon) {
       };
     case 'frostNova':
       return {
-        dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 2 * (lvl - 1)) * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.94, lvl - 1),
         count: 1,
@@ -100,7 +103,7 @@ function getWeaponStats(weapon) {
       };
     case 'bloodScythe':
       return {
-        dmg: (def.baseDmg + 3 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 3 * (lvl - 1)) * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: 1,
@@ -108,7 +111,7 @@ function getWeaponStats(weapon) {
       };
     case 'familiar':
       return {
-        dmg: (def.baseDmg + 1 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 1 * (lvl - 1)) * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.92, lvl - 1),
         count: 1 + Math.floor((lvl - 1) / 3),   // orbiting drones, slow growth
@@ -116,7 +119,7 @@ function getWeaponStats(weapon) {
       };
     case 'whipChain':
       return {
-        dmg: (def.baseDmg + 3 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 3 * (lvl - 1)) * damageMult,
         speed: 0,
         rate: def.baseRate * g.cdMult * Math.pow(0.92, lvl - 1),
         count: 1,
@@ -124,7 +127,7 @@ function getWeaponStats(weapon) {
       };
     case 'mirrorShard':
       return {
-        dmg: (def.baseDmg + 2 * (lvl - 1)) * g.dmgMult,
+        dmg: (def.baseDmg + 2 * (lvl - 1)) * damageMult,
         speed: def.baseSpeed + lvl * 0.2,
         rate: def.baseRate * g.cdMult * Math.pow(0.93, lvl - 1),
         count: def.baseCount + Math.floor((lvl - 1) / 2),

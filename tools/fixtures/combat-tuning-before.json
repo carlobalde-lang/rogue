@@ -1,0 +1,703 @@
+{
+  "weapons": [
+    {
+      "id": "magicBolt",
+      "level": 1,
+      "dmg": 13,
+      "speed": 8.3,
+      "rate": 900,
+      "count": 1,
+      "area": 0
+    },
+    {
+      "id": "magicBolt",
+      "level": 6,
+      "dmg": 26,
+      "speed": 9.8,
+      "rate": 593.1733708800001,
+      "count": 2,
+      "area": 0
+    },
+    {
+      "id": "magicBolt",
+      "level": 12,
+      "dmg": 41.6,
+      "speed": 11.6,
+      "rate": 359.6736400971676,
+      "count": 4,
+      "area": 0
+    },
+    {
+      "id": "holyShield",
+      "level": 1,
+      "dmg": 18.2,
+      "speed": 0,
+      "rate": 0,
+      "count": 2,
+      "area": 50
+    },
+    {
+      "id": "holyShield",
+      "level": 6,
+      "dmg": 37.7,
+      "speed": 0,
+      "rate": 0,
+      "count": 7,
+      "area": 100
+    },
+    {
+      "id": "holyShield",
+      "level": 12,
+      "dmg": 61.1,
+      "speed": 0,
+      "rate": 0,
+      "count": 13,
+      "area": 160
+    },
+    {
+      "id": "lightning",
+      "level": 1,
+      "dmg": 23.400000000000002,
+      "speed": 0,
+      "rate": 1200,
+      "count": 1,
+      "area": 0
+    },
+    {
+      "id": "lightning",
+      "level": 6,
+      "dmg": 49.4,
+      "speed": 0,
+      "rate": 834.8260431600003,
+      "count": 3,
+      "area": 0
+    },
+    {
+      "id": "lightning",
+      "level": 12,
+      "dmg": 80.60000000000001,
+      "speed": 0,
+      "rate": 540.1242548120915,
+      "count": 6,
+      "area": 0
+    },
+    {
+      "id": "fireBlast",
+      "level": 1,
+      "dmg": 9.1,
+      "speed": 0,
+      "rate": 2200,
+      "count": 1,
+      "area": 75
+    },
+    {
+      "id": "fireBlast",
+      "level": 6,
+      "dmg": 15.600000000000001,
+      "speed": 0,
+      "rate": 1614.5888492799995,
+      "count": 1,
+      "area": 150
+    },
+    {
+      "id": "fireBlast",
+      "level": 12,
+      "dmg": 23.400000000000002,
+      "speed": 0,
+      "rate": 1113.8560559482519,
+      "count": 1,
+      "area": 240
+    },
+    {
+      "id": "holyCross",
+      "level": 1,
+      "dmg": 9.1,
+      "speed": 5.2,
+      "rate": 1100,
+      "count": 1,
+      "area": 0
+    },
+    {
+      "id": "holyCross",
+      "level": 6,
+      "dmg": 22.1,
+      "speed": 6.2,
+      "rate": 765.2572062300003,
+      "count": 6,
+      "area": 0
+    },
+    {
+      "id": "holyCross",
+      "level": 12,
+      "dmg": 37.7,
+      "speed": 7.4,
+      "rate": 495.1139002444172,
+      "count": 12,
+      "area": 0
+    },
+    {
+      "id": "chainSaw",
+      "level": 1,
+      "dmg": 13,
+      "speed": 0,
+      "rate": 0,
+      "count": 1,
+      "area": 30
+    },
+    {
+      "id": "chainSaw",
+      "level": 6,
+      "dmg": 26,
+      "speed": 0,
+      "rate": 0,
+      "count": 1,
+      "area": 60
+    },
+    {
+      "id": "chainSaw",
+      "level": 12,
+      "dmg": 41.6,
+      "speed": 0,
+      "rate": 0,
+      "count": 1,
+      "area": 96
+    },
+    {
+      "id": "poisonCloud",
+      "level": 1,
+      "dmg": 9.1,
+      "speed": 0,
+      "rate": 1000,
+      "count": 1,
+      "area": 65
+    },
+    {
+      "id": "poisonCloud",
+      "level": 6,
+      "dmg": 22.1,
+      "speed": 0,
+      "rate": 695.6883693000002,
+      "count": 1,
+      "area": 115
+    },
+    {
+      "id": "poisonCloud",
+      "level": 12,
+      "dmg": 37.7,
+      "speed": 0,
+      "rate": 450.10354567674295,
+      "count": 1,
+      "area": 175
+    },
+    {
+      "id": "boomerang",
+      "level": 1,
+      "dmg": 22.1,
+      "speed": 6.3,
+      "rate": 1400,
+      "count": 1,
+      "area": 0
+    },
+    {
+      "id": "boomerang",
+      "level": 6,
+      "dmg": 41.6,
+      "speed": 7.8,
+      "rate": 973.9637170200003,
+      "count": 2,
+      "area": 0
+    },
+    {
+      "id": "boomerang",
+      "level": 12,
+      "dmg": 65,
+      "speed": 9.6,
+      "rate": 630.1449639474401,
+      "count": 4,
+      "area": 0
+    },
+    {
+      "id": "turret",
+      "level": 1,
+      "dmg": 14.3,
+      "speed": 0,
+      "rate": 0,
+      "count": 1,
+      "area": 0
+    },
+    {
+      "id": "turret",
+      "level": 6,
+      "dmg": 27.3,
+      "speed": 0,
+      "rate": 0,
+      "count": 6,
+      "area": 0
+    },
+    {
+      "id": "turret",
+      "level": 12,
+      "dmg": 42.9,
+      "speed": 0,
+      "rate": 0,
+      "count": 12,
+      "area": 0
+    },
+    {
+      "id": "voidRift",
+      "level": 1,
+      "dmg": 5.2,
+      "speed": 0,
+      "rate": 5500,
+      "count": 1,
+      "area": 90
+    },
+    {
+      "id": "voidRift",
+      "level": 6,
+      "dmg": 5.2,
+      "speed": 0,
+      "rate": 2440.37921875,
+      "count": 1,
+      "area": 165
+    },
+    {
+      "id": "voidRift",
+      "level": 12,
+      "dmg": 5.2,
+      "speed": 0,
+      "rate": 920.3878402928781,
+      "count": 1,
+      "area": 255
+    },
+    {
+      "id": "frostNova",
+      "level": 1,
+      "dmg": 6.5,
+      "speed": 0,
+      "rate": 2100,
+      "count": 1,
+      "area": 90
+    },
+    {
+      "id": "frostNova",
+      "level": 6,
+      "dmg": 19.5,
+      "speed": 0,
+      "rate": 1541.1984470399996,
+      "count": 1,
+      "area": 180
+    },
+    {
+      "id": "frostNova",
+      "level": 12,
+      "dmg": 35.1,
+      "speed": 0,
+      "rate": 1063.2262352233313,
+      "count": 1,
+      "area": 288
+    },
+    {
+      "id": "bloodScythe",
+      "level": 1,
+      "dmg": 15.600000000000001,
+      "speed": 0,
+      "rate": 1400,
+      "count": 1,
+      "area": 115
+    },
+    {
+      "id": "bloodScythe",
+      "level": 6,
+      "dmg": 35.1,
+      "speed": 0,
+      "rate": 973.9637170200003,
+      "count": 1,
+      "area": 190
+    },
+    {
+      "id": "bloodScythe",
+      "level": 12,
+      "dmg": 58.5,
+      "speed": 0,
+      "rate": 630.1449639474401,
+      "count": 1,
+      "area": 280
+    },
+    {
+      "id": "familiar",
+      "level": 1,
+      "dmg": 7.800000000000001,
+      "speed": 0,
+      "rate": 620,
+      "count": 1,
+      "area": 0
+    },
+    {
+      "id": "familiar",
+      "level": 6,
+      "dmg": 14.3,
+      "speed": 0,
+      "rate": 408.6305443840001,
+      "count": 2,
+      "area": 0
+    },
+    {
+      "id": "familiar",
+      "level": 12,
+      "dmg": 22.1,
+      "speed": 0,
+      "rate": 247.7751742891599,
+      "count": 4,
+      "area": 0
+    },
+    {
+      "id": "whipChain",
+      "level": 1,
+      "dmg": 14.3,
+      "speed": 0,
+      "rate": 900,
+      "count": 1,
+      "area": 150
+    },
+    {
+      "id": "whipChain",
+      "level": 6,
+      "dmg": 33.800000000000004,
+      "speed": 0,
+      "rate": 593.1733708800001,
+      "count": 1,
+      "area": 225
+    },
+    {
+      "id": "whipChain",
+      "level": 12,
+      "dmg": 57.2,
+      "speed": 0,
+      "rate": 359.6736400971676,
+      "count": 1,
+      "area": 315
+    },
+    {
+      "id": "mirrorShard",
+      "level": 1,
+      "dmg": 18.2,
+      "speed": 9.2,
+      "rate": 1300,
+      "count": 1,
+      "area": 0
+    },
+    {
+      "id": "mirrorShard",
+      "level": 6,
+      "dmg": 31.200000000000003,
+      "speed": 10.2,
+      "rate": 904.3948800900002,
+      "count": 3,
+      "area": 0
+    },
+    {
+      "id": "mirrorShard",
+      "level": 12,
+      "dmg": 46.800000000000004,
+      "speed": 11.4,
+      "rate": 585.1346093797658,
+      "count": 6,
+      "area": 0
+    }
+  ],
+  "enemies": [
+    {
+      "id": "normal",
+      "dm": 1,
+      "hp": 7.5
+    },
+    {
+      "id": "swarmling",
+      "dm": 1,
+      "hp": 1.5
+    },
+    {
+      "id": "runner",
+      "dm": 1,
+      "hp": 6
+    },
+    {
+      "id": "brute",
+      "dm": 1,
+      "hp": 59
+    },
+    {
+      "id": "shielded",
+      "dm": 1,
+      "hp": 50
+    },
+    {
+      "id": "splitter",
+      "dm": 1,
+      "hp": 24
+    },
+    {
+      "id": "caster",
+      "dm": 1,
+      "hp": 16
+    },
+    {
+      "id": "leecher",
+      "dm": 1,
+      "hp": 32
+    },
+    {
+      "id": "frostling",
+      "dm": 1,
+      "hp": 29
+    },
+    {
+      "id": "pinewraith",
+      "dm": 1,
+      "hp": 3
+    },
+    {
+      "id": "dunerunner",
+      "dm": 1,
+      "hp": 7.5
+    },
+    {
+      "id": "canyongolem",
+      "dm": 1,
+      "hp": 69
+    },
+    {
+      "id": "scorcher",
+      "dm": 1,
+      "hp": 17.5
+    },
+    {
+      "id": "riverwisp",
+      "dm": 1,
+      "hp": 31
+    },
+    {
+      "id": "dryadseer",
+      "dm": 1,
+      "hp": 18.5
+    },
+    {
+      "id": "boghaunt",
+      "dm": 1,
+      "hp": 38
+    },
+    {
+      "id": "elite",
+      "dm": 1,
+      "hp": 52
+    },
+    {
+      "id": "warden",
+      "dm": 1,
+      "hp": 109.5
+    },
+    {
+      "id": "boss",
+      "dm": 1,
+      "hp": 195
+    },
+    {
+      "id": "normal",
+      "dm": 10,
+      "hp": 30
+    },
+    {
+      "id": "swarmling",
+      "dm": 10,
+      "hp": 6
+    },
+    {
+      "id": "runner",
+      "dm": 10,
+      "hp": 24
+    },
+    {
+      "id": "brute",
+      "dm": 10,
+      "hp": 185
+    },
+    {
+      "id": "shielded",
+      "dm": 10,
+      "hp": 140
+    },
+    {
+      "id": "splitter",
+      "dm": 10,
+      "hp": 78
+    },
+    {
+      "id": "caster",
+      "dm": 10,
+      "hp": 52
+    },
+    {
+      "id": "leecher",
+      "dm": 10,
+      "hp": 95
+    },
+    {
+      "id": "frostling",
+      "dm": 10,
+      "hp": 92
+    },
+    {
+      "id": "pinewraith",
+      "dm": 10,
+      "hp": 12
+    },
+    {
+      "id": "dunerunner",
+      "dm": 10,
+      "hp": 30
+    },
+    {
+      "id": "canyongolem",
+      "dm": 10,
+      "hp": 222
+    },
+    {
+      "id": "scorcher",
+      "dm": 10,
+      "hp": 58
+    },
+    {
+      "id": "riverwisp",
+      "dm": 10,
+      "hp": 94
+    },
+    {
+      "id": "dryadseer",
+      "dm": 10,
+      "hp": 59
+    },
+    {
+      "id": "boghaunt",
+      "dm": 10,
+      "hp": 110
+    },
+    {
+      "id": "elite",
+      "dm": 10,
+      "hp": 419.4733192202055
+    },
+    {
+      "id": "warden",
+      "dm": 10,
+      "hp": 706.644143732834
+    },
+    {
+      "id": "boss",
+      "dm": 10,
+      "hp": 1573.0249470757706
+    },
+    {
+      "id": "normal",
+      "dm": 25,
+      "hp": 67.5
+    },
+    {
+      "id": "swarmling",
+      "dm": 25,
+      "hp": 13.5
+    },
+    {
+      "id": "runner",
+      "dm": 25,
+      "hp": 54
+    },
+    {
+      "id": "brute",
+      "dm": 25,
+      "hp": 395
+    },
+    {
+      "id": "shielded",
+      "dm": 25,
+      "hp": 290
+    },
+    {
+      "id": "splitter",
+      "dm": 25,
+      "hp": 168
+    },
+    {
+      "id": "caster",
+      "dm": 25,
+      "hp": 112
+    },
+    {
+      "id": "leecher",
+      "dm": 25,
+      "hp": 200
+    },
+    {
+      "id": "frostling",
+      "dm": 25,
+      "hp": 197
+    },
+    {
+      "id": "pinewraith",
+      "dm": 25,
+      "hp": 27
+    },
+    {
+      "id": "dunerunner",
+      "dm": 25,
+      "hp": 67.5
+    },
+    {
+      "id": "canyongolem",
+      "dm": 25,
+      "hp": 477
+    },
+    {
+      "id": "scorcher",
+      "dm": 25,
+      "hp": 125.5
+    },
+    {
+      "id": "riverwisp",
+      "dm": 25,
+      "hp": 199
+    },
+    {
+      "id": "dryadseer",
+      "dm": 25,
+      "hp": 126.5
+    },
+    {
+      "id": "boghaunt",
+      "dm": 25,
+      "hp": 230
+    },
+    {
+      "id": "elite",
+      "dm": 25,
+      "hp": 1540
+    },
+    {
+      "id": "warden",
+      "dm": 25,
+      "hp": 2527.5
+    },
+    {
+      "id": "boss",
+      "dm": 25,
+      "hp": 5775
+    }
+  ],
+  "normalHP": 30,
+  "guardianHP": 1967,
+  "splitlings": [
+    39,
+    39
+  ],
+  "parentHP": 78
+}

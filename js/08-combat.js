@@ -85,6 +85,8 @@ function spawnDmgText(x, y, value, color) {
   spawnFloatingText(x, y, value, color, 'dmg');
 }
 
+const VAMP_HEAL_RATE = 0.025; // Shared life-steal recovery: 2.5% Max HP per second.
+
 function damageEnemy(e, dmg, srcX, srcY, silentHit, src) {
   if (e.dead) return;
   const g = game;
@@ -126,6 +128,7 @@ function damageEnemy(e, dmg, srcX, srcY, silentHit, src) {
     }
   }
 
+  const healthDamage = Math.min(Math.max(0, e.hp), Math.max(0, dmg));
   e.hp -= dmg;
   e._dmgTaken = (e._dmgTaken || 0) + dmg;
   e.flashTimer = 100;
@@ -139,7 +142,11 @@ function damageEnemy(e, dmg, srcX, srcY, silentHit, src) {
 
   // Vampirism: a % of damage dealt is returned to the player as HP
   if (p.vamp > 0 && dmg > 0) {
-    p.hp = Math.min(p.maxHp, p.hp + dmg * p.vamp);
+    const cap = p.maxHp * VAMP_HEAL_RATE;
+    const available = Math.min(cap, p.vampHealBudget ?? cap);
+    const healed = Math.min(Math.max(0, p.maxHp - p.hp), healthDamage * p.vamp, available);
+    p.hp += healed;
+    p.vampHealBudget = available - healed;
   }
 
   if (e.hp <= 0) killEnemy(e);
@@ -161,16 +168,9 @@ function killEnemy(e) {
   const def = e.def;
   if (def && def.onDeath) def.onDeath(e);
 
-  // Boss: guaranteed level-up + bonus XP
+  // Boss XP uses normal level-up processing, including HP growth.
   if (e.type === 'boss') {
-    p.xp += Math.ceil(p.xpToLevel * 0.5);
-    while (p.xp >= p.xpToLevel) {
-      p.xp -= p.xpToLevel;
-      p.level++;
-      p.xpToLevel = Math.floor(10 + p.level * 5 + p.level * p.level * 0.5);
-      game.pendingLevelUps++;
-      if (!game.levelUpPending) showLevelUp();
-    }
+    gainXp(Math.ceil(p.xpToLevel * 0.5));
     // Boss also drops some gems for flavor
     for (let i = 0; i < 10; i++) {
       dropXpGem(e.x + rand(-20, 20), e.y + rand(-20, 20), Math.ceil(e.xp / 10), '#f0f');

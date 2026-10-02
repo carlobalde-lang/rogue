@@ -134,7 +134,7 @@ const PASSIVE_DEFS = {
   armor:     { name: 'Iron Skin',    icon: '🪖', desc: '+1 Armor (reduces dmg)', apply: p => { p.armor += 1; } },
   magnet:    { name: 'Magnet',       icon: '🧲', desc: '+40% Pickup Range', apply: p => { p.pickupRange *= 1.4; } },
   regen:     { name: 'Regeneration', icon: '💚', desc: '+0.25 HP/s', apply: p => { p.regen += 0.25; } },
-  vampirism: { name: 'Vampirism',    icon: '🩸', desc: '+10% of damage dealt becomes HP', apply: p => { p.vamp = (p.vamp || 0) + 0.10; } },
+  vampirism: { name: 'Vampirism',    icon: '🩸', desc: '+10% Life Steal (shared recovery limit)', apply: p => { p.vamp = (p.vamp || 0) + 0.10; } },
   growth:    { name: 'Growth',       icon: '📈', desc: '+15% Weapon Area / Radius', apply: p => { p.areaMult *= 1.15; } },
   duplicator:{ name: 'Duplicator',   icon: '✌️', desc: '+12% chance shots split into 2 weaker projectiles', apply: p => { p.duplicate = (p.duplicate || 0) + 0.12; } },
   cdrKill:   { name: 'Rush',         icon: '⏳', desc: 'Kills cut your weapon cooldowns', apply: p => { p.cdrKillLvl = (p.cdrKillLvl || 0) + 1; } },
@@ -154,11 +154,12 @@ const PASSIVE_DEFS = {
 // --- Enemy definitions — add new enemies here ---
 // Each entry can override the base stat formulas. `category` drives XP/drop
 // behavior: 'normal' (1 gem), 'elite' (5 gems), 'boss' (bonus XP + 10 gems).
+const ENEMY_HP_SCALE = 1.30;
 const ENEMY_DEFS = {
   normal: {
     name: 'Shadowling', category: 'normal',
     radius: dm => 8 + rand(0, 4),
-    hp: dm => 5 + dm * 2.5,
+    hp: dm => (5 + dm * 2.5) * ENEMY_HP_SCALE,
     speed: dm => 40 + rand(0, 30) + dm * 2.5,
     damage: dm => 3 + Math.floor(dm * 0.7),
     xp: 2,
@@ -171,7 +172,7 @@ const ENEMY_DEFS = {
 swarmling: {
     name: 'Swarmling', category: 'normal',
     radius: dm => 5,
-    hp: dm => 1 + dm * 0.5,
+    hp: dm => (1 + dm * 0.5) * ENEMY_HP_SCALE,
     speed: dm => 55 + rand(0, 30) + dm * 3,
     damage: dm => 1 + Math.floor(dm * 0.4),
     xp: 1,
@@ -183,7 +184,7 @@ swarmling: {
   runner: {
     name: 'Runner', category: 'normal',
     radius: dm => 7,
-    hp: dm => 4 + dm * 2,
+    hp: dm => (4 + dm * 2) * ENEMY_HP_SCALE,
     speed: dm => 95 + rand(0, 30) + dm * 4,
     damage: dm => 2 + Math.floor(dm * 0.5),
     xp: 2,
@@ -195,7 +196,7 @@ swarmling: {
   brute: {
     name: 'Brute', category: 'normal',
     radius: dm => 16,
-    hp: dm => 45 + dm * 14,
+    hp: dm => (45 + dm * 14) * ENEMY_HP_SCALE,
     speed: dm => 26 + rand(0, 12) + dm,
     damage: dm => 6 + Math.floor(dm * 1.2),
     xp: 8,
@@ -207,7 +208,7 @@ swarmling: {
   shielded: {
     name: 'Shielded', category: 'normal',
     radius: dm => 14,
-    hp: dm => 40 + dm * 10,
+    hp: dm => (40 + dm * 10) * ENEMY_HP_SCALE,
     speed: dm => 30 + rand(0, 15) + dm,
     damage: dm => 5 + Math.floor(dm),
     xp: 6,
@@ -220,7 +221,7 @@ swarmling: {
   splitter: {
     name: 'Splitter', category: 'normal',
     radius: dm => 11,
-    hp: dm => 18 + dm * 6,
+    hp: dm => (18 + dm * 6) * ENEMY_HP_SCALE,
     speed: dm => 35 + rand(0, 20) + dm,
     damage: dm => 4 + Math.floor(dm),
     xp: 3,
@@ -234,7 +235,7 @@ swarmling: {
   caster: {
     name: 'Caster', category: 'normal',
     radius: dm => 9,
-    hp: dm => 12 + dm * 4,
+    hp: dm => (12 + dm * 4) * ENEMY_HP_SCALE,
     speed: dm => 25 + rand(0, 15) + dm,
     damage: dm => 3 + Math.floor(dm),
     xp: 4,
@@ -247,7 +248,7 @@ swarmling: {
   leecher: {
     name: 'Leecher', category: 'normal',
     radius: dm => 12,
-    hp: dm => 25 + dm * 7,
+    hp: dm => (25 + dm * 7) * ENEMY_HP_SCALE,
     speed: dm => 38 + rand(0, 20) + dm,
     damage: dm => 4 + Math.floor(dm * 0.8),
     xp: 5,
@@ -266,7 +267,7 @@ swarmling: {
   frostling: {
     name: 'Frostling', category: 'normal',
     radius: dm => 12,
-    hp: dm => 22 + dm * 7,
+    hp: dm => (22 + dm * 7) * ENEMY_HP_SCALE,
     speed: dm => 30 + rand(0, 15) + dm,
     damage: dm => 3 + Math.floor(dm * 0.8),
     xp: 4,
@@ -278,7 +279,7 @@ swarmling: {
   pinewraith: {
     name: 'Pine Wraith', category: 'normal',
     radius: dm => 6,
-    hp: dm => 2 + dm * 1,
+    hp: dm => (2 + dm * 1) * ENEMY_HP_SCALE,
     speed: dm => 72 + rand(0, 25) + dm * 3,
     damage: dm => 1 + Math.floor(dm * 0.4),
     xp: 2,
@@ -290,7 +291,7 @@ swarmling: {
   dunerunner: {
     name: 'Dune Runner', category: 'normal',
     radius: dm => 7,
-    hp: dm => 5 + dm * 2.5,
+    hp: dm => (5 + dm * 2.5) * ENEMY_HP_SCALE,
     speed: dm => 96 + rand(0, 30) + dm * 4,
     damage: dm => 2 + Math.floor(dm * 0.5),
     xp: 2,
@@ -302,7 +303,7 @@ swarmling: {
   canyongolem: {
     name: 'Canyon Golem', category: 'normal',
     radius: dm => 15,
-    hp: dm => 52 + dm * 17,
+    hp: dm => (52 + dm * 17) * ENEMY_HP_SCALE,
     speed: dm => 25 + rand(0, 12) + dm,
     damage: dm => 6 + Math.floor(dm * 1.2),
     xp: 9,
@@ -314,7 +315,7 @@ swarmling: {
   scorcher: {
     name: 'Scorcher', category: 'normal',
     radius: dm => 9,
-    hp: dm => 13 + dm * 4.5,
+    hp: dm => (13 + dm * 4.5) * ENEMY_HP_SCALE,
     speed: dm => 26 + rand(0, 15) + dm,
     damage: dm => 3 + Math.floor(dm),
     xp: 4,
@@ -327,7 +328,7 @@ swarmling: {
   riverwisp: {
     name: 'River Wisp', category: 'normal',
     radius: dm => 11,
-    hp: dm => 24 + dm * 7,
+    hp: dm => (24 + dm * 7) * ENEMY_HP_SCALE,
     speed: dm => 40 + rand(0, 18) + dm,
     damage: dm => 4 + Math.floor(dm * 0.7),
     xp: 5,
@@ -344,7 +345,7 @@ swarmling: {
   dryadseer: {
     name: 'Dryad Seer', category: 'normal',
     radius: dm => 9,
-    hp: dm => 14 + dm * 4.5,
+    hp: dm => (14 + dm * 4.5) * ENEMY_HP_SCALE,
     speed: dm => 25 + rand(0, 15) + dm,
     damage: dm => 3 + Math.floor(dm),
     xp: 4,
@@ -357,7 +358,7 @@ swarmling: {
   boghaunt: {
     name: 'Bog Haunt', category: 'normal',
     radius: dm => 13,
-    hp: dm => 30 + dm * 8,
+    hp: dm => (30 + dm * 8) * ENEMY_HP_SCALE,
     speed: dm => 34 + rand(0, 18) + dm,
     damage: dm => 4 + Math.floor(dm * 0.85),
     xp: 5,
@@ -378,7 +379,7 @@ swarmling: {
     // late game (where the difficulty term itself grows quadratically) the old
     // formula turned elites into sponges of 100k+ HP far out of reach of the
     // player's roughly-linear weapon scaling.
-    hp: dm => 40 + 12 * Math.pow(dm, 1.5),
+    hp: dm => (40 + 12 * Math.pow(dm, 1.5)) * ENEMY_HP_SCALE,
     speed: dm => 55 + rand(0, 25) + dm * 2,
     // Elite contact damage trimmed ~30% from run-log telemetry: elites were
     // the biggest single source of player damage (43% of all contact damage),
@@ -393,7 +394,7 @@ swarmling: {
   warden: {
     name: 'Warden', category: 'warden',
     radius: dm => 24,
-    hp: dm => 90 + 19.5 * Math.pow(dm, 1.5),
+    hp: dm => (90 + 19.5 * Math.pow(dm, 1.5)) * ENEMY_HP_SCALE,
     speed: dm => 55 + dm * 3 + rand(0, 20),
     damage: dm => 10 + Math.floor(dm * 3),
     xp: 45,
@@ -409,7 +410,7 @@ swarmling: {
     // counter passed ~20-30 (the quadratically rising difficulty term makes
     // dm ≥ 30 normal in the late game).
     radius: dm => 33 + Math.min(dm, 15) * 1.2,
-    hp: dm => 150 + 45 * Math.pow(dm, 1.5),
+    hp: dm => (150 + 45 * Math.pow(dm, 1.5)) * ENEMY_HP_SCALE,
     speed: dm => 50 + dm * 3 + rand(0, 20),
     damage: dm => 15 + Math.floor(dm * 5),
     xp: dm => 100 + Math.floor(dm * 20),

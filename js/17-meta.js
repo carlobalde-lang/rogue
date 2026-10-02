@@ -100,10 +100,10 @@ const META_START_WEAPONS = [
 // scale multiplies the whole difficulty curve (time ramp + level term):
 // hordes, elite/warden/boss timers and enemy stats all shift with it.
 const DIFFICULTIES = [
-  { id: 'easy',      name: 'EASY',       label: 'Easy',      scale: 0.55, desc: 'Fog is thinner: fewer and softer enemies, slower timers. Best for learning builds.' },
-  { id: 'normal',    name: 'NORMAL',     label: 'Normal',    scale: 0.80, desc: 'The reference balance: the standard pace and threat curve.' },
-  { id: 'hard',      name: 'HARD',       label: 'Hard',      scale: 1.10, desc: 'Thicker hordes, beefier elites, wardens and bosses arrive sooner.' },
-  { id: 'nightmare', name: 'NIGHTMARE',  label: 'Nightmare', scale: 1.50, desc: 'Maximum pressure from minute one. For upgraded builds only.' }
+  { id: 'easy',      name: 'EASY',       label: 'Easy',      scale: 0.80, desc: 'Lighter hordes and softer enemies, with sustained pressure. Best for learning builds.' },
+  { id: 'normal',    name: 'NORMAL',     label: 'Normal',    scale: 1.25, desc: 'Dense waves, faster reinforcements and steadily rising pressure.' },
+  { id: 'hard',      name: 'HARD',       label: 'Hard',      scale: 1.65, desc: 'Thicker hordes, beefier elites, wardens and bosses arrive sooner.' },
+  { id: 'nightmare', name: 'NIGHTMARE',  label: 'Nightmare', scale: 2.15, desc: 'Maximum pressure from minute one. For upgraded builds only.' }
 ];
 
 function difficultyDef() {
